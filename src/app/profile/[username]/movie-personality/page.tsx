@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import PersonalityCard from "@/components/PersonalityCard";
+import CinematicLoading from "@/components/CinematicLoading";
 import { auth, db } from "@/lib/firebase";
 import { getPersonalityCard, getUserByUsername } from "@/lib/profile";
 import type { User } from "@/types";
@@ -70,11 +71,7 @@ export default function MoviePersonalityPage() {
   }, [username, router]);
 
   if (loading || !profileUser) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
-        <Loader2 className="h-12 w-12 animate-spin text-zinc-700" />
-      </div>
-    );
+    return <CinematicLoading message="Movie personality is loading" />;
   }
 
   return (

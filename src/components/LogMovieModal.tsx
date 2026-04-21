@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Content, User } from "@/types";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
-import { X } from "lucide-react";
 
 interface LogMovieModalProps {
   isOpen: boolean;
@@ -155,14 +154,14 @@ export default function LogMovieModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm p-4 md:p-6">
-      <div className="surface-strong max-h-[90vh] w-full max-w-2xl overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-2 backdrop-blur-sm sm:items-center sm:p-4 md:p-6">
+      <div className="surface-strong mobile-scroll-panel w-full max-w-2xl rounded-[1.5rem] sm:rounded-[2rem]">
         {/* Header */}
-        <div className="sticky top-0 flex items-start justify-between border-b border-slate-200 bg-white/95 p-6 md:p-7 backdrop-blur">
-          <div className="flex items-start gap-3">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white/95 p-4 backdrop-blur sm:p-6 md:p-7">
+          <div className="flex min-w-0 items-start gap-3">
             <Link
               href={content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`}
-              className="block overflow-hidden rounded-2xl border border-slate-200 transition-opacity hover:opacity-90"
+              className="hidden overflow-hidden rounded-2xl border border-slate-200 transition-opacity hover:opacity-90 sm:block"
               title={`Open ${content.title}`}
             >
               {content.poster_url ? (
@@ -175,11 +174,11 @@ export default function LogMovieModal({
                 <div className="h-16 w-12 bg-slate-100" />
               )}
             </Link>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">Log Movie</h2>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Log Movie</h2>
               <Link
                 href={content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`}
-                className="text-sm text-slate-600 hover:text-slate-900"
+                className="line-clamp-2 text-sm text-slate-600 hover:text-slate-900"
               >
                 {content.title}
               </Link>
@@ -195,7 +194,7 @@ export default function LogMovieModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5 p-6 md:p-7">
+        <form onSubmit={handleSubmit} className="space-y-5 p-4 sm:p-6 md:p-7">
           {checkingPreviousWatches && previousWatchDates.length === 0 && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               Checking previous watches...

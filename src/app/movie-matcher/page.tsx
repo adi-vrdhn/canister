@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import MovieSwipeCard from "@/components/MovieSwipeCard";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, UserTasteWithContent, Content, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -130,29 +131,30 @@ function FriendMatchCard({
   }, [friend.userId, friend.tasteCount]);
 
   return (
-    <div className="flex items-center gap-4 bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:gap-4 sm:rounded-lg sm:p-4">
       {friend.avatar_url ? (
         <img
           src={friend.avatar_url}
           alt={friend.username}
-          className="w-10 h-10 rounded-full object-cover"
+          className="h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10"
         />
       ) : (
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+        <div className="flex h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 items-center justify-center text-sm font-bold text-white sm:h-10 sm:w-10 sm:text-base">
           {friend.username[0]?.toUpperCase()}
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-gray-900 truncate">{friend.name}</div>
+        <div className="truncate text-sm font-semibold text-gray-900 sm:text-base">{friend.name}</div>
         <div className="text-xs text-gray-500 truncate">
           @{friend.username} • {count === null ? "..." : count} movies
         </div>
       </div>
       <button
-        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium text-sm transition-colors"
+        className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-indigo-700 sm:px-4 sm:text-sm"
         onClick={onFindScore}
       >
-        Find My Score
+        <span className="sm:hidden">Score</span>
+        <span className="hidden sm:inline">Find My Score</span>
       </button>
     </div>
   );
@@ -181,6 +183,8 @@ export default function MovieMatcherPage() {
   const [showFriendsDropdown, setShowFriendsDropdown] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
   const [showAllMovies, setShowAllMovies] = useState(false);
+  const [showEditTasteModal, setShowEditTasteModal] = useState(false);
+  const [tasteSearchQuery, setTasteSearchQuery] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [includeMasterpieces, setIncludeMasterpieces] = useState(true);
   const [masterpieceMovies, setMasterpieceMovies] = useState<TasteItem[]>([]);
@@ -599,14 +603,7 @@ export default function MovieMatcherPage() {
   };
 
   if (loading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading MovieMatcher...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="MovieMatcher is loading" />;
   }
 
   if (error && !user) {
@@ -732,13 +729,18 @@ export default function MovieMatcherPage() {
       ]
     : tastes.map((t) => ({ ...t, isMasterpiece: false }));
   const tasteProfileCount = tasteProfile.length;
+  const filteredEditableTastes = tastes
+    .filter((taste) => taste.content?.title)
+    .filter((taste) =>
+      (taste.content?.title || "").toLowerCase().includes(tasteSearchQuery.toLowerCase())
+    );
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="p-8 max-w-6xl mx-auto">
+      <div className="mx-auto max-w-6xl px-3 py-4 sm:p-8">
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 sm:mb-6 sm:p-4">
             <p className="text-red-700 text-sm font-medium">{error}</p>
             <button
               onClick={() => setError(null)}
@@ -750,20 +752,20 @@ export default function MovieMatcherPage() {
         )}
 
         {/* Page Title */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">MovieMatcher</h1>
-          <p className="text-gray-600">
+        <div className="mb-6 text-center sm:mb-12 sm:text-left">
+          <h1 className="mb-1 text-3xl font-bold text-gray-900 sm:mb-2 sm:text-4xl">MovieMatcher</h1>
+          <p className="mx-auto max-w-sm text-sm text-gray-600 sm:mx-0 sm:max-w-none sm:text-base">
             Build your taste profile and discover movies and shows tailored just for you
           </p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="mb-8 flex gap-2 border-b border-gray-200">
+        <div className="mb-5 flex gap-2 overflow-x-auto border-b border-gray-200 sm:mb-8">
           <button
             onClick={() => {
               setActiveTab("build");
             }}
-            className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+            className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-6 sm:py-3 ${
               activeTab === "build"
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-600 hover:text-gray-900"
@@ -778,11 +780,19 @@ export default function MovieMatcherPage() {
         {activeTab === "build" && (
         <div>
         {/* ===== YOUR TASTE SECTION ===== */}
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 mb-8 border border-blue-100">
-          <div className="flex items-center gap-3 mb-4">
-            <Sparkles className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-bold text-gray-900">Your Taste Profile</h2>
-            <span className="ml-2 text-blue-700 text-xs font-semibold bg-blue-100 rounded px-2 py-1">{tasteProfileCount} items</span>
+        <div className="mb-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 sm:mb-8 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+            <Sparkles className="h-5 w-5 text-blue-600" />
+            <h2 className="text-base font-bold text-gray-900 sm:text-lg">Your Taste Profile</h2>
+            <span className="ml-auto rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700 sm:ml-2">{tasteProfileCount} items</span>
+            {tastes.length > 0 && (
+              <button
+                onClick={() => setShowEditTasteModal(true)}
+                className="w-full rounded-lg border border-blue-600 bg-white px-3 py-2 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50 sm:ml-2 sm:w-auto"
+              >
+                Edit Taste
+              </button>
+            )}
           </div>
 
 
@@ -795,15 +805,15 @@ export default function MovieMatcherPage() {
                 {/* Scroll Container */}
                 <div
                   ref={scrollContainerRef}
-                  className="overflow-x-auto scrollbar-hide"
+                  className="-mx-4 overflow-x-auto px-4 scrollbar-hide sm:mx-0 sm:px-0"
                 >
-                  <div className="flex gap-3 pb-2 w-fit">
+                  <div className="flex w-fit gap-2.5 pb-2 sm:gap-3">
                     {tasteProfile
                       .filter((taste) => taste.content && taste.content.title)
                       .slice(0, showAllMovies ? undefined : 6)
                       .map((taste) => (
-                        <div key={taste.id} className="flex-shrink-0 w-32">
-                          <div className="relative w-full aspect-[3/4] bg-gray-200 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow group">
+                        <div key={taste.id} className="w-[28vw] min-w-[5.75rem] max-w-[7rem] flex-shrink-0 sm:w-32 sm:min-w-0 sm:max-w-none">
+                          <div className="group relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-gray-200 shadow-md transition-shadow hover:shadow-lg">
                             <img
                               src={taste.content?.poster_url || undefined}
                               alt={taste.content?.title || "Movie"}
@@ -851,7 +861,7 @@ export default function MovieMatcherPage() {
                         });
                       }
                     }}
-                    className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-4 bg-white hover:bg-gray-100 text-gray-700 p-2 rounded-full shadow-lg transition-colors z-10"
+                    className="absolute left-0 top-1/2 z-10 hidden -translate-x-4 -translate-y-1/2 transform rounded-full bg-white p-2 text-gray-700 shadow-lg transition-colors hover:bg-gray-100 sm:block"
                     title="Scroll left"
                   >
                     <ChevronLeft className="w-5 h-5" />
@@ -869,7 +879,7 @@ export default function MovieMatcherPage() {
                         });
                       }
                     }}
-                    className="absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-4 bg-white hover:bg-gray-100 text-gray-700 p-2 rounded-full shadow-lg transition-colors z-10"
+                    className="absolute right-0 top-1/2 z-10 hidden translate-x-4 -translate-y-1/2 transform rounded-full bg-white p-2 text-gray-700 shadow-lg transition-colors hover:bg-gray-100 sm:block"
                     title="Scroll right"
                   >
                     <ChevronRight className="w-5 h-5" />
@@ -882,7 +892,7 @@ export default function MovieMatcherPage() {
                 <div className="mt-3 flex justify-center">
                   <button
                     onClick={() => setShowAllMovies(!showAllMovies)}
-                    className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors border border-blue-600 rounded-lg hover:bg-blue-50"
+                    className="rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
                   >
                     {showAllMovies ? "Show Less" : `View All (${tasteProfile.length})`}
                   </button>
@@ -890,22 +900,22 @@ export default function MovieMatcherPage() {
               )}
             </div>
           ) : (
-            <div className="text-center py-6 bg-white rounded-lg border-2 border-dashed border-gray-200">
+            <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white py-6 text-center">
               <Plus className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-gray-600 text-sm mb-3">No movies yet</p>
             </div>
           )}
 
           {/* Masterpiece Checkbox */}
-          <div className="flex items-center gap-2 mt-4 mb-2">
+          <div className="mt-4 mb-3 flex items-start gap-2 sm:items-center sm:mb-2">
             <input
               id="include-masterpieces"
               type="checkbox"
               checked={includeMasterpieces}
               onChange={() => setIncludeMasterpieces((v) => !v)}
-              className="accent-yellow-500 w-4 h-4"
+              className="mt-0.5 h-4 w-4 accent-yellow-500 sm:mt-0"
             />
-            <label htmlFor="include-masterpieces" className="text-sm text-gray-700 select-none">
+            <label htmlFor="include-masterpieces" className="select-none text-xs leading-5 text-gray-700 sm:text-sm">
               Include masterpiece movies from your log in your taste profile
             </label>
           </div>
@@ -913,7 +923,7 @@ export default function MovieMatcherPage() {
           {/* Add Movie Button */}
           <button
             onClick={() => setShowSearchModal(true)}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
             {tasteProfile.length > 0 ? "Add Another" : "Add Your First Movie"}
@@ -921,24 +931,28 @@ export default function MovieMatcherPage() {
         </div>
 
         {/* ===== FRIENDS MATCH SECTION ===== */}
-        <div className="mt-8">
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-8 border border-purple-100">
-            <div className="flex items-start gap-4">
-              <div className="bg-purple-600 text-white p-3 rounded-lg">
-                <Users className="w-6 h-6" />
+        <div className="mt-5 sm:mt-8">
+          <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-4 sm:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="hidden rounded-lg bg-purple-600 p-3 text-white sm:block">
+                <Users className="h-6 w-6" />
               </div>
               <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Match With Friends</h3>
-                <p className="text-gray-600 mb-4">
+                <div className="mb-2 flex items-center gap-2 sm:hidden">
+                  <Users className="h-5 w-5 text-purple-600" />
+                  <h3 className="text-lg font-bold text-gray-900">Match With Friends</h3>
+                </div>
+                <h3 className="mb-2 hidden text-xl font-bold text-gray-900 sm:block">Match With Friends</h3>
+                <p className="mb-4 text-sm text-gray-600 sm:text-base">
                   Instantly see your compatibility with friends who have built their taste profile.
                 </p>
                 {loadingFriends ? (
-                  <div className="py-8 text-center text-gray-500">
+                  <div className="py-8 text-center text-sm text-gray-500 sm:text-base">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Loading friends...
                   </div>
                 ) : friends.length === 0 ? (
-                  <div className="py-8 text-center text-gray-500">
+                  <div className="rounded-xl border border-dashed border-purple-200 bg-white/60 px-4 py-8 text-center text-sm text-gray-500 sm:text-base">
                     No friends with complete taste profiles yet.
                   </div>
                 ) : (
@@ -1276,12 +1290,115 @@ export default function MovieMatcherPage() {
           {/* Removed Find Your Match and Smart Recommendations cards from main page */}
         </div>
 
+      {/* Edit Taste Modal */}
+      {showEditTasteModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
+          <div className="flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-b-none rounded-t-3xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-2xl">
+            <div className="border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 sm:text-xl">Edit Taste Profile</h3>
+                  <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
+                    Search and remove movies from your taste list.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowEditTasteModal(false);
+                    setTasteSearchQuery("");
+                  }}
+                  className="rounded-full border border-gray-200 p-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+                  aria-label="Close edit taste modal"
+                  title="Close edit taste modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="border-b border-gray-200 p-4 sm:p-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search your taste movies..."
+                  value={tasteSearchQuery}
+                  onChange={(e) => setTasteSearchQuery(e.target.value)}
+                  className="w-full rounded-2xl border border-gray-300 py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
+              {filteredEditableTastes.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredEditableTastes.map((taste) => (
+                    <div
+                      key={taste.id}
+                      className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
+                    >
+                      {taste.content?.poster_url ? (
+                        <img
+                          src={taste.content.poster_url}
+                          alt={taste.content.title}
+                          className="h-20 w-14 flex-shrink-0 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gray-200 text-center text-[10px] text-gray-500">
+                          No poster
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-semibold text-gray-900">
+                          {taste.content?.title}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {taste.content_type === "tv" ? "TV Show" : "Movie"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveFromTaste(taste.id)}
+                        disabled={removingContent === taste.id}
+                        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {removingContent === taste.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center">
+                  <p className="text-sm font-medium text-gray-700">
+                    {tasteSearchQuery ? "No matching movies found" : "No taste movies yet"}
+                  </p>
+                  {tasteSearchQuery && (
+                    <button
+                      onClick={() => setTasteSearchQuery("")}
+                      className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      Clear search
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search Modal */}
       {showSearchModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-h-[90vh] w-full max-w-2xl flex flex-col overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Add to Your Taste</h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
+          <div className="flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-b-none rounded-t-3xl bg-white p-4 shadow-xl sm:max-h-[90vh] sm:rounded-lg sm:p-6">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 sm:text-xl">Add to Your Taste</h3>
               <button
                 onClick={() => {
                   setShowSearchModal(false);
@@ -1302,7 +1419,7 @@ export default function MovieMatcherPage() {
                   setContentType("movie");
                   setSearchResults([]);
                 }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none ${
                   contentType === "movie"
                     ? "bg-blue-600 text-white"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -1315,7 +1432,7 @@ export default function MovieMatcherPage() {
                   setContentType("tv");
                   setSearchResults([]);
                 }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none ${
                   contentType === "tv"
                     ? "bg-blue-600 text-white"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -1336,7 +1453,7 @@ export default function MovieMatcherPage() {
                     onChange={(e) => {
                       void handleSearch(e.target.value);
                     }}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:py-2"
                   />
               </div>
             </div>
@@ -1370,7 +1487,7 @@ export default function MovieMatcherPage() {
                       return (
                         <div
                           key={`${contentType}-${result.id}`}
-                          className="flex gap-3 p-3 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors border border-amber-200"
+                          className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 transition-colors hover:bg-amber-100"
                         >
                           <img
                             src={
@@ -1381,9 +1498,9 @@ export default function MovieMatcherPage() {
                                 : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='68'%3E%3Crect fill='%23ccc' width='45' height='68'/%3E%3C/svg%3E"
                             }
                               alt={result.title}
-                            className="w-12 h-16 rounded object-cover"
+                            className="h-16 w-12 flex-shrink-0 rounded object-cover"
                           />
-                          <div className="flex-1">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-gray-900 text-sm line-clamp-1">
                               {result.title}
                             </p>
@@ -1401,7 +1518,7 @@ export default function MovieMatcherPage() {
                           <button
                             onClick={() => handleAddToTaste(result.id)}
                             disabled={isAlreadyAdded || addingContent === `${contentType}-${result.id}`}
-                            className={`px-3 py-1 rounded font-medium text-sm transition-colors ${
+                            className={`self-center rounded px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
                               isAlreadyAdded
                                 ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                                 : addingContent === `${contentType}-${result.id}`
@@ -1428,7 +1545,7 @@ export default function MovieMatcherPage() {
                       return (
                         <div
                           key={`${contentType}-${result.id}`}
-                          className="flex gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                          className="flex gap-3 rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100"
                         >
                           <img
                             src={
@@ -1439,9 +1556,9 @@ export default function MovieMatcherPage() {
                                 : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='68'%3E%3Crect fill='%23ccc' width='45' height='68'/%3E%3C/svg%3E"
                             }
                               alt={result.title}
-                            className="w-12 h-16 rounded object-cover"
+                            className="h-16 w-12 flex-shrink-0 rounded object-cover"
                           />
-                          <div className="flex-1">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-gray-900 text-sm line-clamp-1">
                               {result.title}
                             </p>
@@ -1456,7 +1573,7 @@ export default function MovieMatcherPage() {
                           <button
                             onClick={() => handleAddToTaste(result.id)}
                             disabled={isAlreadyAdded || addingContent === `${contentType}-${result.id}`}
-                            className={`px-3 py-1 rounded font-medium text-sm transition-colors ${
+                            className={`self-center rounded px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
                               isAlreadyAdded
                                 ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                                 : addingContent === `${contentType}-${result.id}`
@@ -1479,12 +1596,14 @@ export default function MovieMatcherPage() {
 
       {/* Analysis Modal */}
       {showAnalysisModal && matchAnalysis && selectedFriend && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-h-[90vh] w-full max-w-3xl overflow-y-auto shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
+          <div className="max-h-[88dvh] w-full max-w-3xl overflow-y-auto rounded-b-none rounded-t-3xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-lg">
             {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-rose-200 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Movie Blend Analysis</h2>
+            <div className="sticky top-0 z-10 border-b border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50 px-4 py-3 sm:px-6 sm:py-4">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-rose-200 sm:hidden" />
+              <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-gray-900 sm:text-2xl">Movie Blend Analysis</h2>
                 <p className="text-sm text-gray-600 mt-1">{matchAnalysis.blendPersonality}</p>
               </div>
               <button
@@ -1494,15 +1613,16 @@ export default function MovieMatcherPage() {
               >
                 <X className="w-6 h-6" />
               </button>
+              </div>
             </div>
 
             {/* Content */}
-            <div className="p-6 space-y-6">
+            <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
               {/* Core Overview */}
               <div className="bg-gradient-to-br from-rose-50 to-orange-50 rounded-lg p-4 border border-rose-200">
                 <h3 className="font-bold text-gray-900 mb-3">Compatibility Score</h3>
                 <div className="text-center mb-3">
-                  <div className="text-6xl font-bold text-rose-600">{matchAnalysis.totalScore}</div>
+                  <div className="text-5xl font-bold text-rose-600 sm:text-6xl">{matchAnalysis.totalScore}</div>
                   <p className="text-sm text-gray-600">% Match</p>
                 </div>
                 <p className="text-sm text-gray-700 text-center italic">{matchAnalysis.tasteInsight}</p>
@@ -1511,10 +1631,10 @@ export default function MovieMatcherPage() {
               {/* Taste Similarity */}
               <div>
                 <h3 className="font-bold text-gray-900 mb-3">Taste Similarity</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
                     <p className="text-xs text-gray-600 mb-1">Genre Match</p>
-                    <p className="text-2xl font-bold text-blue-600">{matchAnalysis.genreSim}%</p>
+                    <p className="text-xl font-bold text-blue-600 sm:text-2xl">{matchAnalysis.genreSim}%</p>
                     {matchAnalysis.sharedGenres.length > 0 && (
                       <p className="text-xs text-gray-700 mt-2">
                         <span className="font-semibold">Shared:</span> {matchAnalysis.sharedGenres.slice(0, 3).join(", ")}
@@ -1523,7 +1643,7 @@ export default function MovieMatcherPage() {
                   </div>
                   <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                     <p className="text-xs text-gray-600 mb-1">Creator Match</p>
-                    <p className="text-2xl font-bold text-purple-600">{matchAnalysis.creatorSim}%</p>
+                    <p className="text-xl font-bold text-purple-600 sm:text-2xl">{matchAnalysis.creatorSim}%</p>
                     <p className="text-xs text-gray-700 mt-2">
                       {matchAnalysis.commonActors.length > 0 || matchAnalysis.commonDirectors.length > 0
                         ? `${matchAnalysis.commonActors.length} actors, ${matchAnalysis.commonDirectors.length} directors`
@@ -1579,7 +1699,7 @@ export default function MovieMatcherPage() {
               {/* Taste DNA */}
               <div>
                 <h3 className="font-bold text-gray-900 mb-3">Taste DNA</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <p className="text-sm font-semibold text-gray-700 mb-2">Your Top Genres:</p>
                     <div className="space-y-1">
@@ -1610,14 +1730,14 @@ export default function MovieMatcherPage() {
               {/* Preferences */}
               <div>
                 <h3 className="font-bold text-gray-900 mb-3">Preferences</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
                     <p className="text-xs text-gray-600">Your Avg Movie Year</p>
-                    <p className="text-2xl font-bold text-amber-600">{matchAnalysis.avgYearA}</p>
+                    <p className="text-xl font-bold text-amber-600 sm:text-2xl">{matchAnalysis.avgYearA}</p>
                   </div>
                   <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
                     <p className="text-xs text-gray-600">{selectedFriend.name}&apos;s Avg Year</p>
-                    <p className="text-2xl font-bold text-amber-600">{matchAnalysis.avgYearB}</p>
+                    <p className="text-xl font-bold text-amber-600 sm:text-2xl">{matchAnalysis.avgYearB}</p>
                   </div>
                 </div>
                 <div className="mt-3">
@@ -1725,7 +1845,7 @@ export default function MovieMatcherPage() {
               {/* Other Metrics */}
               <div>
                 <h3 className="font-bold text-gray-900 mb-3">📈 Other Metrics</h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <p className="text-xs text-gray-600 mb-1">Rating Match</p>
                     <p className="text-xl font-bold text-gray-900">{matchAnalysis.ratingSim}%</p>

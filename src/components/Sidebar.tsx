@@ -1,9 +1,9 @@
 "use client";
 
-  const sidebarBase = "flex h-screen w-72 flex-col border-r border-border-subtle bg-[#111111] backdrop-blur z-50 transition-transform duration-300";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import type { User } from "@/types";
 
 interface SidebarProps {
   user: User | null;
@@ -22,25 +22,26 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
   }
 
   // Sidebar classes for mobile/desktop
-  const sidebarBase = "flex h-screen w-72 flex-col border-r border-slate-200/80 bg-white/90 backdrop-blur z-50 transition-transform duration-300";
+  const sidebarBase = "flex h-dvh w-[min(18rem,85vw)] flex-col border-r border-slate-200/80 bg-white/95 backdrop-blur z-50 transition-transform duration-300 lg:h-screen lg:w-72";
   const sidebarMobile = mobileOpen
-    ? "fixed top-0 left-0 lg:static translate-x-0"
-    : "fixed top-0 -left-80 lg:static -translate-x-full lg:translate-x-0 pointer-events-none lg:pointer-events-auto";
+    ? "fixed left-0 top-0 translate-x-0 lg:static"
+    : "fixed left-0 top-0 -translate-x-full pointer-events-none lg:static lg:translate-x-0 lg:pointer-events-auto";
 
   return (
     <div className={`${sidebarBase} ${sidebarMobile} min-w-0`}>
       {/* Close button for mobile */}
       <button
-        className={`absolute top-4 right-4 z-50 items-center justify-center rounded-full bg-bg-card shadow p-2 lg:hidden ${mobileOpen ? 'flex' : 'hidden'}`}
+        className={`absolute right-4 top-4 z-50 h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm lg:hidden ${mobileOpen ? 'flex' : 'hidden'}`}
         onClick={onCloseMobile}
+        aria-label="Close menu"
       >
-        <svg className="w-6 h-6 text-gold-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <svg className="h-5 w-5 text-slate-900" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
 
       {/* Profile Section */}
-      <Link href="/profile" className="block border-b border-slate-200/80 p-6 transition-colors hover:bg-slate-50/80">
+      <Link href="/profile" onClick={onCloseMobile} className="block border-b border-slate-200/80 p-5 pr-16 transition-colors hover:bg-slate-50/80 sm:p-6">
         <div className="flex items-center gap-3">
           {user.avatar_url ? (
             <Image
@@ -55,8 +56,8 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
               {user.username && user.username.length > 0 ? user.username[0].toUpperCase() : "U"}
             </div>
           )}
-          <div className="flex-1">
-            <p className="text-base font-bold font-playfair text-slate-900">{user.name}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-bold font-playfair text-slate-900">{user.name}</p>
           </div>
         </div>
       </Link>
@@ -65,6 +66,7 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
       <nav className="flex-1 space-y-2 p-5">
         <Link
           href="/dashboard"
+          onClick={onCloseMobile}
           className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
             isActive("/dashboard")
               ? "bg-slate-900 text-white shadow-sm"
@@ -76,6 +78,7 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
 
         <Link
           href="/share"
+          onClick={onCloseMobile}
           className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
             isActive("/share")
               ? "bg-slate-900 text-white shadow-sm"
@@ -88,6 +91,7 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
 
         <Link
           href="/lists"
+          onClick={onCloseMobile}
           className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
             isActive("/lists")
               ? "bg-slate-900 text-white shadow-sm"
@@ -99,6 +103,7 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
 
         <Link
           href="/logs"
+          onClick={onCloseMobile}
           className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
             isActive("/logs")
               ? "bg-slate-900 text-white shadow-sm"
@@ -110,6 +115,7 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
 
         <Link
           href="/movie-matcher"
+          onClick={onCloseMobile}
           className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
             isActive("/movie-matcher")
               ? "bg-slate-900 text-white shadow-sm"

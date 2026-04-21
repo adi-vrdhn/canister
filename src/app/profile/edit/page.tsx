@@ -4,6 +4,7 @@ import { useState, useEffect, type ChangeEvent } from "react";
 import { sendEmailVerification } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User } from "@/types";
 import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged, verifyBeforeUpdateEmail, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
@@ -311,11 +312,7 @@ export default function EditProfilePage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-      </div>
-    );
+    return <CinematicLoading message="Your profile editor is loading" />;
   }
 
   return (

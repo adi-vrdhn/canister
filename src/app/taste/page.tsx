@@ -1,3 +1,45 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+import { onAuthStateChanged } from "firebase/auth";
+import { get, ref } from "firebase/database";
+import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
+import { signOut as authSignOut } from "@/lib/auth";
+import { auth, db } from "@/lib/firebase";
+import { searchMovies } from "@/lib/tmdb";
+import { searchShows } from "@/lib/tvmaze";
+import {
+  addToUserTaste,
+  getUserTasteProfile,
+  removeFromUserTaste,
+} from "@/lib/user-taste";
+import { User, UserTasteWithContent } from "@/types";
+
+export default function TastePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tastes, setTastes] = useState<UserTasteWithContent[]>([]);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [contentType, setContentType] = useState<"movie" | "tv">("movie");
+  const [addingContent, setAddingContent] = useState<string | null>(null);
+  const [removingContent, setRemovingContent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -7,65 +49,35 @@
           return;
         }
 
-        // Fetch user data if needed (add your logic here)
-        // Example: const userData = await fetchUserData(firebaseUser.uid);
-        const userData = null; // Replace with actual fetch if needed
+        const userRef = ref(db, `users/${firebaseUser.uid}`);
+        const userSnapshot = await get(userRef);
+        const userData = userSnapshot.exists() ? userSnapshot.val() : null;
 
         const currentUser: User = {
           id: userData?.id || firebaseUser.uid,
-          username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
-          name: userData?.name || firebaseUser.displayName || "User",
+          username: userData?.username || (firebaseUser.email ? firebaseUser.email.split("@")[0] : "user"),
+          name: userData?.name || firebaseUser.displayName || firebaseUser.email || "User",
           avatar_url: userData?.avatar_url || null,
-          created_at: userData?.createdAt || new Date().toISOString(),
+          created_at:
+            userData?.created_at || userData?.createdAt || new Date().toISOString(),
         };
 
         setUser(currentUser);
 
         console.log("TastePage: Fetching taste profile for:", currentUser.id);
-        // Fetch user's taste profile
         const userTastes = await getUserTasteProfile(currentUser.id);
         console.log("TastePage: Taste profile fetched:", userTastes.length, "items");
         setTastes(userTastes);
-
-        setLoading(false);
         setError(null);
       } catch (error) {
         console.error("TastePage: Error loading taste profile:", error);
         setError(
           error instanceof Error ? error.message : "Failed to load taste profile"
         );
+      } finally {
         setLoading(false);
       }
     });
-    return () => unsubscribe();
-  }, [router]);
-          id: userData?.id || firebaseUser.uid,
-          username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
-          name: userData?.name || firebaseUser.displayName || "User",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.createdAt || new Date().toISOString(),
-        };
-
-        setUser(currentUser);
-        
-        console.log("TastePage: Fetching taste profile for:", currentUser.id);
-        // Fetch user's taste profile
-        const userTastes = await getUserTasteProfile(currentUser.id);
-        console.log("TastePage: Taste profile fetched:", userTastes.length, "items");
-        setTastes(userTastes);
-
-        setLoading(false);
-        setError(null);
-      }
-    } catch (error) {
-      console.error("TastePage: Error loading taste profile:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to load taste profile"
-      );
-      setLoading(false);
-    }
-  });
-
     return () => unsubscribe();
   }, [router]);
 
@@ -201,21 +213,14 @@
   };
 
   if (loading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading your taste profile...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your taste profile is loading" />;
   }
 
   if (error) {
     return (
       <PageLayout user={user || { id: "", username: "", name: "", avatar_url: null, created_at: "" }} onSignOut={handleSignOut}>
-        <div className="p-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="p-4 sm:p-8">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-red-900 mb-2">Error Loading Taste Profile</h2>
             <p className="text-red-700 mb-4">{error}</p>
             <button
@@ -242,7 +247,7 @@
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="p-8">
+      <div className="px-1 py-4 sm:p-8">
         {/* Error Alert */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -265,9 +270,9 @@
             Back to Profile
           </Link>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Taste</h1>
+              <h1 className="mb-2 text-2xl font-bold text-gray-900 sm:text-3xl">Your Taste</h1>
               <p className="text-gray-600">
                 {isTasteComplete
                   ? `You have ${tastes.length} movies in your taste profile`
@@ -277,7 +282,7 @@
 
             <button
               onClick={() => setShowSearchModal(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
             >
               <Plus className="w-4 h-4" />
               Add Movie
@@ -305,7 +310,7 @@
 
         {/* Taste Movies Grid */}
         {tastes.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 md:grid-cols-4 lg:grid-cols-5">
             {tastes.filter((taste) => taste.content && taste.content.title).map((taste) => (
               <div key={taste.id} className="flex flex-col">
                 <div className="relative w-full aspect-[3/4] bg-gray-200 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow mb-3 group">
@@ -342,7 +347,7 @@
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <div className="rounded-2xl bg-gray-50 px-4 py-10 text-center sm:py-12">
             <Plus className="w-12 h-12 text-gray-400 mx-auto mb-3" />
             <p className="text-gray-600 mb-4">No movies in your taste profile yet</p>
             <button
@@ -356,10 +361,10 @@
 
         {/* Search Modal */}
         {showSearchModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-h-[90vh] w-full max-w-2xl flex flex-col overflow-hidden shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-900">Add to Your Taste</h3>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-4">
+            <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-xl sm:max-h-[90vh] sm:p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-bold text-gray-900 sm:text-xl">Add to Your Taste</h3>
                 <button
                   onClick={() => {
                     setShowSearchModal(false);
@@ -373,13 +378,13 @@
               </div>
 
               {/* Content Type Toggle */}
-              <div className="flex gap-2 mb-4">
+              <div className="mb-4 flex gap-2 overflow-x-auto">
                 <button
                   onClick={() => {
                     setContentType("movie");
                     setSearchResults([]);
                   }}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  className={`flex-shrink-0 rounded-lg px-4 py-2 font-medium transition-colors ${
                     contentType === "movie"
                       ? "bg-blue-600 text-white"
                       : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -392,7 +397,7 @@
                     setContentType("tv");
                     setSearchResults([]);
                   }}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  className={`flex-shrink-0 rounded-lg px-4 py-2 font-medium transition-colors ${
                     contentType === "tv"
                       ? "bg-blue-600 text-white"
                       : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -434,7 +439,7 @@
                     return (
                       <div
                         key={`${contentType}-${result.id}`}
-                        className="flex gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex gap-3 rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100"
                       >
                         <img
                           src={
@@ -447,7 +452,7 @@
                           alt={result.title || result.name}
                           className="w-12 h-16 rounded object-cover"
                         />
-                        <div className="flex-1">
+                        <div className="min-w-0 flex-1">
                           <p className="font-semibold text-gray-900 text-sm line-clamp-1">
                             {result.title || result.name}
                           </p>
@@ -462,7 +467,7 @@
                         <button
                           onClick={() => handleAddToTaste(result.id)}
                           disabled={isAlreadyAdded || addingContent === `${contentType}-${result.id}`}
-                          className={`px-3 py-1 rounded font-medium text-sm transition-colors ${
+                          className={`self-center rounded px-3 py-1 text-sm font-medium transition-colors ${
                             isAlreadyAdded
                               ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                               : "bg-blue-600 hover:bg-blue-700 text-white"

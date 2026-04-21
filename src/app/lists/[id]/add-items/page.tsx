@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, List, Content } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -152,14 +153,7 @@ export default function AddItemsToListPage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your list editor is loading" />;
   }
 
   if (!list) {

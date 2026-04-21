@@ -17,6 +17,7 @@ import StatsInsights from "@/components/StatsInsights";
 import Achievements from "@/components/Achievements";
 import SearchBar from "@/components/SearchBar";
 import EmailVerificationBadge from "@/components/EmailVerificationBadge";
+import CinematicLoading from "@/components/CinematicLoading";
 import { auth, db } from "@/lib/firebase";
 import { addToWatchlist, createMovieLog, getUserWatchlist } from "@/lib/logs";
 import { getListWithDetails, getUserLists } from "@/lib/lists";
@@ -235,15 +236,22 @@ function ProfilePageInner() {
         // Fetch followers and following user arrays
         // Followers: users who follow this profile
         const followersSnap = await get(ref(db, `follows`));
-        const allFollowsRaw = followersSnap.exists() ? Object.values(followersSnap.val()) : [];
+        const allFollowsRaw: FollowRecord[] = followersSnap.exists()
+          ? Object.entries(
+              followersSnap.val() as Record<
+                string,
+                Omit<FollowRecord, "id">
+              >
+            ).map(([id, follow]) => ({ id, ...follow }))
+          : [];
         // Followers: those whose following_id === profileUserObj.id && status === 'accepted'
         const followerUserIds = allFollowsRaw
-          .filter((f: any) => f.following_id === profileUserObj.id && f.status === 'accepted')
-          .map((f: any) => f.follower_id);
+          .filter((f) => f.following_id === profileUserObj.id && f.status === 'accepted')
+          .map((f) => f.follower_id);
         // Following: those whose follower_id === profileUserObj.id && status === 'accepted'
         const followingUserIds = allFollowsRaw
-          .filter((f: any) => f.follower_id === profileUserObj.id && f.status === 'accepted')
-          .map((f: any) => f.following_id);
+          .filter((f) => f.follower_id === profileUserObj.id && f.status === 'accepted')
+          .map((f) => f.following_id);
 
         // Fetch user objects for followers and following
         const usersSnap = await get(ref(db, `users`));
@@ -814,11 +822,7 @@ function ProfilePageInner() {
   };
 
   if (loading || !profileUser || !stats) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#090b12]">
-        <Loader2 className="h-12 w-12 animate-spin text-[#d6b470]" />
-      </div>
-    );
+    return <CinematicLoading message="This cinematic profile is loading" />;
   }
 
   return (
@@ -853,8 +857,7 @@ function ProfilePageInner() {
             Cinematic Profile
           </p>
           <h1
-            className="text-4xl font-semibold uppercase tracking-[0.18em] text-[#f8e9c8] sm:text-5xl"
-            style={{ fontFamily: '"Bodoni Moda", "Playfair Display", "Times New Roman", serif' }}
+            className="brand-wordmark text-4xl font-bold tracking-tight text-[#f8e9c8] sm:text-5xl"
           >
             CANISTER
           </h1>

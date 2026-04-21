@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import LogMovieModal from "@/components/LogMovieModal";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, MovieLogWithContent, Content } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -127,6 +128,67 @@ function groupLogsByMonth(logsToGroup: MovieLogWithContent[]): Array<{ month: st
   });
   
   return result;
+}
+
+function LogCard({
+  log,
+  onOpen,
+}: {
+  log: MovieLogWithContent;
+  onOpen: (log: MovieLogWithContent) => void;
+}) {
+  return (
+    <button
+      onClick={() => onOpen(log)}
+      className="group w-full rounded-3xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:rounded-2xl sm:p-4"
+    >
+      <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[3rem_3.5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+        <div className="relative row-span-2 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 shadow-sm sm:row-span-1 sm:rounded-lg">
+          {log.content.poster_url ? (
+            <img
+              src={log.content.poster_url}
+              alt={log.content.title}
+              className="aspect-[2/3] w-full object-cover sm:h-20 sm:w-14"
+            />
+          ) : (
+            <div className="flex aspect-[2/3] w-full items-center justify-center px-2 text-center text-xs text-gray-500 sm:h-20 sm:w-14">
+              No image
+            </div>
+          )}
+          <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-bold text-gray-900 shadow-sm sm:hidden">
+            {getDayDD(log.watched_date)}
+          </span>
+        </div>
+
+        <div className="hidden w-12 text-center sm:block">
+          <span className="text-xl font-bold text-gray-900">{getDayDD(log.watched_date)}</span>
+        </div>
+
+        <div className="min-w-0 self-start sm:self-center">
+          <p className="line-clamp-2 text-base font-bold leading-snug text-gray-950 sm:truncate sm:text-sm">
+            {log.content.title}
+          </p>
+          <p className="mt-1 text-xs font-medium text-gray-500 sm:hidden">
+            Watched {formatWatchedDate(log.watched_date)}
+          </p>
+          {isUnavailableContent(log) && (
+            <span className="mt-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+              Details unavailable
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 self-end sm:justify-end sm:self-center">
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold sm:px-2 ${getReactionClasses(log)}`}>
+            {getReactionLabel(log)}
+          </span>
+          <span className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-500 transition group-hover:border-blue-200 group-hover:text-blue-700 sm:hidden">
+            Details
+          </span>
+        </div>
+      </div>
+    </button>
+  );
 }
 
 export default function LogsPage() {
@@ -379,72 +441,59 @@ export default function LogsPage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading your logs...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your movie logs are loading" />;
   }
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="flex items-center justify-center mt-12 mb-10">
-        <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 uppercase">CANISTER</h1>
-      </div>
-      <div className="p-8 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Recent Logs</h1>
-            <p className="text-gray-600">Month view calendar + day-based log history</p>
-          </div>
+      <div className="mx-auto max-w-6xl space-y-5 px-1 pb-8 sm:space-y-6 sm:p-8">
+        <div className="rounded-[2rem] border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur sm:bg-transparent sm:p-0 sm:shadow-none sm:border-0">
           <button
             onClick={() => {
               setSearchQuery("");
               setSearchResults([]);
               setShowSearchModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 sm:w-auto sm:rounded-lg sm:py-2 sm:font-medium"
           >
             <Plus className="w-5 h-5" />
             Log Movie
           </button>
         </div>
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
+
+        <div className="rounded-[2rem] border border-gray-200 bg-white p-2 shadow-sm sm:rounded-2xl sm:p-5">
+          <div className="mb-2 flex items-center justify-between sm:mb-4">
             <button
               onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100"
+              className="rounded-xl border border-gray-200 bg-gray-50 p-1.5 hover:bg-gray-100 sm:rounded-lg sm:border-0 sm:bg-transparent sm:p-2"
               aria-label="Previous month"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-700" />
+              <ChevronLeft className="h-4 w-4 text-gray-700 sm:h-5 sm:w-5" />
             </button>
 
-            <h2 className="text-lg font-bold text-gray-900">{formatMonthTitle(currentMonth)}</h2>
+            <h2 className="text-base font-bold tracking-tight text-gray-900 sm:text-lg">{formatMonthTitle(currentMonth)}</h2>
 
             <button
               onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100"
+              className="rounded-xl border border-gray-200 bg-gray-50 p-1.5 hover:bg-gray-100 sm:rounded-lg sm:border-0 sm:bg-transparent sm:p-2"
               aria-label="Next month"
             >
-              <ChevronRight className="w-5 h-5 text-gray-700" />
+              <ChevronRight className="h-4 w-4 text-gray-700 sm:h-5 sm:w-5" />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-2 mb-2">
+          <div className="mb-1 grid grid-cols-7 gap-0.5 sm:mb-2 sm:gap-2">
             {WEEKDAYS.map((day) => (
-              <div key={day} className="text-xs font-semibold text-gray-500 text-center py-1">
+              <div key={day} className="py-1 text-center text-[10px] font-bold text-gray-500 sm:text-xs">
                 {day}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1.5">
             {calendarCells.map((cell) => {
               if (!cell.inMonth || !cell.date) {
-                return <div key={cell.key} className="aspect-poster rounded-lg bg-gray-50" />;
+                return <div key={cell.key} className="aspect-[3/4] rounded-lg bg-gray-50 sm:aspect-[2/3] sm:rounded-lg" />;
               }
 
               const day = cell.date.getDate();
@@ -462,9 +511,9 @@ export default function LogsPage() {
                     setSelectedDay((prev) => (prev === dayKey ? null : dayKey));
                     scrollToListSection();
                   }}
-                  className={`[aspect-ratio:2/3] rounded-lg border p-0.5 text-left relative overflow-hidden transition-colors ${
+                  className={`relative overflow-hidden rounded-lg border p-0.5 text-left [aspect-ratio:3/4] transition-colors sm:rounded-lg sm:[aspect-ratio:2/3] ${
                     isSelected
-                      ? "border-blue-500 bg-blue-50"
+                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100"
                       : dayLogsInCell.length > 0
                       ? "border-gray-300 bg-white hover:bg-gray-50"
                       : "border-gray-200 bg-white hover:bg-gray-50"
@@ -485,14 +534,14 @@ export default function LogsPage() {
                       ))}
                       {/* Show badge only if more than one movie watched */}
                       {dayLogsInCell.length > 1 && (
-                        <span className="absolute top-1 left-1 bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow z-30">
+                        <span className="absolute left-1 top-1 z-30 rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow sm:px-2 sm:text-xs">
                           {dayLogsInCell.length}
                         </span>
                       )}
                     </div>
                   ) : (
                     <div className="w-full h-full flex items-start justify-start p-1">
-                      <span className="text-[10px] font-semibold text-gray-400">{day}</span>
+                      <span className="text-[10px] font-semibold text-gray-400 sm:text-xs">{day}</span>
                     </div>
                   )}
                 </button>
@@ -501,11 +550,11 @@ export default function LogsPage() {
           </div>
         </div>
 
-        <div ref={listSectionRef} className="bg-white border border-gray-200 rounded-2xl p-5 scroll-mt-24">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock3 className="w-4 h-4 text-gray-600" />
-              <h3 className="text-lg font-bold text-gray-900">
+        <div ref={listSectionRef} className="scroll-mt-24 rounded-[2rem] border border-gray-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-5">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <Clock3 className="mt-1 h-4 w-4 flex-shrink-0 text-gray-600" />
+              <h3 className="text-2xl font-extrabold leading-tight text-gray-900 sm:text-lg sm:font-bold">
                 {listMode === "all"
                   ? "All Movies"
                   : selectedDay
@@ -514,10 +563,10 @@ export default function LogsPage() {
               </h3>
             </div>
 
-            <div className="inline-flex rounded-lg border border-gray-300 p-1">
+            <div className="grid w-full grid-cols-2 rounded-2xl border border-gray-300 bg-gray-50 p-1 sm:inline-flex sm:w-auto sm:rounded-lg sm:bg-white">
               <button
                 onClick={() => setListMode("month")}
-                className={`px-3 py-1 text-sm rounded-md ${
+                className={`rounded-xl px-3 py-2 text-sm font-semibold sm:rounded-md sm:py-1 ${
                   listMode === "month" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
@@ -528,7 +577,7 @@ export default function LogsPage() {
                   setListMode("all");
                   setSelectedDay(null);
                 }}
-                className={`px-3 py-1 text-sm rounded-md ${
+                className={`rounded-xl px-3 py-2 text-sm font-semibold sm:rounded-md sm:py-1 ${
                   listMode === "all" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
@@ -546,36 +595,11 @@ export default function LogsPage() {
                     <h4 className="text-lg font-bold text-gray-900 mb-3">{group.month}</h4>
                     <div className="space-y-3">
                       {group.logs.map((log) => (
-                        <button
+                        <LogCard
                           key={log.id}
-                          onClick={() => handleOpenLogDetails(log)}
-                          className="w-full text-left border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 text-center flex-shrink-0">
-                              <span className="text-xl font-bold text-gray-900">{getDayDD(log.watched_date)}</span>
-                            </div>
-
-                            <img
-                              src={log.content.poster_url || undefined}
-                              alt={log.content.title}
-                              className="w-14 h-20 rounded object-cover flex-shrink-0 border border-gray-200"
-                            />
-
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 truncate">{log.content.title}</p>
-                              {isUnavailableContent(log) && (
-                                <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                                  Details unavailable
-                                </span>
-                              )}
-                            </div>
-
-                            <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${getReactionClasses(log)}`}>
-                              {getReactionLabel(log)}
-                            </span>
-                          </div>
-                        </button>
+                          log={log}
+                          onOpen={handleOpenLogDetails}
+                        />
                       ))}
                     </div>
                   </div>
@@ -585,36 +609,11 @@ export default function LogsPage() {
               // Regular list for "Month" mode
               <div className="space-y-3">
                 {displayLogs.map((log) => (
-                  <button
+                  <LogCard
                     key={log.id}
-                    onClick={() => handleOpenLogDetails(log)}
-                    className="w-full text-left border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 text-center flex-shrink-0">
-                        <span className="text-xl font-bold text-gray-900">{getDayDD(log.watched_date)}</span>
-                      </div>
-
-                      <img
-                        src={log.content.poster_url || undefined}
-                        alt={log.content.title}
-                        className="w-14 h-20 rounded object-cover flex-shrink-0 border border-gray-200"
-                      />
-
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{log.content.title}</p>
-                        {isUnavailableContent(log) && (
-                          <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                            Details unavailable
-                          </span>
-                        )}
-                      </div>
-
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ${getReactionClasses(log)}`}>
-                        {getReactionLabel(log)}
-                      </span>
-                    </div>
-                  </button>
+                    log={log}
+                    onOpen={handleOpenLogDetails}
+                  />
                 ))}
               </div>
             )
@@ -627,21 +626,21 @@ export default function LogsPage() {
       </div>
 
       {showSearchModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">Search & Log Movie</h2>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-4">
+          <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-lg">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4 sm:p-6">
+              <h2 className="text-lg font-bold text-gray-900 sm:text-xl">Search & Log Movie</h2>
               <button
                 onClick={() => setShowSearchModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="rounded-full border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                 aria-label="Close search modal"
                 title="Close search modal"
               >
-                <X className="w-6 h-6" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 border-b border-gray-200">
+            <div className="border-b border-gray-200 p-4 sm:p-6">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
@@ -650,17 +649,17 @@ export default function LogsPage() {
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   autoFocus
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-2xl border border-gray-300 py-3 pl-10 pr-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 sm:rounded-lg"
                 />
               </div>
             </div>
 
             {searchResults.length > 0 && (
               <>
-                <div className="sticky bg-white border-b border-gray-200 p-4 flex gap-2">
+                <div className="sticky top-0 flex gap-2 overflow-x-auto border-b border-gray-200 bg-white p-4">
                   <button
                     onClick={() => setSearchFilter("all")}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "all"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -670,7 +669,7 @@ export default function LogsPage() {
                   </button>
                   <button
                     onClick={() => setSearchFilter("movie")}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "movie"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -680,7 +679,7 @@ export default function LogsPage() {
                   </button>
                   <button
                     onClick={() => setSearchFilter("tv")}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "tv"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -690,22 +689,22 @@ export default function LogsPage() {
                   </button>
                 </div>
 
-                <div className="max-h-96 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto overscroll-contain">
                   {filteredSearchResults.map((result) => (
                       <div
                         key={`${result.type}-${result.id}`}
                         onClick={() => handleSelectContent(result)}
-                        className="flex items-center gap-3 p-4 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+                        className="flex cursor-pointer items-center gap-3 border-b border-gray-100 p-4 transition-colors last:border-b-0 hover:bg-gray-100"
                       >
                         {result.poster_url ? (
-                          <img src={result.poster_url} alt={result.title} className="w-12 h-16 object-cover rounded" />
+                          <img src={result.poster_url} alt={result.title} className="h-20 w-14 rounded-xl object-cover sm:h-16 sm:w-12 sm:rounded" />
                         ) : (
-                          <div className="w-12 h-16 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
+                          <div className="flex h-20 w-14 items-center justify-center rounded-xl bg-gray-200 text-xs text-gray-500 sm:h-16 sm:w-12 sm:rounded">
                             No Image
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 truncate">{result.title}</h3>
+                          <h3 className="line-clamp-2 font-semibold text-gray-900">{result.title}</h3>
                           <p className="text-sm text-gray-600">{result.type === "tv" ? "TV Show" : "Movie"}</p>
                         </div>
                       </div>

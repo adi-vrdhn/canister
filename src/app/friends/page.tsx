@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import UserCard from "@/components/UserCard";
 import SearchBar from "@/components/SearchBar";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, FollowWithUser } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -277,14 +278,7 @@ export default function FriendsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your friends are loading" />;
   }
 
   if (!user) {

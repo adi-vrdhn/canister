@@ -121,18 +121,18 @@ export default function SearchBar({
       {isOpen && (results.length > 0 || (isLoading && results.length === 0)) && (
         <div className="menu-panel absolute left-0 right-0 top-full z-50 mt-3 max-w-2xl overflow-hidden">
           {results.length > 0 ? (
-            <ul className="max-h-[600px] overflow-y-auto">
+            <ul className="max-h-[min(70dvh,600px)] overflow-y-auto overscroll-contain">
               {results.map((item) => (
                 <li key={item.id}>
                   <button
                     onClick={() => handleSelect(item)}
-                    className="flex w-full items-center gap-4 border-b border-slate-100 px-4 py-4 text-left transition-colors hover:bg-slate-50 last:border-b-0"
+                    className="flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left transition-colors hover:bg-slate-50 last:border-b-0 sm:gap-4 sm:px-4 sm:py-4"
                   >
                     {item.image && (
                       <img
                         src={item.image}
                         alt={item.title}
-                        className="h-24 w-16 flex-shrink-0 rounded-2xl object-cover shadow-sm"
+                        className="h-20 w-14 flex-shrink-0 rounded-xl object-cover shadow-sm sm:h-24 sm:w-16 sm:rounded-2xl"
                       />
                     )}
                     <div className="flex-1 min-w-0">

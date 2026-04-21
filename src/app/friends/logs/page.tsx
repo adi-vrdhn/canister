@@ -3,14 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, MovieLogWithContent } from "@/types";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getFriendLogs } from "@/lib/friend-logs";
-import Link from "next/link";
-import { Loader2 } from "lucide-react";
 
 export default function FriendLogsPage() {
   // --- Season filter state ---
@@ -89,36 +87,32 @@ export default function FriendLogsPage() {
   });
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-      </div>
-    );
+    return <CinematicLoading message="Friends' logs are loading" />;
   }
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="mx-auto max-w-5xl p-8">
+      <div className="mx-auto max-w-5xl px-3 py-4 sm:p-8">
         {/* Header */}
-        <div className="mb-8 flex items-center gap-4">
+        <div className="mb-5 flex items-center gap-3 sm:mb-8 sm:gap-4">
           <button
             onClick={() => router.back()}
-            className="action"
+            className="rounded-lg border border-blue-600 px-3 py-1.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:px-4 sm:py-2"
           >
             Back
           </button>
-          <h1 className="text-4xl font-bold text-slate-900">Friends' Recent Logs</h1>
+          <h1 className="min-w-0 truncate text-xl font-bold text-slate-900 sm:text-4xl">Friends' Recent Logs</h1>
         </div>
 
         {/* Season Filter & Sort Controls */}
-        <div className="mb-8 flex gap-3 items-center flex-wrap">
+        <div className="mb-4 flex flex-wrap items-center gap-2 sm:mb-8 sm:gap-3">
           {/* Season Filter Dropdown */}
           <label htmlFor="season-filter" className="text-sm font-medium text-slate-700">Season:</label>
           <select
             id="season-filter"
             value={seasonFilter}
             onChange={e => setSeasonFilter(e.target.value)}
-            className="rounded border px-2 py-1 text-sm"
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
           >
             <option value="all">All Seasons</option>
             {/* Dynamically generate season options from logs */}
@@ -129,10 +123,10 @@ export default function FriendLogsPage() {
 
         </div>
         {/* Sort Buttons */}
-        <div className="mb-8 flex gap-3">
+        <div className="mb-5 flex gap-2 sm:mb-8 sm:gap-3">
           <button
             onClick={() => setSortBy("recent")}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm ${
               sortBy === "recent"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -142,7 +136,7 @@ export default function FriendLogsPage() {
           </button>
           <button
             onClick={() => setSortBy("highest-rated")}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm ${
               sortBy === "highest-rated"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -154,16 +148,16 @@ export default function FriendLogsPage() {
 
         {/* Logs Grid */}
         {sortedLogs.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {sortedLogs.map((log) => (
               <div
                 key={log.id}
                 onClick={() => router.push(`/logs/${log.id}`)}
-                className="surface cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
+                className="cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
               >
                 {/* Poster */}
                 {log.content.poster_url && (
-                  <div className="relative h-64 overflow-hidden bg-slate-100">
+                  <div className="relative aspect-[3/4] overflow-hidden bg-slate-100 sm:h-64 sm:aspect-auto">
                     <img
                       src={log.content.poster_url}
                       alt={log.content.title}
@@ -173,35 +167,35 @@ export default function FriendLogsPage() {
                 )}
 
                 {/* Content */}
-                <div className="p-5">
+                <div className="p-2 sm:p-5">
                   {/* Movie Title */}
-                  <h3 className="mb-2 line-clamp-2 text-lg font-semibold text-slate-900">
+                  <h3 className="mb-1 line-clamp-2 text-[11px] font-semibold leading-tight text-slate-900 sm:mb-2 sm:text-lg">
                     {log.content.title}
                   </h3>
 
                   {/* Friend Info */}
-                  <div className="mb-3">
-                    <p className="text-sm text-slate-500">
+                  <div className="mb-1 sm:mb-3">
+                    <p className="truncate text-[10px] leading-tight text-slate-500 sm:text-sm">
                       by {log.friend.name}
                     </p>
                   </div>
 
                   {/* Date */}
-                  <div className="mb-3 text-sm text-slate-500">
+                  <div className="mb-1 text-[10px] text-slate-500 sm:mb-3 sm:text-sm">
                     {formatDate(log.watched_date)}
                   </div>
 
                   {/* Reaction */}
-                  <div className="mb-3">
+                  <div className="sm:mb-3">
                     {(() => {
                       const reaction = getReactionLabel(log.reaction as 0 | 1 | 2);
-                      return <span className={`text-sm font-medium ${reaction.color}`}>{reaction.label}</span>;
+                      return <span className={`text-[10px] font-medium leading-tight sm:text-sm ${reaction.color}`}>{reaction.label}</span>;
                     })()}
                   </div>
 
                   {/* Mood */}
                   {log.mood && (
-                    <div className="mb-3">
+                    <div className="mb-3 hidden sm:block">
                       <span className="chip text-xs font-medium">
                         {log.mood}
                       </span>
@@ -210,7 +204,7 @@ export default function FriendLogsPage() {
 
                   {/* Notes Preview */}
                   {log.notes && (
-                    <p className="line-clamp-2 text-sm text-slate-600">
+                    <p className="hidden text-sm text-slate-600 line-clamp-2 sm:block">
                       {log.notes}
                     </p>
                   )}

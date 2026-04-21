@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, onValue, ref, remove } from "firebase/database";
-import { ArrowLeft, Film, Loader2, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Film, Search, Sparkles } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { getUserByUsername } from "@/lib/profile";
+import CinematicLoading from "@/components/CinematicLoading";
 import type { Content, ShareWithDetails, User } from "@/types";
 
 type Filter = "all" | "movie" | "tv";
@@ -132,7 +133,7 @@ export default function SharedMoviesPage() {
   };
 
   if (loading || !currentUser || !profileUser) {
-    return <div className="flex h-screen w-screen items-center justify-center bg-gray-50"><Loader2 className="h-12 w-12 animate-spin text-zinc-700" /></div>;
+    return <CinematicLoading message="Shared movies are loading" />;
   }
 
   const Section = ({

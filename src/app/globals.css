@@ -39,17 +39,37 @@
     opacity: 0;
   }
 }
+
+@keyframes cinematic-poster-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes cinematic-loading-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
 @import "tailwindcss";
 
 @layer base {
   html {
     color-scheme: light;
+    overflow-x: hidden;
   }
 
   body {
     background:
       radial-gradient(circle at top, rgba(255, 255, 255, 0.98), rgba(247, 244, 238, 0.96) 38%, #ede8df 100%);
     color: #0f172a;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -63,6 +83,13 @@
 @layer components {
   .app-shell {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 245, 240, 0.95) 100%);
+  }
+
+  .brand-wordmark {
+    font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    line-height: 1;
   }
 
   .surface {
@@ -79,6 +106,21 @@
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 20px 60px rgba(15, 23, 42, 0.1);
     backdrop-filter: blur(20px);
+  }
+
+  .mobile-scroll-panel {
+    max-height: min(90dvh, 720px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cinematic-poster-track {
+    animation: cinematic-poster-slide 20s linear infinite;
+  }
+
+  .cinematic-loading-bar {
+    animation: cinematic-loading-sweep 1.35s ease-in-out infinite;
   }
 
   .field {

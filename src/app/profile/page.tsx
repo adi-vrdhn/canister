@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, get } from "firebase/database";
-import { Loader2 } from "lucide-react";
+import CinematicLoading from "@/components/CinematicLoading";
 
 export default function ProfileRedirectPage() {
   const [loading, setLoading] = useState(true);
@@ -40,12 +40,5 @@ export default function ProfileRedirectPage() {
     return () => unsubscribe();
   }, []);
 
-  return (
-    <div className="w-screen h-screen flex items-center justify-center">
-      <div className="text-center">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-        <p className="text-gray-600">Redirecting to your profile...</p>
-      </div>
-    </div>
-  );
+  return <CinematicLoading message="Redirecting to your profile" />;
 }

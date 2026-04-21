@@ -11,6 +11,7 @@ interface MovieCardProps {
   onShare?: () => void;
   reactions?: { hearts: number; fires: number };
   disableLink?: boolean;
+  compact?: boolean;
 }
 
 export default function MovieCard({
@@ -19,6 +20,7 @@ export default function MovieCard({
   onShare,
   reactions,
   disableLink = false,
+  compact = false,
 }: MovieCardProps) {
   // Handle null/undefined movie
   if (!movie) {
@@ -81,13 +83,13 @@ export default function MovieCard({
       </div>
 
       {/* Details */}
-      <div className="mt-3">
-        <h3 className="font-semibold text-sm line-clamp-2 text-gray-900">
+      <div className={compact ? "mt-2" : "mt-3"}>
+        <h3 className={`${compact ? "text-[11px] leading-tight" : "text-sm"} font-semibold line-clamp-2 text-gray-900`}>
           {title}
         </h3>
 
         {sharedBy && (
-          <p className="text-xs text-gray-500 mt-1">Shared by {sharedBy}</p>
+          <p className={`${compact ? "text-[10px] leading-tight" : "text-xs"} mt-1 truncate text-gray-500`}>Shared by {sharedBy}</p>
         )}
 
         {reactions && (

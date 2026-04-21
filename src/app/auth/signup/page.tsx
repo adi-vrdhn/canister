@@ -81,7 +81,7 @@ export default function SignUpPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mt-12 mb-10">
-            <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 uppercase">CANISTER</h1>
+            <h1 className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-900">CANISTER</h1>
           </div>
           <p className="text-gray-600">Join the movie community</p>
         </div>

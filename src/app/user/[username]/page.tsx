@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -10,7 +11,7 @@ import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getUserByUsername, getUserStats, getFollowerCount, getFollowingCount } from "@/lib/profile";
 import { getUserMovieLogs } from "@/lib/logs";
-import { Loader2, Mail, Users, Film, Star, Zap, ArrowLeft } from "lucide-react";
+import { Mail, Users, Film, Star, Zap, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function UserProfilePage() {
@@ -94,11 +95,7 @@ export default function UserProfilePage() {
   };
 
   if (loading || !currentUser || !profileUser || !stats) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-      </div>
-    );
+    return <CinematicLoading message="This profile is loading" />;
   }
 
   return (

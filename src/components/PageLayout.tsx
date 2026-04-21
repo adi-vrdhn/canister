@@ -16,17 +16,23 @@ export default function PageLayout({ user, children, onSignOut, fullWidth = fals
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="app-shell flex min-h-screen">
-      {/* Hamburger menu for mobile */}
-      <button
-        className="fixed top-4 left-4 z-50 flex items-center justify-center rounded-full bg-white shadow-md p-2 lg:hidden"
-        aria-label="Open menu"
-        onClick={() => setSidebarOpen(true)}
-      >
-        <svg className="w-7 h-7 text-slate-900" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+    <div className="app-shell flex min-h-dvh overflow-x-hidden">
+      <header className="fixed inset-x-0 top-0 z-30 flex h-20 items-center justify-center border-b border-slate-200/70 bg-white/95 shadow-sm backdrop-blur-md lg:left-72">
+        {/* Hamburger menu for mobile */}
+        <button
+          className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md lg:hidden"
+          aria-label="Open menu"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <svg className="h-6 w-6 text-slate-900" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+        <span className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-950 sm:text-5xl">
+          CANISTER
+        </span>
+      </header>
 
       {/* Sidebar: hidden on mobile, slide-in on open */}
       <Sidebar
@@ -44,9 +50,9 @@ export default function PageLayout({ user, children, onSignOut, fullWidth = fals
         />
       )}
 
-      <div className="flex-1 overflow-auto">
+      <div className="min-w-0 flex-1 overflow-auto pt-20">
         <EmailVerificationBadge className="mx-auto mt-3 w-full max-w-[1600px] px-1 sm:px-2" />
-        <div className={fullWidth ? "w-full" : "mx-auto w-full max-w-[1600px] px-2 py-2 sm:px-4 md:px-6 lg:px-8"}>
+        <div className={fullWidth ? "w-full" : "mx-auto w-full max-w-[1600px] px-3 py-2 sm:px-4 md:px-6 lg:px-8"}>
           {children}
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import AddToListModal from "@/components/AddToListModal";
 import LogMovieModal from "@/components/LogMovieModal";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, Movie, MovieReviewWithUser, Content, MovieLog, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -258,14 +259,7 @@ export default function MoviePage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your movie page is loading" />;
   }
 
   if (!movie) {
@@ -284,6 +278,124 @@ export default function MoviePage() {
   return (
     <PageLayout user={user} onSignOut={handleSignOut} fullWidth>
       <div className="min-h-screen bg-neutral-950 text-white">
+        <section className="relative overflow-hidden px-4 pb-10 pt-4 lg:hidden">
+          <div className="absolute inset-0">
+            {(movie.backdrop_url || movie.poster_url) ? (
+              <img
+                src={movie.backdrop_url || movie.poster_url || ""}
+                alt={movie.title}
+                className="h-full w-full scale-110 object-cover opacity-65 blur-[2px]"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-rose-950 via-neutral-950 to-black" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/50 to-neutral-950" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.2),_transparent_34%)]" />
+          </div>
+
+          <div className="relative z-10">
+            <button
+              onClick={() => router.back()}
+              className="mb-5 inline-flex items-center gap-2 rounded-full bg-black/35 px-4 py-2 text-sm font-medium text-white backdrop-blur-md"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+
+            <div className="rounded-[2rem] border border-white/15 bg-black/35 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl">
+              {movie.poster_url && (
+                <div className="mx-auto mb-5 w-full max-w-[19rem] overflow-hidden rounded-[1.6rem] border border-white/15 bg-white/10 shadow-2xl">
+                  <img
+                    src={movie.poster_url}
+                    alt={movie.title}
+                    className="aspect-[3/4] w-full object-cover"
+                  />
+                </div>
+              )}
+
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/60">Movie</p>
+              <h1 className="text-4xl font-black leading-none tracking-tight text-white">
+                {movie.title}
+              </h1>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-white/80">
+                {movie.release_date && <span className="rounded-full bg-white/10 px-3 py-1">{formatReleaseYear(movie.release_date)}</span>}
+                {movie.runtime && <span className="rounded-full bg-white/10 px-3 py-1">{formatRuntime(movie.runtime)}</span>}
+                {movie.language && <span className="rounded-full bg-white/10 px-3 py-1">{movie.language.toUpperCase()}</span>}
+              </div>
+
+              {movie.overview && (
+                <p className="mt-4 line-clamp-4 text-sm leading-6 text-white/82">
+                  {movie.overview}
+                </p>
+              )}
+
+              <div className="mt-5 grid gap-2.5">
+                <button
+                  onClick={() => setShowLogMovieModal(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 py-3 text-sm font-bold text-neutral-950 shadow-lg shadow-emerald-950/30"
+                >
+                  <LogsIcon className="h-4 w-4" />
+                  Log Movie
+                </button>
+                <button
+                  onClick={() => router.push(`/share?movie_id=${movie.id}`)}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share
+                </button>
+                <button
+                  onClick={() => setShowAddToListModal(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 py-3 text-sm font-bold text-white backdrop-blur"
+                >
+                  <Bookmark className="h-4 w-4" />
+                  Add to List
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[2rem] border border-white/10 bg-black/45 p-4 backdrop-blur-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold">Rating Distribution</h2>
+                <span className="text-xs text-white/55">{reactionBreakdown.total} logs</span>
+              </div>
+              {[
+                { label: "Bad", value: reactionBreakdown.bad, color: "bg-rose-400" },
+                { label: "Good", value: reactionBreakdown.good, color: "bg-blue-400" },
+                { label: "Masterpiece", value: reactionBreakdown.masterpiece, color: "bg-emerald-400" },
+              ].map((item) => {
+                const percent = reactionBreakdown.total > 0 ? Math.round((item.value / reactionBreakdown.total) * 100) : 0;
+                return (
+                  <div key={item.label} className="mb-3 last:mb-0">
+                    <div className="mb-1.5 flex justify-between text-xs text-white/75">
+                      <span>{item.label}</span>
+                      <span>{item.value} ({percent}%)</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className={`h-full rounded-full ${item.color}`} style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-md">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/45">Director</p>
+                <p className="mt-2 line-clamp-2 text-sm font-bold">{movie.director || "Unknown"}</p>
+              </div>
+              <Link
+                href={`/movie/${movie.id}/reviews`}
+                className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-md"
+              >
+                <p className="text-xs uppercase tracking-[0.18em] text-white/45">Reviews</p>
+                <p className="mt-2 text-sm font-bold">{reviews.length} comments</p>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <div className="hidden lg:block">
         <div className="relative overflow-hidden">
           <div className="absolute inset-0">
             {movie.backdrop_url ? (
@@ -671,6 +783,7 @@ export default function MoviePage() {
               </div>
             </div>
           </div>
+        </div>
         </div>
 
       </div>

@@ -82,6 +82,7 @@ function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onToggleWa
 }
 import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, ListWithItems, ListCollaboratorWithUser } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -486,14 +487,7 @@ export default function ListDetailPage() {
   };
 
   if (loading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading list...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your list is loading" />;
   }
 
   if (!list || !user) {
@@ -512,34 +506,56 @@ export default function ListDetailPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="p-8">
+      <div className="px-1 py-4 sm:p-8">
         {/* Header with Back and Title */}
-        <div className="mb-8">
+        <div className="mb-6 rounded-[2rem] border border-gray-200 bg-white p-4 shadow-sm sm:mb-8 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
           <Link
             href="/lists"
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4 font-medium"
+            className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 sm:mb-4 sm:text-base"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Lists
           </Link>
 
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-900">{list.name}</h1>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="break-words text-4xl font-extrabold leading-tight tracking-tight text-gray-950 sm:text-3xl sm:font-bold">
+                {list.name}
+              </h1>
+              {list.description && !editMode && (
+                <p className="mt-3 text-base leading-relaxed text-gray-600 sm:mt-2">{list.description}</p>
+              )}
+            </div>
+
+            <MenuButton
+              onEdit={() => {
+                setOpenItemMenuId(null);
+                setEditMode(true);
+                setSelectedCoverImageUrl(list.cover_image_url || null);
+              }}
+              onAddItems={() => window.location.href = `/lists/${listId}/add-items`}
+              canEdit={isOwner || isCollaborator}
+              isOwner={isOwner}
+              onDelete={isOwner ? handleDeleteList : undefined}
+              onToggleWatchedStatus={() => setWatchedStatusEnabled(v => !v)}
+              watchedStatusEnabled={watchedStatusEnabled}
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
               {isRankedList && (
-                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                <span className="rounded-full bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700">
                   Ranked List
                 </span>
               )}
               {/* Collaborators: show profile pictures, open modal on click */}
               <button
-                className="ml-4 flex items-center gap-1 px-2 py-1 rounded-lg border border-blue-100 bg-blue-50"
+                className="flex items-center gap-1 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-1.5"
                 onClick={() => setShowCollaboratorsModal(true)}
                 aria-label="Show collaborators"
-                style={{ minHeight: 40 }}
               >
                 {list.collaborators && list.collaborators.length > 0 && list.collaborators.slice(0, 5).map((collab) => (
-                  <span key={collab.user_id} className="inline-block -ml-2 first:ml-0 border-2 border-white rounded-full bg-gray-200" style={{ width: 32, height: 32, overflow: "hidden" }}>
+                  <span key={collab.user_id} className="inline-block -ml-2 h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-gray-200 first:ml-0">
                     {collab.user?.avatar_url ? (
                       <img src={collab.user.avatar_url} alt={collab.user.name || collab.user.username || "User"} className="w-full h-full object-cover rounded-full" />
                     ) : (
@@ -549,33 +565,12 @@ export default function ListDetailPage() {
                     )}
                   </span>
                 ))}
-                <span className="inline-block ml-2 text-blue-600 font-medium text-sm">
+                <span className="ml-1 inline-block text-sm font-bold text-blue-600">
                   {list.collaborators.length > 1 ? `+${list.collaborators.length}` : "1"}
                 </span>
               </button>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Three-dot menu */}
-              <div className="relative">
-                <MenuButton
-                  onEdit={() => {
-                    setOpenItemMenuId(null);
-                    setEditMode(true);
-                    setSelectedCoverImageUrl(list.cover_image_url || null);
-                  }}
-                  onAddItems={() => window.location.href = `/lists/${listId}/add-items`}
-                  canEdit={isOwner || isCollaborator}
-                  isOwner={isOwner}
-                  onDelete={isOwner ? handleDeleteList : undefined}
-                  onToggleWatchedStatus={() => setWatchedStatusEnabled(v => !v)}
-                  watchedStatusEnabled={watchedStatusEnabled}
-                />
-              </div>
-            </div>
           </div>
-          {list.description && !editMode && (
-            <p className="text-gray-600 mt-2">{list.description}</p>
-          )}
+
           {/* Edit mode UI remains unchanged */}
           {editMode && canEdit && (
             <div className="mt-6 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -731,15 +726,15 @@ export default function ListDetailPage() {
         </div>
 
         {/* Movie Items Section */}
-        <div className="mt-8">
+        <div className="mt-6 sm:mt-8">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:font-bold">
               {isRankedList ? "Ranked Items" : "Items"} ({list.item_count})
             </h2>
-            <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1">
+            <div className="grid w-full grid-cols-2 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm sm:inline-flex sm:w-auto sm:rounded-xl sm:shadow-none">
               <button
                 onClick={() => handleViewTypeChange("grid")}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold sm:rounded-lg sm:py-2 sm:font-medium ${
                   viewType === "grid" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
@@ -748,7 +743,7 @@ export default function ListDetailPage() {
               </button>
               <button
                 onClick={() => handleViewTypeChange("list")}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold sm:rounded-lg sm:py-2 sm:font-medium ${
                   viewType === "list" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
@@ -762,7 +757,7 @@ export default function ListDetailPage() {
               className={
                 viewType === "list"
                   ? "space-y-4"
-                  : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6"
+                  : "grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5"
               }
             >
               {sortedItems.map((item, idx) => {
@@ -787,7 +782,7 @@ export default function ListDetailPage() {
                     className={
                       viewType === "list"
                         ? `relative flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm ${editMode && isOwner ? "cursor-move" : ""}`
-                        : `relative flex flex-col rounded-2xl bg-white p-3 shadow-sm ${editMode && isOwner ? "cursor-move" : ""}`
+                        : `relative flex flex-col rounded-[1.5rem] border border-gray-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${editMode && isOwner ? "cursor-move" : ""}`
                     }
                     draggable={editMode && isOwner}
                     onDragStart={editMode && isOwner ? e => {
@@ -828,7 +823,7 @@ export default function ListDetailPage() {
                       onPointerDown={(e) => {
                         e.stopPropagation();
                       }}
-                      className="absolute right-2 top-2 z-40 rounded-full bg-white/90 p-1.5 text-gray-700 shadow hover:bg-gray-100"
+                      className="absolute right-3 top-3 z-40 rounded-full bg-white/95 p-1.5 text-gray-700 shadow-md ring-1 ring-gray-100 hover:bg-gray-100"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -877,7 +872,7 @@ export default function ListDetailPage() {
                       className={
                         viewType === "list"
                           ? "relative h-24 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-gray-200 poster-stack-container"
-                          : "relative w-full aspect-[2/3] mb-2 overflow-hidden rounded-xl bg-gray-200 poster-stack-container"
+                          : "relative mb-3 aspect-[2/3] w-full overflow-hidden rounded-2xl bg-gray-200 poster-stack-container"
                       }
                       tabIndex={0}
                     >
@@ -898,11 +893,11 @@ export default function ListDetailPage() {
                         </span>
                       )}
                     </Link>
-                    <div className={viewType === "list" ? "min-w-0 flex-1" : ""}>
+                    <div className={viewType === "list" ? "min-w-0 flex-1" : "min-w-0 px-0.5 pb-1"}>
                       <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-semibold text-gray-900">{item.content.title}</p>
+                        <p className="line-clamp-2 text-base font-bold leading-snug text-gray-950 sm:text-sm sm:font-semibold">{item.content.title}</p>
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="mt-1 truncate text-xs font-medium text-gray-500">
                         Added by <span className="font-medium">{item.added_by_user.name}</span>
                       </p>
                       {watchedStatusEnabled && (

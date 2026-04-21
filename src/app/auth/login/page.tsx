@@ -42,7 +42,7 @@ export default function LoginPage() {
       <div className="flex flex-col justify-center flex-1 px-8 sm:px-16 md:px-24 lg:px-32 bg-white">
         <div className="max-w-md w-full mx-auto">
           <div className="flex items-center justify-center mt-12 mb-10">
-            <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 uppercase">CANISTER</h1>
+            <h1 className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-900">CANISTER</h1>
           </div>
           <h2 className="text-xl font-semibold mb-6 text-gray-800">Welcome back</h2>
           {error && (

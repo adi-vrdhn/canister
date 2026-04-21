@@ -22,6 +22,7 @@ export interface Movie {
   platforms: string[] | null;
   director: string | null;
   actors?: string[] | null; // For match scoring
+  cast?: string[] | null;
   language?: string | null; // For match scoring
   release_date: string | null;
   overview: string | null;
@@ -38,9 +39,12 @@ export interface TVShow {
   name?: string;
   poster_url: string | null;
   genres: string[] | null;
+  director?: string | null;
   actors?: string[] | null; // For match scoring
+  cast?: string[] | null;
   language?: string | null; // For match scoring
   status: string | null;
+  country?: string | null;
   release_date: string | null;
   overview: string | null;
   runtime: number | null;
@@ -50,6 +54,7 @@ export interface TVShow {
   network?: {
     name?: string;
   };
+  streaming_services?: string[] | null;
 }
 
 // Combined content type (movie or TV show)
@@ -246,6 +251,7 @@ export interface UserTaste {
   user_id: string;
   content_id: number;
   content_type: "movie" | "tv";
+  reaction?: 0 | 1 | 2;
   added_at: string;
 }
 

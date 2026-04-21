@@ -7,6 +7,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { ref, get } from "firebase/database";
 import { ArrowLeft, MessageCircle } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { auth, db } from "@/lib/firebase";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getMovieDetails } from "@/lib/tmdb";
@@ -91,14 +92,7 @@ export default function MovieReviewsPage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading reviews...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Movie reviews are loading" />;
   }
 
   return (

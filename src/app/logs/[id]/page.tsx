@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { MovieLogWithContent, User, Content } from "@/types";
 import { deleteMovieLog, updateMovieLog, getLogsForContent } from "@/lib/logs";
 import { likeLog, unlikeLog, getLogLikes } from "@/lib/log-likes";
 import { ref as dbRef, push as dbPush } from "firebase/database";
 import { getMovieDetails } from "@/lib/tmdb";
 import { getShowDetails } from "@/lib/tvmaze";
-import { Loader2, MoreVertical, ArrowLeft, Edit2, Trash2, ThumbsDown, Heart, Sparkles, CalendarDays } from "lucide-react";
+import { MoreVertical, ArrowLeft, Edit2, Trash2, ThumbsDown, Heart, Sparkles, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebase";
 import { ref, get } from "firebase/database";
@@ -299,11 +300,7 @@ export default function LogDetailPage() {
     log?.content.title === "Unknown Movie" || log?.content.title === "Unknown Show";
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-      </div>
-    );
+    return <CinematicLoading message="Your log details are loading" />;
   }
 
   if (!log) {

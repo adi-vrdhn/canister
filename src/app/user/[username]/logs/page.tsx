@@ -12,9 +12,9 @@ import {
   ChevronRight,
   Clock3,
   Film,
-  Loader2,
 } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { auth, db } from "@/lib/firebase";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getUserMovieLogs } from "@/lib/logs";
@@ -272,11 +272,7 @@ export default function PublicUserLogsPage() {
   };
 
   if (loading || !currentUser || !profileUser) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
-        <Loader2 className="h-12 w-12 animate-spin text-zinc-700" />
-      </div>
-    );
+    return <CinematicLoading message="Movie logs are loading" />;
   }
 
   return (

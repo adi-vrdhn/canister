@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import MovieCard from "@/components/MovieCard";
 import ShareModal from "@/components/ShareModal";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, ShareWithDetails, Movie, TVShow, Content, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -38,7 +39,7 @@ export default function DashboardPage() {
   const [accountResults, setAccountResults] = useState<SearchAccount[]>([]);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [searchFilter, setSearchFilter] = useState<"all" | "movies" | "tv" | "accounts">("all");
+  const [searchFilter, setSearchFilter] = useState<"all" | "movie" | "tv" | "accounts">("all");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -267,14 +268,7 @@ export default function DashboardPage() {
   };
 
   if (loading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your dashboard is loading" />;
   }
 
   if (!user) {
@@ -287,13 +281,9 @@ export default function DashboardPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="p-8">
-        {/* CANISTER Branding */}
-        <div className="flex items-center justify-center mt-6 mb-10">
-          <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 uppercase">CANISTER</h1>
-        </div>
+      <div className="px-1 py-2 sm:p-8">
         {/* Search Bar */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <div className="relative max-w-2xl">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -302,17 +292,17 @@ export default function DashboardPage() {
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               onFocus={() => (searchResults.length > 0 || accountResults.length > 0) && setShowSearchModal(true)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              className="w-full rounded-xl border border-gray-300 py-3 pl-10 pr-4 text-base text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
 
             {/* Dropdown Results */}
             {showSearchModal && (searchResults.length > 0 || accountResults.length > 0) && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-[600px] overflow-y-auto">
+              <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(70dvh,600px)] overflow-y-auto overscroll-contain rounded-xl border border-gray-300 bg-white shadow-lg">
                 {/* Filter Buttons */}
-                <div className="sticky top-0 bg-white border-b border-gray-200 p-3 flex gap-2">
+                <div className="sticky top-0 flex gap-2 overflow-x-auto border-b border-gray-200 bg-white p-3">
                   <button
                     onClick={() => setSearchFilter("all")}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "all"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -322,7 +312,7 @@ export default function DashboardPage() {
                   </button>
                   <button
                     onClick={() => setSearchFilter("movie")}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "movie"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -332,7 +322,7 @@ export default function DashboardPage() {
                   </button>
                   <button
                     onClick={() => setSearchFilter("tv")}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "tv"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -342,7 +332,7 @@ export default function DashboardPage() {
                   </button>
                   <button
                     onClick={() => setSearchFilter("accounts")}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "accounts"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -360,14 +350,14 @@ export default function DashboardPage() {
                       // Fix: match 'movie' type for Movies filter
                       if (searchFilter === "movie") return result.type === "movie";
                       if (searchFilter === "tv") return result.type === "tv";
-                      return result.type === searchFilter;
+                      return false;
                     })
                     .map((result) => (
                       <Link
                         key={`${result.type}-${result.id}`}
                         href={result.type === "tv" ? `/tv/${result.id}` : `/movie/${result.id}`}
                       >
-                        <div className="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0">
+                        <div className="flex items-center gap-3 border-b border-gray-100 p-3 transition-colors last:border-b-0 hover:bg-gray-100">
                           {/* Poster thumbnail */}
                           <div className="w-12 h-16 flex-shrink-0 bg-gray-200 rounded overflow-hidden">
                             {result.poster_url ? (
@@ -463,14 +453,14 @@ export default function DashboardPage() {
         {/* Recently Watched Section (Current User) removed as requested */}
 
         {/* Movies Shared to You Section with Share Button */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">
+        <div className="mb-4 sm:mb-8">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base font-bold text-gray-900 sm:text-2xl">
               Movies shared to you
             </h2>
             <Link
               href="/share"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-700 sm:w-auto sm:px-4 sm:text-base"
             >
               <Share2 className="w-5 h-5" />
               Share
@@ -480,17 +470,17 @@ export default function DashboardPage() {
           {shares.length > 0 ? (
             <div>
               {/* Horizontal Carousel - Always visible */}
-              <div className="overflow-x-auto pb-4 mb-6">
-                <div className="flex gap-8">
+              <div className="-mx-3 mb-3 overflow-x-auto px-3 pb-4 sm:mx-0 sm:mb-6 sm:px-0">
+                <div className="flex gap-2.5 sm:gap-8">
                   {/* Show only unwatched shares */}
                   {unwatchedShares.slice(0, 6).map((share) => (
                     <div
                       key={share.id}
                       onClick={() => setSelectedShare(share)}
-                      className="flex-shrink-0 w-56 cursor-pointer"
+                      className="w-[27vw] min-w-[5.5rem] max-w-[6.75rem] flex-shrink-0 cursor-pointer sm:w-56 sm:min-w-0 sm:max-w-none"
                     >
                       <div className="pointer-events-none">
-                        <MovieCard movie={share.movie} sharedBy={share.sender?.name || "Unknown"} />
+                        <MovieCard movie={share.movie} sharedBy={share.sender?.name || "Unknown"} compact />
                       </div>
                     </div>
                   ))}
@@ -500,13 +490,13 @@ export default function DashboardPage() {
               {/* View All Button - Links to separate page */}
               <Link
                 href="/all-movies"
-                className="inline-block px-4 py-2 text-blue-600 hover:text-blue-700 font-medium text-sm border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors mb-6"
+                className="inline-block rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:px-4 sm:py-2 sm:text-sm"
               >
                 View All
               </Link>
             </div>
           ) : (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center sm:py-12">
               <Clapperboard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-600 font-medium">No recent shares</p>
               <p className="text-gray-500 text-sm mt-1">
@@ -519,49 +509,43 @@ export default function DashboardPage() {
         {/* Friends' Recent Logs Section */}
         {friendLogs.length > 0 && (
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">
+            <div className="mb-4">
+              <h2 className="text-base font-bold text-gray-900 sm:text-2xl">
                 Friends' recent logs
               </h2>
-              <Link
-                href="/friends/logs"
-                className="text-blue-600 hover:text-blue-700 font-medium text-sm border border-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
-              >
-                View More
-              </Link>
             </div>
 
             {/* Horizontal Slider */}
-            <div className="overflow-x-auto pb-4">
-              <div className="flex gap-6">
+            <div className="-mx-3 overflow-x-auto px-3 pb-4 sm:mx-0 sm:px-0">
+              <div className="flex gap-2.5 sm:gap-6">
                 {friendLogs.slice(0, 8).map((log) => (
                   <div
                     key={log.id}
                     onClick={() => router.push(`/logs/${log.id}`)}
-                    className="flex-shrink-0 w-56 bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                    className="w-[27vw] min-w-[5.5rem] max-w-[6.75rem] flex-shrink-0 cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-lg sm:w-56 sm:min-w-0 sm:max-w-none sm:rounded-lg"
                   >
                     {/* Movie Poster */}
                     {log.content.poster_url && (
                       <img
                         src={log.content.poster_url}
                         alt={log.content.title}
-                        className="w-full h-72 object-cover"
+                        className="aspect-[3/4] h-auto w-full object-cover sm:h-72 sm:aspect-auto"
                       />
                     )}
 
                     {/* Content Info */}
-                    <div className="p-3">
+                    <div className="p-2 sm:p-3">
                       {/* Movie Title */}
-                      <h3 className="font-semibold text-gray-900 truncate mb-1">
+                      <h3 className="mb-0.5 truncate text-[11px] font-semibold leading-tight text-gray-900 sm:mb-1 sm:text-base">
                         {log.content.title}
                       </h3>
 
                       {/* Friend Name */}
-                      <p className="text-sm text-gray-600 mb-2">by {log.friend.name}</p>
+                      <p className="mb-1 truncate text-[10px] leading-tight text-gray-600 sm:mb-2 sm:text-sm">by {log.friend.name}</p>
 
                       {/* Reaction Badge */}
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">
+                        <span className="text-[10px] font-medium text-gray-700 sm:text-lg sm:font-normal">
                           {log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad"}
                         </span>
                       </div>
@@ -570,6 +554,12 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
+            <Link
+              href="/friends/logs"
+              className="mt-1 inline-flex w-full justify-center rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:w-auto sm:px-4 sm:py-2 sm:text-sm"
+            >
+              View More
+            </Link>
           </div>
         )}
 

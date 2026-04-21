@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
-import { ArrowLeft, BarChart3, Clock, Flame, Loader2, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, BarChart3, Clock, Flame, Sparkles, Users } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { getFullTasteProfile } from "@/lib/friends-match";
 import { generateMatchAnalysis } from "@/lib/match-score";
 import { getUserByUsername } from "@/lib/profile";
+import CinematicLoading from "@/components/CinematicLoading";
 import type { User } from "@/types";
 
 export default function MovieMatcherReportPage() {
@@ -86,11 +87,7 @@ export default function MovieMatcherReportPage() {
   }, [username]);
 
   if (loading || !currentUser || !profileUser || !analysis) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
-        <Loader2 className="h-12 w-12 animate-spin text-zinc-700" />
-      </div>
-    );
+    return <CinematicLoading message="Your match report is loading" />;
   }
 
   const commonTasteMovies = analysis.commonTasteMovies || [];
@@ -98,21 +95,21 @@ export default function MovieMatcherReportPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         <button
           onClick={() => router.push(`/profile/${profileUser.username}`)}
-          className="mb-5 inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+          className="mb-4 inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 sm:mb-5 sm:px-4 sm:text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Profile
         </button>
 
-        <section className="mb-6 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+        <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:mb-6 sm:rounded-3xl sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-indigo-600" />
-                <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
+                <h1 className="text-xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
                   Movie Match Report
                 </h1>
               </div>
@@ -121,49 +118,49 @@ export default function MovieMatcherReportPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-right">
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-left sm:text-right">
               <p className="text-xs font-medium uppercase tracking-wide text-indigo-700">Match Score</p>
               <p className="text-2xl font-bold text-indigo-900">{analysis.totalScore}%</p>
             </div>
           </div>
         </section>
 
-        <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="mb-4 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4 xl:grid-cols-4">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-600">
               <BarChart3 className="h-4 w-4 text-sky-600" />
               Shared Movies
             </div>
-            <p className="mt-3 text-3xl font-bold text-zinc-900">{analysis.commonTasteMovieCount}</p>
+            <p className="mt-2 text-2xl font-bold text-zinc-900 sm:mt-3 sm:text-3xl">{analysis.commonTasteMovieCount}</p>
           </div>
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-600">
               <Flame className="h-4 w-4 text-amber-600" />
               Both Loved
             </div>
-            <p className="mt-3 text-3xl font-bold text-zinc-900">{analysis.commonMasterpieceMovieCount}</p>
+            <p className="mt-2 text-2xl font-bold text-zinc-900 sm:mt-3 sm:text-3xl">{analysis.commonMasterpieceMovieCount}</p>
           </div>
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-600">
               <Users className="h-4 w-4 text-violet-600" />
               Shared Genres
             </div>
-            <p className="mt-3 text-3xl font-bold text-zinc-900">{analysis.sharedGenres?.length || 0}</p>
+            <p className="mt-2 text-2xl font-bold text-zinc-900 sm:mt-3 sm:text-3xl">{analysis.sharedGenres?.length || 0}</p>
           </div>
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-600">
               <Clock className="h-4 w-4 text-emerald-600" />
               Avg Year Gap
             </div>
-            <p className="mt-3 text-3xl font-bold text-zinc-900">
+            <p className="mt-2 text-2xl font-bold text-zinc-900 sm:mt-3 sm:text-3xl">
               {Math.abs((analysis.avgYearA || 0) - (analysis.avgYearB || 0))}
             </p>
           </div>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="grid gap-4 sm:gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-indigo-600" />
                 <h2 className="text-lg font-bold text-zinc-900">Taste Insight</h2>
@@ -174,16 +171,16 @@ export default function MovieMatcherReportPage() {
               </p>
             </div>
 
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <h2 className="text-lg font-bold text-zinc-900">Preferences</h2>
-              <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                   <p className="text-xs text-zinc-600">Your Avg Movie Year</p>
-                  <p className="mt-1 text-2xl font-bold text-amber-700">{analysis.avgYearA}</p>
+                  <p className="mt-1 text-xl font-bold text-amber-700 sm:text-2xl">{analysis.avgYearA}</p>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                   <p className="text-xs text-zinc-600">{profileUser.name}&apos;s Avg Year</p>
-                  <p className="mt-1 text-2xl font-bold text-amber-700">{analysis.avgYearB}</p>
+                  <p className="mt-1 text-xl font-bold text-amber-700 sm:text-2xl">{analysis.avgYearB}</p>
                 </div>
               </div>
               <div className="mt-4">
@@ -217,8 +214,8 @@ export default function MovieMatcherReportPage() {
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <h2 className="text-lg font-bold text-zinc-900">Quick Links</h2>
               <div className="mt-4 grid gap-3">
                 <Link
@@ -236,7 +233,7 @@ export default function MovieMatcherReportPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <h2 className="text-lg font-bold text-zinc-900">Common Watching</h2>
               <div className="mt-4 space-y-5">
                 <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
@@ -244,14 +241,14 @@ export default function MovieMatcherReportPage() {
                     Your Taste Overlap <span className="text-xs text-sky-600">({analysis.commonTasteMovieCount})</span>
                   </p>
                   {commonTasteMovies.length > 0 ? (
-                    <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+                    <div className="-mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
                       {commonTasteMovies.map((movie: any) => (
                         <Link
                           key={`taste-${movie.type}-${movie.id}`}
                           href={movie.type === "movie" ? `/movie/${movie.id}` : `/tv/${movie.id}`}
                           className="group flex-shrink-0"
                         >
-                          <div className="w-24 overflow-hidden rounded-xl bg-gray-200 shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md">
+                          <div className="w-20 overflow-hidden rounded-xl bg-gray-200 shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md sm:w-24">
                             {movie.poster_url ? (
                               <img
                                 src={movie.poster_url}
@@ -264,7 +261,7 @@ export default function MovieMatcherReportPage() {
                               </div>
                             )}
                           </div>
-                          <p className="mt-2 w-24 text-xs font-medium text-zinc-700 line-clamp-2">{movie.title}</p>
+                          <p className="mt-2 w-20 text-xs font-medium text-zinc-700 line-clamp-2 sm:w-24">{movie.title}</p>
                         </Link>
                       ))}
                     </div>
@@ -278,14 +275,14 @@ export default function MovieMatcherReportPage() {
                     Both Loved <span className="text-xs text-amber-600">({analysis.commonMasterpieceMovieCount})</span>
                   </p>
                   {commonMasterpieceMovies.length > 0 ? (
-                    <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+                    <div className="-mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
                       {commonMasterpieceMovies.map((movie: any) => (
                         <Link
                           key={`masterpiece-${movie.type}-${movie.id}`}
                           href={movie.type === "movie" ? `/movie/${movie.id}` : `/tv/${movie.id}`}
                           className="group flex-shrink-0"
                         >
-                          <div className="w-24 overflow-hidden rounded-xl bg-gray-200 ring-2 ring-amber-400 shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md">
+                          <div className="w-20 overflow-hidden rounded-xl bg-gray-200 shadow-sm ring-2 ring-amber-400 transition group-hover:-translate-y-0.5 group-hover:shadow-md sm:w-24">
                             {movie.poster_url ? (
                               <img
                                 src={movie.poster_url}
@@ -298,7 +295,7 @@ export default function MovieMatcherReportPage() {
                               </div>
                             )}
                           </div>
-                          <p className="mt-2 w-24 text-xs font-medium text-zinc-700 line-clamp-2">{movie.title}</p>
+                          <p className="mt-2 w-20 text-xs font-medium text-zinc-700 line-clamp-2 sm:w-24">{movie.title}</p>
                         </Link>
                       ))}
                     </div>

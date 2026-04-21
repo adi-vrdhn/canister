@@ -3,6 +3,7 @@
 import { useMemo, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, List, ListWithItems } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -338,57 +339,47 @@ export default function ListsPage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading your lists...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your lists are loading" />;
   }
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="flex items-center justify-center mt-12 mb-10">
-        <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 uppercase">CANISTER</h1>
-      </div>
       <div className="p-8 space-y-10">
         <div className="sticky top-4 z-20 rounded-3xl border border-gray-200 bg-white/90 backdrop-blur shadow-sm">
           <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
               <button
                 onClick={() => setActiveSection("global")}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-2 py-2 text-xs font-medium transition-colors sm:gap-2 sm:px-4 sm:text-sm ${
                   activeSection === "global"
                     ? "border-blue-600 bg-blue-600 text-white"
                     : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                <Compass className="h-4 w-4" />
+                <Compass className="h-4 w-4 flex-shrink-0" />
                 Global
               </button>
               <button
                 onClick={() => setActiveSection("friends")}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-2 py-2 text-xs font-medium transition-colors sm:gap-2 sm:px-4 sm:text-sm ${
                   activeSection === "friends"
                     ? "border-blue-600 bg-blue-600 text-white"
                     : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                <Globe className="h-4 w-4" />
+                <Globe className="h-4 w-4 flex-shrink-0" />
                 Friends
               </button>
               <button
                 onClick={() => setActiveSection("your")}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-2 py-2 text-xs font-medium transition-colors sm:gap-2 sm:px-4 sm:text-sm ${
                   activeSection === "your"
                     ? "border-blue-600 bg-blue-600 text-white"
                     : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                <Lock className="h-4 w-4" />
-                Your Lists
+                <Lock className="h-4 w-4 flex-shrink-0" />
+                Your
               </button>
             </div>
 

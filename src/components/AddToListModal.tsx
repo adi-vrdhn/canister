@@ -99,11 +99,11 @@ export default function AddToListModal({ isOpen, onClose, content, user }: AddTo
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm p-4">
-      <div className="surface-strong flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-2 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="surface-strong flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-[1.5rem] sm:max-h-[80vh] sm:rounded-[2rem]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 p-5">
-          <h2 className="text-lg font-semibold text-slate-900">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4 sm:p-5">
+          <h2 className="min-w-0 text-base font-semibold text-slate-900 sm:text-lg">
             Add "{content?.title}" to a list
           </h2>
           <button
@@ -115,7 +115,7 @@ export default function AddToListModal({ isOpen, onClose, content, user }: AddTo
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-8">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
@@ -128,15 +128,15 @@ export default function AddToListModal({ isOpen, onClose, content, user }: AddTo
                   key={list.id}
                   onClick={() => handleAddToList(list.id)}
                   disabled={addingTo === list.id}
-                  className={`flex w-full items-center justify-between rounded-2xl border p-4 transition-all ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 transition-all sm:p-4 ${
                     addedToLists.has(list.id)
                       ? "border-slate-300 bg-slate-50"
                       : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  <div className="text-left">
+                  <div className="min-w-0 text-left">
                     <p className="font-medium text-slate-900">{list.name}</p>
-                    <p className="text-xs text-slate-500">{list.description || "No description"}</p>
+                    <p className="truncate text-xs text-slate-500">{list.description || "No description"}</p>
                   </div>
 
                   {addingTo === list.id ? (
@@ -153,7 +153,6 @@ export default function AddToListModal({ isOpen, onClose, content, user }: AddTo
             <div className="py-8 text-center">
               <p className="mb-4 text-slate-500">You haven't created any lists yet</p>
               <button
-                onClick={() => setShowCreateNew(true)}
                 className="action-primary"
                 onClick={e => { handleRipple(e); setShowCreateNew(true); }}
               >
@@ -174,7 +173,6 @@ export default function AddToListModal({ isOpen, onClose, content, user }: AddTo
                 className="field mb-2 py-2 text-sm"
               />
               <button
-                onClick={handleCreateAndAdd}
                 disabled={creatingList || !newListName.trim()}
                 className="action-primary w-full disabled:opacity-50"
                 onClick={e => { handleRipple(e); handleCreateAndAdd(); }}
@@ -188,7 +186,6 @@ export default function AddToListModal({ isOpen, onClose, content, user }: AddTo
         {/* Footer */}
         <div className="border-t border-slate-200 p-4">
           <button
-            onClick={onClose}
             className="action w-full"
             onClick={e => { handleRipple(e); onClose(); }}
           >

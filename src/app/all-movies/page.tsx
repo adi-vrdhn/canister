@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import MovieCard from "@/components/MovieCard";
+import ShareModal from "@/components/ShareModal";
+import CinematicLoading from "@/components/CinematicLoading";
 import { User, ShareWithDetails } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -20,6 +22,7 @@ export default function AllMoviesPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"recent" | "watched">("recent");
+  const [selectedShare, setSelectedShare] = useState<ShareWithDetails | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -142,14 +145,7 @@ export default function AllMoviesPage() {
   });
 
   if (loading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your shared movies are loading" />;
   }
 
   if (!user) {
@@ -158,26 +154,26 @@ export default function AllMoviesPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="p-8">
+      <div className="px-3 py-4 sm:p-8">
         {/* Header with back button */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="mb-5 flex items-center gap-3 sm:mb-8 sm:gap-4">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+            className="flex shrink-0 items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 sm:gap-2 sm:text-base"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             Back
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="min-w-0 truncate text-xl font-bold text-gray-900 sm:text-3xl">
             All Shared Content
           </h1>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-8 border-b border-gray-200">
+        <div className="mb-5 flex gap-2 border-b border-gray-200 sm:mb-8 sm:gap-4">
           <button
             onClick={() => setActiveTab("recent")}
-            className={`pb-2 px-4 font-medium transition-colors ${
+            className={`px-2 pb-2 text-sm font-medium transition-colors sm:px-4 sm:text-base ${
               activeTab === "recent"
                 ? "text-blue-600 border-b-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
@@ -187,7 +183,7 @@ export default function AllMoviesPage() {
           </button>
           <button
             onClick={() => setActiveTab("watched")}
-            className={`pb-2 px-4 font-medium transition-colors ${
+            className={`px-2 pb-2 text-sm font-medium transition-colors sm:px-4 sm:text-base ${
               activeTab === "watched"
                 ? "text-blue-600 border-b-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
@@ -198,16 +194,16 @@ export default function AllMoviesPage() {
         </div>
 
         {/* Search Bar and Controls */}
-        <div className="mb-8 space-y-4">
+        <div className="mb-5 space-y-3 sm:mb-8 sm:space-y-4">
           {/* Search Bar */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400 sm:h-5 sm:w-5" />
             <input
               type="text"
               placeholder="Search by movie title or name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:py-3 sm:pl-10 sm:pr-4 sm:text-base"
             />
           </div>
 
@@ -215,24 +211,24 @@ export default function AllMoviesPage() {
           <div className="flex gap-3">
             <button
               onClick={() => setViewMode("grid")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:gap-2 sm:px-4 ${
                 viewMode === "grid"
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <Grid3x3 className="w-5 h-5" />
+              <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5" />
               Grid
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:gap-2 sm:px-4 ${
                 viewMode === "list"
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <List className="w-5 h-5" />
+              <List className="h-4 w-4 sm:h-5 sm:w-5" />
               List
             </button>
           </div>
@@ -251,19 +247,25 @@ export default function AllMoviesPage() {
           filteredShares.length > 0 ? (
             viewMode === "grid" ? (
               // Grid View
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+              <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-3 sm:gap-8 md:grid-cols-4 lg:grid-cols-5">
                 {filteredShares.map((share) => (
-                  <div key={share.id} className="w-56">
+                  <div
+                    key={share.id}
+                    onClick={() => setSelectedShare(share)}
+                    className="min-w-0 cursor-pointer sm:w-44 lg:w-48"
+                  >
                     <MovieCard
                       movie={share.movie || share.content}
                       sharedBy={share.sender?.name || "Unknown"}
+                      compact
+                      disableLink
                     />
                   </div>
                 ))}
               </div>
             ) : (
               // List View
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {filteredShares.map((share) => {
                   const item = share.movie || share.content;
                   const title = (item?.title || "Unknown");
@@ -272,32 +274,33 @@ export default function AllMoviesPage() {
                   return (
                     <div
                       key={share.id}
-                      className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedShare(share)}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md sm:gap-4 sm:p-4"
                     >
                       {item?.poster_url && (
                         <img
                           src={item.poster_url}
                           alt={title}
-                          className="w-16 h-24 rounded object-cover flex-shrink-0"
+                          className="h-20 w-14 flex-shrink-0 rounded object-cover sm:h-24 sm:w-16"
                         />
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-lg font-semibold text-gray-900 truncate">
+                          <p className="truncate text-sm font-semibold text-gray-900 sm:text-lg">
                             {title}
                           </p>
-                          <span className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700 sm:px-2 sm:py-1 sm:text-xs">
                             {contentType === "tv" ? "TV" : "Movie"}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="mt-1 truncate text-xs text-gray-600 sm:text-sm">
                           Shared by <span className="font-medium">@{share.sender?.username}</span>
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="mt-1 text-[11px] text-gray-500 sm:text-xs">
                           {new Date(share.created_at).toLocaleDateString()}
                         </p>
                         {item?.overview && (
-                          <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                          <p className="mt-2 hidden text-sm text-gray-600 line-clamp-2 sm:block">
                             {item.overview}
                           </p>
                         )}
@@ -327,19 +330,25 @@ export default function AllMoviesPage() {
           filteredWatchedShares.length > 0 ? (
             viewMode === "grid" ? (
               // Grid View
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+              <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-3 sm:gap-8 md:grid-cols-4 lg:grid-cols-5">
                 {filteredWatchedShares.map((share) => (
-                  <div key={share.id} className="w-56">
+                  <div
+                    key={share.id}
+                    onClick={() => setSelectedShare(share)}
+                    className="min-w-0 cursor-pointer sm:w-44 lg:w-48"
+                  >
                     <MovieCard
                       movie={share.movie || share.content}
                       sharedBy={share.sender?.name || "Unknown"}
+                      compact
+                      disableLink
                     />
                   </div>
                 ))}
               </div>
             ) : (
               // List View
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {filteredWatchedShares.map((share) => {
                   const item = share.movie || share.content;
                   const title = (item?.title || "Unknown");
@@ -348,32 +357,33 @@ export default function AllMoviesPage() {
                   return (
                     <div
                       key={share.id}
-                      className="flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedShare(share)}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md sm:gap-4 sm:p-4"
                     >
                       {item?.poster_url && (
                         <img
                           src={item.poster_url}
                           alt={title}
-                          className="w-16 h-24 rounded object-cover flex-shrink-0"
+                          className="h-20 w-14 flex-shrink-0 rounded object-cover sm:h-24 sm:w-16"
                         />
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-lg font-semibold text-gray-900 truncate">
+                          <p className="truncate text-sm font-semibold text-gray-900 sm:text-lg">
                             {title}
                           </p>
-                          <span className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700 sm:px-2 sm:py-1 sm:text-xs">
                             {contentType === "tv" ? "TV" : "Movie"}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="mt-1 truncate text-xs text-gray-600 sm:text-sm">
                           Shared by <span className="font-medium">@{share.sender?.username}</span>
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="mt-1 text-[11px] text-gray-500 sm:text-xs">
                           Shared {new Date(share.created_at).toLocaleDateString()}
                         </p>
                         {item?.overview && (
-                          <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                          <p className="mt-2 hidden text-sm text-gray-600 line-clamp-2 sm:block">
                             {item.overview}
                           </p>
                         )}
@@ -388,6 +398,15 @@ export default function AllMoviesPage() {
               <p className="text-gray-600 font-medium">No watched movies yet</p>
             </div>
           )
+        )}
+        {selectedShare && (
+          <ShareModal
+            key={selectedShare.id}
+            share={selectedShare}
+            currentUserId={user.id}
+            onClose={() => setSelectedShare(null)}
+            user={user}
+          />
         )}
       </div>
     </PageLayout>

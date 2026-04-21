@@ -204,16 +204,18 @@ export default function ShareModal({
 
       {/* Modal - Centered */}
       <div 
-        className="fixed inset-0 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-end justify-center p-0 backdrop-blur-sm sm:items-center sm:p-4"
         onContextMenu={handleRightClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="surface-strong max-h-[90vh] w-full max-w-2xl overflow-y-auto">
+        <div className="surface-strong max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-b-none rounded-t-3xl sm:max-h-[90vh] sm:rounded-3xl">
           {/* Header with Close Button */}
-          <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white/95 p-6 backdrop-blur">
+          <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:p-6">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
+            <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-xl font-semibold text-slate-900">Shared with you</h3>
+              <h3 className="text-base font-semibold text-slate-900 sm:text-xl">Shared with you</h3>
               {isWatched && (
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
                   Watched
@@ -223,29 +225,30 @@ export default function ShareModal({
             <div className="flex items-center gap-2">
               <button
                 onClick={handleMenuButtonClick}
-                className="action"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:px-4 sm:py-2 sm:text-sm"
                 title="More options"
               >
                 More
               </button>
               <button
                 onClick={onClose}
-                className="action"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:px-4 sm:py-2 sm:text-sm"
               >
                 Close
               </button>
             </div>
+            </div>
           </div>
 
-          <div className="space-y-6 p-6">
+          <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
             {/* Movie Info Container */}
-            <div className="flex gap-6">
+            <div className="flex gap-4 sm:gap-6">
               {/* Poster */}
               <button
                 onClick={handleNavigateToMovie}
                 className="cursor-pointer border-0 bg-none p-0 transition-opacity hover:opacity-80"
               >
-                <div className="h-60 w-40 overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-sm">
+                <div className="h-36 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm sm:h-60 sm:w-40 sm:rounded-3xl">
                   {posterUrl ? (
                     <img
                       src={posterUrl}
@@ -261,14 +264,14 @@ export default function ShareModal({
               </button>
 
               {/* Movie Details */}
-              <div className="flex-1 space-y-4">
+              <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
                 {/* Title */}
                 <div>
-                  <h2 className="text-3xl font-semibold text-slate-900">
+                  <h2 className="line-clamp-3 text-xl font-semibold leading-tight text-slate-900 sm:text-3xl">
                     {movie?.title || movie?.name}
                   </h2>
                   {(movie?.release_date || movie?.premiered) && (
-                    <p className="mt-2 text-sm text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500 sm:mt-2 sm:text-sm">
                       {new Date(
                         movie?.release_date || movie?.premiered
                       ).getFullYear()}
@@ -277,11 +280,11 @@ export default function ShareModal({
                 </div>
 
                 {/* Sharer Info */}
-                <div className="border-l-4 border-slate-900 pl-4">
-                  <p className="mb-2 text-sm text-slate-500">Shared by</p>
+                <div className="border-l-4 border-slate-900 pl-3 sm:pl-4">
+                  <p className="mb-1 text-xs text-slate-500 sm:mb-2 sm:text-sm">Shared by</p>
                   <button
                     onClick={handleNavigateToProfile}
-                    className="cursor-pointer border-0 bg-none p-0 text-xl font-semibold text-slate-900 transition-colors hover:text-slate-600"
+                    className="line-clamp-1 cursor-pointer border-0 bg-none p-0 text-base font-semibold text-slate-900 transition-colors hover:text-slate-600 sm:text-xl"
                   >
                     {share.sender?.name || share.sender?.username || 'Unknown'}
                   </button>
@@ -291,15 +294,15 @@ export default function ShareModal({
 
             {/* Message Bubble (if exists) */}
             {share.note && (
-              <div className="rounded-r-3xl border-l-4 border-slate-900 bg-slate-50 p-5">
-                <p className="text-base italic text-slate-700">"{share.note}"</p>
+              <div className="rounded-r-2xl border-l-4 border-slate-900 bg-slate-50 p-4 sm:rounded-r-3xl sm:p-5">
+                <p className="text-sm italic text-slate-700 sm:text-base">"{share.note}"</p>
               </div>
             )}
 
             {/* CTA - View Movie */}
             <button
               onClick={handleNavigateToMovie}
-              className="action-primary w-full py-4 text-lg"
+              className="action-primary w-full py-3 text-sm sm:py-4 sm:text-lg"
             >
               View {share.content_type === 'tv' ? 'Show' : 'Movie'} Details
             </button>

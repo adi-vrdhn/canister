@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import SearchBar from "@/components/SearchBar";
+import CinematicLoading from "@/components/CinematicLoading";
 import { Content, ShareWithDetails, TMDBMovie, User } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -11,7 +12,7 @@ import { get, onValue, ref, set } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getMovieDetails, searchMovies } from "@/lib/tmdb";
 import { getShowDetails, searchShows, ShowDetails } from "@/lib/tvmaze";
-import { ChevronLeft, ChevronRight, SendHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, SendHorizontal, Trash2 } from "lucide-react";
 
 type SearchResultItem = {
   id: string | number;
@@ -334,7 +335,7 @@ function SharePageContent() {
 
       const showResults = (shows as ShowDetails[]).map((show) => ({
         id: `tv-${show.id}`,
-        title: show.name || show.title,
+        title: show.name || show.title || "Untitled",
         subtitle: `${show.premiered?.split("-")[0] || "N/A"} • TV Show`,
         year: show.premiered?.split("-")[0] || "N/A",
         image: show.poster_url || show.image?.medium,
@@ -450,14 +451,7 @@ function SharePageContent() {
   };
 
   if (loading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <CinematicLoading message="Your share studio is loading" />;
   }
 
   if (!user) {
@@ -466,46 +460,20 @@ function SharePageContent() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="relative min-h-screen overflow-hidden px-4 pb-14 pt-8 sm:px-8">
+      <div className="relative min-h-screen overflow-hidden px-1 pb-12 pt-3 sm:px-8 sm:pt-8">
         <div className="share-orb share-float-slow absolute -left-28 top-20 h-80 w-80 rounded-full" />
         <div className="share-orb share-float-slow share-float-delay absolute -right-20 top-56 h-72 w-72 rounded-full" />
 
         <div className="mx-auto w-full max-w-6xl">
-          <div className="mb-10 flex items-center justify-center">
-            <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 uppercase">CANISTER</h1>
-          </div>
-
-          <section className="share-card mb-8 px-6 py-6 sm:px-8">
-            <div className="flex flex-wrap items-start justify-between gap-6">
-              <div className="max-w-2xl">
-                <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-600">
-                  <Sparkles className="h-3.5 w-3.5 text-zinc-700" />
-                  Share Studio
-                </p>
-                <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
-                  Curate and send a recommendation in two thoughtful steps.
-                </h1>
-                <p className="mt-3 max-w-xl text-sm text-zinc-600 sm:text-base">
-                  Pick a title, choose friends, and add context so your share feels personal.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="chip bg-white/90 text-zinc-700">{followers.length} friends</span>
-                <span className="chip bg-white/90 text-zinc-700">{sentShares.length} sent shares</span>
-              </div>
-            </div>
-          </section>
-
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] xl:gap-8">
             <section className="share-card overflow-hidden">
-              <div className="border-b border-zinc-200/70 px-6 py-5 sm:px-8">
+              <div className="border-b border-zinc-200/70 px-4 py-5 sm:px-8">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Share Flow</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-zinc-900">Send a recommendation</h2>
+                    <h2 className="mt-1 text-xl font-semibold text-zinc-900 sm:text-2xl">Send a recommendation</h2>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       currentStep === 1 ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"
                     }`}>
@@ -527,13 +495,13 @@ function SharePageContent() {
                 </div>
               </div>
 
-              <div className="min-h-[31rem] p-6 sm:p-8">
+              <div className="min-h-[28rem] p-4 sm:min-h-[31rem] sm:p-8">
                 <div
                   className={`transition-all duration-500 ${
                     currentStep === 1 ? "opacity-100 translate-x-0" : "opacity-0 translate-x-6"
                   } ${currentStep !== 1 ? "hidden" : ""}`}
                 >
-                  <h3 className="text-2xl font-semibold text-zinc-900">Select a Movie or Show</h3>
+                  <h3 className="text-xl font-semibold text-zinc-900 sm:text-2xl">Select a Movie or Show</h3>
                   <p className="mt-1 text-sm text-zinc-600">Find the right title first, then continue.</p>
 
                   <div className="mt-6 flex flex-wrap gap-2">
@@ -640,13 +608,13 @@ function SharePageContent() {
                   )}
 
                   {selectedContent && (
-                    <div className="mt-6 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+                    <div className="mt-6 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
                       <div className="flex flex-col gap-4 sm:flex-row">
                         {selectedContent.poster_url && (
                           <img
                             src={selectedContent.poster_url}
                             alt={selectedContent.title}
-                            className="h-48 w-32 rounded-2xl object-cover shadow-sm"
+                            className="h-44 w-28 rounded-2xl object-cover shadow-sm sm:h-48 sm:w-32"
                           />
                         )}
 
@@ -681,11 +649,11 @@ function SharePageContent() {
                     currentStep === 2 ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-6"
                   } ${currentStep !== 2 ? "hidden" : ""}`}
                 >
-                  <h3 className="text-2xl font-semibold text-zinc-900">Send to Friends</h3>
+                  <h3 className="text-xl font-semibold text-zinc-900 sm:text-2xl">Send to Friends</h3>
                   <p className="mt-1 text-sm text-zinc-600">Pick recipients and attach a short note.</p>
 
                   {selectedContent && (
-                    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 sm:px-4">
                       {selectedContent.poster_url && (
                         <img
                           src={selectedContent.poster_url}
@@ -717,7 +685,7 @@ function SharePageContent() {
                       filteredFollowers.map((friend) => (
                         <button
                           key={friend.id}
-                          className="flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-sm"
+                          className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-sm sm:px-4"
                           onClick={() => handleAddRecipient(friend.id)}
                         >
                           <div>
@@ -780,7 +748,7 @@ function SharePageContent() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-zinc-200/70 bg-white/70 px-6 py-4 sm:px-8">
+              <div className="flex items-center justify-between gap-3 border-t border-zinc-200/70 bg-white/70 px-4 py-4 sm:px-8">
                 <button
                   onClick={() => {
                     if (currentStep > 1) {
@@ -823,12 +791,12 @@ function SharePageContent() {
             </section>
 
             <aside className="share-card h-fit overflow-hidden xl:sticky xl:top-8">
-              <div className="border-b border-zinc-200/70 px-6 py-5">
+              <div className="border-b border-zinc-200/70 px-4 py-5 sm:px-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Sent Log</p>
-                <h2 className="mt-1 text-2xl font-semibold text-zinc-900">Movies You Shared</h2>
+                <h2 className="mt-1 text-xl font-semibold text-zinc-900 sm:text-2xl">Movies You Shared</h2>
               </div>
 
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <input
                   type="text"
                   placeholder="Search shared movies..."
@@ -903,7 +871,7 @@ function SharePageContent() {
 
 export default function SharePage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<CinematicLoading message="Your share studio is loading" />}>
       <SharePageContent />
     </Suspense>
   );
