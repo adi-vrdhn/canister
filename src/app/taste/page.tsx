@@ -1,47 +1,44 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import PageLayout from "@/components/PageLayout";
-import { User, UserTasteWithContent } from "@/types";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { ref, get } from "firebase/database";
-import { signOut as authSignOut } from "@/lib/auth";
-import { getUserTasteProfile, addToUserTaste, removeFromUserTaste } from "@/lib/user-taste";
-import { searchMovies } from "@/lib/tmdb";
-import { searchShows } from "@/lib/tvmaze";
-import { ArrowLeft, Plus, Trash2, Loader2, Search, X } from "lucide-react";
-import Link from "next/link";
-
-export default function TastePage() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tastes, setTastes] = useState<UserTasteWithContent[]>([]);
-  const [showSearchModal, setShowSearchModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [contentType, setContentType] = useState<"movie" | "tv">("movie");
-  const [addingContent, setAddingContent] = useState<string | null>(null);
-  const [removingContent, setRemovingContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push("/auth/login");
-        return (
-          <PageLayout user={user}>
-            <div className="flex items-center justify-center mt-12 mb-10">
-              <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 uppercase">CANISTER</h1>
-            </div>
-            {/* ...existing code... */}
-          </PageLayout>
-        );
+      try {
+        if (!firebaseUser) {
+          router.push("/auth/login");
+          return;
+        }
+
+        // Fetch user data if needed (add your logic here)
+        // Example: const userData = await fetchUserData(firebaseUser.uid);
+        const userData = null; // Replace with actual fetch if needed
 
         const currentUser: User = {
+          id: userData?.id || firebaseUser.uid,
+          username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
+          name: userData?.name || firebaseUser.displayName || "User",
+          avatar_url: userData?.avatar_url || null,
+          created_at: userData?.createdAt || new Date().toISOString(),
+        };
+
+        setUser(currentUser);
+
+        console.log("TastePage: Fetching taste profile for:", currentUser.id);
+        // Fetch user's taste profile
+        const userTastes = await getUserTasteProfile(currentUser.id);
+        console.log("TastePage: Taste profile fetched:", userTastes.length, "items");
+        setTastes(userTastes);
+
+        setLoading(false);
+        setError(null);
+      } catch (error) {
+        console.error("TastePage: Error loading taste profile:", error);
+        setError(
+          error instanceof Error ? error.message : "Failed to load taste profile"
+        );
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
           id: userData?.id || firebaseUser.uid,
           username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
           name: userData?.name || firebaseUser.displayName || "User",
