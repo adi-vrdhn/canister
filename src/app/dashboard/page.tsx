@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
-import MovieCard from "@/components/MovieCard";
 import ShareModal from "@/components/ShareModal";
 import CinematicLoading from "@/components/CinematicLoading";
-import { User, ShareWithDetails, Movie, TVShow, Content, MovieLogWithContent } from "@/types";
+import { User, ShareWithDetails, Content, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, get, onValue } from "firebase/database";
@@ -14,10 +13,11 @@ import { signOut as authSignOut } from "@/lib/auth";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import { getFriendLogs } from "@/lib/friend-logs";
-import { getUserMovieLogs } from "@/lib/logs";
-import RecentlyWatched from "@/components/RecentlyWatched";
 import Link from "next/link";
-import { Share2, LogIn, Clapperboard, Search, X, Star } from "lucide-react";
+import { Clapperboard, Film, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
+
+import CinePostsFeed from "@/components/CinePostsFeed";
+import CinePostModal from "@/components/CinePostModal";
 
 type SearchAccount = {
   id: string;
@@ -33,13 +33,17 @@ export default function DashboardPage() {
   const [selectedShare, setSelectedShare] = useState<ShareWithDetails | null>(null);
   const [friendLogs, setFriendLogs] = useState<(MovieLogWithContent & { friend: User })[]>([]);
   const [loading, setLoading] = useState(true);
-  const [recentLogs, setRecentLogs] = useState<{ content: Content; watched_at?: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Content[]>([]);
   const [accountResults, setAccountResults] = useState<SearchAccount[]>([]);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchFilter, setSearchFilter] = useState<"all" | "movie" | "tv" | "accounts">("all");
+
+  // CinePost modal state
+  const [showCinePostModal, setShowCinePostModal] = useState(false);
+  const [cinePostRefreshKey, setCinePostRefreshKey] = useState(0);
+  const [showQuickActions, setShowQuickActions] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -85,20 +89,6 @@ export default function DashboardPage() {
             setFriendLogs(logs);
           } catch (error) {
             console.error("Error fetching friend logs:", error);
-          }
-          // Fetch user's own recent logs
-          try {
-            const userLogs = await getUserMovieLogs(currentUser.id, 10);
-            setRecentLogs(
-              userLogs
-                .filter((log) => log.watched_date)
-                .map((log) => ({
-                  content: log.content,
-                  watched_at: log.watched_date,
-                }))
-            );
-          } catch (error) {
-            console.error("Error fetching user logs:", error);
           }
         }
 
@@ -268,16 +258,40 @@ export default function DashboardPage() {
   };
 
   if (loading) {
-    return <CinematicLoading message="Your dashboard is loading" />;
+    return <CinematicLoading message="Your home is loading" />;
   }
 
   if (!user) {
     return null;
   }
 
-  // Separate unwatched and watched shares
+  // Separate unwatched shares for the home preview.
   const unwatchedShares = shares.filter((s: any) => !s.watched);
-  const watchedShares = shares.filter((s: any) => s.watched);
+
+  const friendActivity = [
+    ...unwatchedShares.slice(0, 6).map((share) => ({
+      id: `share-${share.id}`,
+      kind: "shared" as const,
+      poster_url: (share.movie || share.content)?.poster_url || null,
+      title: (share.movie || share.content)?.title || "Unknown",
+      byline: `shared by ${share.sender?.name || "Unknown"}`,
+      reaction: "",
+      createdAt: share.created_at,
+      onClick: () => setSelectedShare(share),
+    })),
+    ...friendLogs.slice(0, 8).map((log) => ({
+      id: `log-${log.id}`,
+      kind: "logged" as const,
+      poster_url: log.content.poster_url,
+      title: log.content.title,
+      byline: `by ${log.friend.name}`,
+      reaction: log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad",
+      createdAt: log.created_at,
+      onClick: () => router.push(`/logs/${log.id}`),
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 10);
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
@@ -452,114 +466,177 @@ export default function DashboardPage() {
         </div>
         {/* Recently Watched Section (Current User) removed as requested */}
 
-        {/* Movies Shared to You Section with Share Button */}
-        <div className="mb-4 sm:mb-8">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Friends Activity Section */}
+        <div className="mb-8">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-base font-bold text-gray-900 sm:text-2xl">
-              Movies shared to you
+              Friends Activity
             </h2>
-            <Link
-              href="/share"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-700 sm:w-auto sm:px-4 sm:text-base"
+            <button
+              type="button"
+              onClick={() => setShowQuickActions(true)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 sm:h-11 sm:w-11"
+              aria-label="Open quick actions"
             >
-              <Share2 className="w-5 h-5" />
-              Share
-            </Link>
+              <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+            </button>
           </div>
 
-          {shares.length > 0 ? (
-            <div>
-              {/* Horizontal Carousel - Always visible */}
-              <div className="-mx-3 mb-3 overflow-x-auto px-3 pb-4 sm:mx-0 sm:mb-6 sm:px-0">
-                <div className="flex gap-2.5 sm:gap-8">
-                  {/* Show only unwatched shares */}
-                  {unwatchedShares.slice(0, 6).map((share) => (
-                    <div
-                      key={share.id}
-                      onClick={() => setSelectedShare(share)}
-                      className="w-[27vw] min-w-[5.5rem] max-w-[6.75rem] flex-shrink-0 cursor-pointer sm:w-56 sm:min-w-0 sm:max-w-none"
+          {friendActivity.length > 0 ? (
+            <>
+              <div className="-mx-3 overflow-x-auto px-3 pb-4 sm:mx-0 sm:px-0">
+                <div className="flex gap-2.5 sm:gap-6">
+                  {friendActivity.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={item.onClick}
+                      className="w-[27vw] min-w-[5.5rem] max-w-[6.75rem] flex-shrink-0 cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition-shadow hover:shadow-lg sm:w-56 sm:min-w-0 sm:max-w-none sm:rounded-lg"
                     >
-                      <div className="pointer-events-none">
-                        <MovieCard movie={share.movie} sharedBy={share.sender?.name || "Unknown"} compact />
+                      <div className="relative aspect-[3/4] overflow-hidden bg-slate-100 sm:h-72 sm:aspect-auto">
+                        {item.poster_url ? (
+                          <img
+                            src={item.poster_url}
+                            alt={item.title}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
+                            No poster
+                          </div>
+                        )}
                       </div>
-                    </div>
+                      <div className="p-2 sm:p-3">
+                        <h3 className="mb-0.5 truncate text-[11px] font-semibold leading-tight text-gray-900 sm:mb-1 sm:text-base">
+                          {item.title}
+                        </h3>
+                        <p className="mb-1 truncate text-[10px] leading-tight text-gray-600 sm:mb-2 sm:text-sm">
+                          {item.byline}
+                        </p>
+                        <div className="min-h-[1rem] sm:min-h-[1.5rem]">
+                          <span className="text-[10px] font-medium text-gray-700 sm:text-sm">
+                            {item.reaction}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
                   ))}
                 </div>
               </div>
-
-              {/* View All Button - Links to separate page */}
               <Link
                 href="/all-movies"
-                className="inline-block rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:px-4 sm:py-2 sm:text-sm"
+                className="mt-1 inline-flex w-full justify-center rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:w-auto sm:px-4 sm:py-2 sm:text-sm"
               >
                 View All
               </Link>
-            </div>
+            </>
           ) : (
             <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center sm:py-12">
-              <Clapperboard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600 font-medium">No recent shares</p>
-              <p className="text-gray-500 text-sm mt-1">
-                Ask your friends to share movies with you
-              </p>
+              <Clapperboard className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+              <p className="font-medium text-gray-600">No friends activity yet</p>
+              <p className="mt-1 text-sm text-gray-500">Share titles or follow friends to see updates here.</p>
             </div>
           )}
         </div>
 
-        {/* Friends' Recent Logs Section */}
-        {friendLogs.length > 0 && (
-          <div className="mb-8">
-            <div className="mb-4">
-              <h2 className="text-base font-bold text-gray-900 sm:text-2xl">
-                Friends' recent logs
-              </h2>
+        {/* Posts Section */}
+        <section className="relative -mx-1 mb-8 min-h-[100dvh] overflow-hidden rounded-[2.25rem] border border-blue-100 bg-gradient-to-b from-blue-100/80 via-sky-50/90 to-white px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_24px_70px_rgba(37,99,235,0.12)] sm:-mx-4 sm:px-5 sm:py-5">
+          <div className="pointer-events-none absolute -left-16 top-10 h-56 w-56 rounded-full bg-blue-300/25 blur-3xl" />
+          <div className="pointer-events-none absolute -right-20 top-72 h-72 w-72 rounded-full bg-cyan-200/35 blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-8 top-16 h-px bg-gradient-to-r from-transparent via-blue-200/70 to-transparent" />
+
+          <div className="relative">
+            <div className="mx-auto max-w-3xl">
+              <CinePostsFeed currentUser={user} refreshKey={cinePostRefreshKey} />
             </div>
+          </div>
+        </section>
 
-            {/* Horizontal Slider */}
-            <div className="-mx-3 overflow-x-auto px-3 pb-4 sm:mx-0 sm:px-0">
-              <div className="flex gap-2.5 sm:gap-6">
-                {friendLogs.slice(0, 8).map((log) => (
-                  <div
-                    key={log.id}
-                    onClick={() => router.push(`/logs/${log.id}`)}
-                    className="w-[27vw] min-w-[5.5rem] max-w-[6.75rem] flex-shrink-0 cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-lg sm:w-56 sm:min-w-0 sm:max-w-none sm:rounded-lg"
-                  >
-                    {/* Movie Poster */}
-                    {log.content.poster_url && (
-                      <img
-                        src={log.content.poster_url}
-                        alt={log.content.title}
-                        className="aspect-[3/4] h-auto w-full object-cover sm:h-72 sm:aspect-auto"
-                      />
-                    )}
+        {/* CinePost Modal */}
+        <CinePostModal
+          isOpen={showCinePostModal}
+          onClose={() => setShowCinePostModal(false)}
+          user={user}
+          onCreated={() => setCinePostRefreshKey((key) => key + 1)}
+        />
 
-                    {/* Content Info */}
-                    <div className="p-2 sm:p-3">
-                      {/* Movie Title */}
-                      <h3 className="mb-0.5 truncate text-[11px] font-semibold leading-tight text-gray-900 sm:mb-1 sm:text-base">
-                        {log.content.title}
-                      </h3>
+        {showQuickActions && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm">
+            <button
+              type="button"
+              className="absolute inset-0 cursor-default"
+              onClick={() => setShowQuickActions(false)}
+              aria-label="Close quick actions"
+            />
+            <div className="relative w-full max-w-md rounded-t-[2rem] border border-slate-200 bg-white p-4 shadow-2xl sm:mb-6 sm:rounded-[2rem]">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-950">Create</h3>
+                  <p className="text-sm text-slate-500">Pick what you want to do next.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickActions(false)}
+                  className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
 
-                      {/* Friend Name */}
-                      <p className="mb-1 truncate text-[10px] leading-tight text-gray-600 sm:mb-2 sm:text-sm">by {log.friend.name}</p>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickActions(false);
+                    router.push("/logs");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 text-left transition hover:bg-slate-50"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                    <Film className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-black text-slate-950">Log Movie</span>
+                    <span className="block text-sm text-slate-500">Add what you watched and rate it.</span>
+                  </span>
+                </button>
 
-                      {/* Reaction Badge */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-gray-700 sm:text-lg sm:font-normal">
-                          {log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickActions(false);
+                    setShowCinePostModal(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 text-left transition hover:bg-slate-50"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                    <MessageSquareText className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-black text-slate-950">Post</span>
+                    <span className="block text-sm text-slate-500">Start a movie or TV discussion.</span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickActions(false);
+                    router.push("/share");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 text-left transition hover:bg-slate-50"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                    <Share2 className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-black text-slate-950">Share</span>
+                    <span className="block text-sm text-slate-500">Send a title recommendation to a friend.</span>
+                  </span>
+                </button>
               </div>
             </div>
-            <Link
-              href="/friends/logs"
-              className="mt-1 inline-flex w-full justify-center rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:w-auto sm:px-4 sm:py-2 sm:text-sm"
-            >
-              View More
-            </Link>
           </div>
         )}
 

@@ -245,6 +245,64 @@ export interface MovieLogWithContent extends MovieLog {
   tagged_users?: User[]; // Populated user objects for tagged_people
 }
 
+// CinePost Types
+export type CinePostType = "trivia" | "theory" | "analysis" | "opinion" | "log";
+export type CinePostAnchorType = "movie" | "tv";
+export type CinePostEngagementType = "like" | "save";
+
+export interface CinePost {
+  id: string;
+  user_id: string;
+  type: CinePostType;
+  anchor_type: CinePostAnchorType;
+  anchor_label: string;
+  movie_id?: number;
+  content_id?: number;
+  content_type?: "movie" | "tv";
+  content_title?: string;
+  poster_url?: string | null;
+  body: string;
+  tags: string[];
+  log_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CinePostEngagement {
+  id: string;
+  user_id: string;
+  post_id: string;
+  type: CinePostEngagementType;
+  created_at: string;
+}
+
+export interface CinePostComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  parent_id: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CinePostCommentWithUser extends CinePostComment {
+  user: User;
+  replies: CinePostCommentWithUser[];
+  insightScore: number;
+}
+
+export interface CinePostWithDetails extends CinePost {
+  user: User;
+  comments: CinePostCommentWithUser[];
+  likes_count: number;
+  saves_count: number;
+  comments_count: number;
+  score: number;
+  liked_by_current_user: boolean;
+  saved_by_current_user: boolean;
+}
+
 // User Taste Types - for building your taste profile
 export interface UserTaste {
   id: string;

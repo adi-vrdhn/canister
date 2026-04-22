@@ -6,6 +6,7 @@ import PageLayout from "@/components/PageLayout";
 import AddToListModal from "@/components/AddToListModal";
 import LogMovieModal from "@/components/LogMovieModal";
 import CinematicLoading from "@/components/CinematicLoading";
+import ContentCinePosts from "@/components/ContentCinePosts";
 import { User, Movie, MovieReviewWithUser, Content, MovieLog, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -268,7 +269,7 @@ export default function MoviePage() {
         <div className="p-8 text-center">
           <p className="text-gray-600 text-lg">Movie not found</p>
           <Link href="/dashboard" className="text-blue-600 mt-4 inline-block">
-            Back to Dashboard
+            Back to Home
           </Link>
         </div>
       </PageLayout>
@@ -786,6 +787,10 @@ export default function MoviePage() {
         </div>
         </div>
 
+      </div>
+
+      <div className="mx-auto max-w-5xl px-4 pb-8">
+        <ContentCinePosts contentId={movie.id} contentType="movie" currentUser={user} />
       </div>
 
       {/* Add to List Modal */}

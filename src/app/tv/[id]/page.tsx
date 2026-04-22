@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import AddToListModal from "@/components/AddToListModal";
 import CinematicLoading from "@/components/CinematicLoading";
+import ContentCinePosts from "@/components/ContentCinePosts";
 import { User, TVShow, Content } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -89,7 +90,7 @@ export default function TVShowPage() {
         <div className="p-8 text-center">
           <p className="text-gray-600 text-lg">TV Show not found</p>
           <Link href="/dashboard" className="text-blue-600 mt-4 inline-block">
-            Back to Dashboard
+            Back to Home
           </Link>
         </div>
       </PageLayout>
@@ -217,6 +218,10 @@ export default function TVShowPage() {
             </div>
           </div>
         )}
+
+        <div className="max-w-3xl mx-auto">
+          <ContentCinePosts contentId={show.id} contentType="tv" currentUser={user} />
+        </div>
 
         {/* Add to List Modal */}
         <AddToListModal

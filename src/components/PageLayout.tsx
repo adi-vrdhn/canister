@@ -2,6 +2,7 @@
 
 import Sidebar from "./Sidebar";
 import EmailVerificationBadge from "./EmailVerificationBadge";
+import NotificationBell from "./NotificationBell";
 import { User } from "@/types";
 import { ReactNode, useState } from "react";
 
@@ -17,10 +18,10 @@ export default function PageLayout({ user, children, onSignOut, fullWidth = fals
 
   return (
     <div className="app-shell flex min-h-dvh overflow-x-hidden">
-      <header className="fixed inset-x-0 top-0 z-30 flex h-20 items-center justify-center border-b border-slate-200/70 bg-white/95 shadow-sm backdrop-blur-md lg:left-72">
+      <header className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-center bg-white/95 backdrop-blur-md lg:left-72">
         {/* Hamburger menu for mobile */}
         <button
-          className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md lg:hidden"
+          className="absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-slate-900 transition hover:text-blue-600 lg:hidden"
           aria-label="Open menu"
           onClick={() => setSidebarOpen(true)}
         >
@@ -29,9 +30,10 @@ export default function PageLayout({ user, children, onSignOut, fullWidth = fals
           </svg>
         </button>
 
-        <span className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-950 sm:text-5xl">
+        <span className="brand-wordmark text-2xl font-bold text-zinc-950 sm:text-3xl">
           CANISTER
         </span>
+        <NotificationBell user={user} />
       </header>
 
       {/* Sidebar: hidden on mobile, slide-in on open */}
@@ -50,7 +52,7 @@ export default function PageLayout({ user, children, onSignOut, fullWidth = fals
         />
       )}
 
-      <div className="min-w-0 flex-1 overflow-auto pt-20">
+      <div className="min-w-0 flex-1 overflow-auto pt-16">
         <EmailVerificationBadge className="mx-auto mt-3 w-full max-w-[1600px] px-1 sm:px-2" />
         <div className={fullWidth ? "w-full" : "mx-auto w-full max-w-[1600px] px-3 py-2 sm:px-4 md:px-6 lg:px-8"}>
           {children}

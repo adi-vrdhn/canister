@@ -58,6 +58,7 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-bold font-playfair text-slate-900">{user.name}</p>
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">View profile</p>
           </div>
         </div>
       </Link>
@@ -73,7 +74,7 @@ export default function Sidebar({ user, onSignOut, mobileOpen = false, onCloseMo
               : "text-slate-700 hover:bg-slate-50"
           }`}
         >
-          Dashboard
+          Home
         </Link>
 
         <Link

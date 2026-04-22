@@ -5,19 +5,20 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DOMPurify from 'dompurify';
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { get, ref, set, remove } from "firebase/database";
-import { ArrowLeft, Bell, Film, Loader2, MoreHorizontal, Plus, Sparkles, Upload, Users } from "lucide-react";
+import { get, ref, set } from "firebase/database";
+import { ArrowLeft, Film, Loader2, MoreHorizontal, Plus, Sparkles, Upload, Users } from "lucide-react";
 import StatsInsights from "@/components/StatsInsights";
 import Achievements from "@/components/Achievements";
 import SearchBar from "@/components/SearchBar";
 import EmailVerificationBadge from "@/components/EmailVerificationBadge";
 import CinematicLoading from "@/components/CinematicLoading";
+import ProfileCinePostsPanel from "@/components/ProfileCinePostsPanel";
 import { auth, db } from "@/lib/firebase";
 import { addToWatchlist, createMovieLog, getUserWatchlist } from "@/lib/logs";
 import { getListWithDetails, getUserLists } from "@/lib/lists";
@@ -39,11 +40,12 @@ type FollowModalType = "followers" | "following" | "requests";
 
 interface SocialNotification {
   id: string;
-  type: "follow_request" | "collaboration_request";
+  type: "follow_request" | "collaboration_request" | "post_like" | "post_save" | "post_comment" | "comment_reply";
   fromUser: User;
   createdAt: string;
   listId?: string;
   listName?: string;
+  ref_id?: string;
 }
 
 interface FollowRecord {
@@ -80,9 +82,6 @@ function ProfilePageInner() {
   const [achievements, setAchievements] = useState<any[]>([]);
   const [watchlist, setWatchlist] = useState<MovieLogWithContent[]>([]);
   const [notifications, setNotifications] = useState<SocialNotification[]>([]);
-  // Persist notification badge state in localStorage
-  const [hasUnseenNotifications, setHasUnseenNotifications] = useState(false);
-  const hasOpenedNotifications = useRef(false);
   const [allFollows, setAllFollows] = useState<FollowRecord[]>([]);
   const [followers, setFollowers] = useState<User[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
@@ -93,48 +92,9 @@ function ProfilePageInner() {
 
   // --- End state declarations ---
 
-  // Notification badge persistence effect (must be after all state declarations)
-  useEffect(() => {
-    if (!currentUser) return;
-    const NOTIF_KEY = `notif_seen_${currentUser.id}`;
-    if (notifications.length === 0) {
-      setHasUnseenNotifications(false);
-      return;
-    }
-    const lastSeen = typeof window !== "undefined" ? localStorage.getItem(NOTIF_KEY) : null;
-    const latest = notifications[0]?.createdAt;
-    if (latest && lastSeen !== latest) {
-      setHasUnseenNotifications(true);
-    } else {
-      setHasUnseenNotifications(false);
-    }
-  }, [notifications, currentUser]);
-
   const hardRedirect = (path: string) => {
     if (typeof window !== "undefined") {
       window.location.assign(path);
-    }
-  };
-
-  // Place this after state declarations
-  const handleClearAllNotifications = async () => {
-    if (!isOwnProfile || notifications.length === 0) return;
-    try {
-      for (const notif of notifications) {
-        if (notif.type === "follow_request") {
-          await remove(ref(db, `follows/${notif.id}`));
-        } else if (notif.type === "collaboration_request") {
-          await remove(ref(db, `list_collaborators/${notif.id.replace('collab-', '')}`));
-        }
-      }
-      setNotifications([]);
-      setHasUnseenNotifications(false);
-      // Also update localStorage badge
-      if (currentUser && typeof window !== "undefined") {
-        localStorage.setItem(`notif_seen_${currentUser.id}`, "cleared");
-      }
-    } catch (error) {
-      console.error("Error clearing notifications:", error);
     }
   };
 
@@ -279,9 +239,29 @@ function ProfilePageInner() {
 
         // Fetch notifications if own profile
         if (username === currentUserObj.username) {
-          // Example: fetch notifications from db (implement as needed)
-          // setNotifications(await getUserNotifications(profileUserObj.id));
-          console.log('[PROFILE] (Own profile) Would fetch notifications here.');
+          const notificationsSnap = await get(ref(db, `notifications/${profileUserObj.id}`));
+          const notificationRows: SocialNotification[] = notificationsSnap.exists()
+            ? Object.entries(notificationsSnap.val()).map(([id, raw]: any) => ({
+                id,
+                type: raw.type,
+                fromUser: raw.fromUser || {
+                  id: "",
+                  username: "user",
+                  name: "Someone",
+                  avatar_url: null,
+                  created_at: new Date().toISOString(),
+                },
+                createdAt: raw.createdAt || raw.created_at || new Date().toISOString(),
+                listId: raw.listId,
+                listName: raw.listName,
+                ref_id: raw.ref_id,
+              }))
+            : [];
+          setNotifications(
+            notificationRows.sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            )
+          );
         }
 
         // Fetch lists
@@ -314,22 +294,6 @@ function ProfilePageInner() {
   }, [username, router]);
 
   const isOwnProfile = !!currentUser && !!profileUser && currentUser.id === profileUser.id;
-
-  useEffect(() => {
-    if (!isOwnProfile && activeTab === "notifications") {
-      setActiveTab("stats");
-    }
-    // Mark notifications as seen when notifications tab is opened
-    if (isOwnProfile && activeTab === "notifications" && hasUnseenNotifications && currentUser && notifications.length > 0) {
-      setHasUnseenNotifications(false);
-      hasOpenedNotifications.current = true;
-      // Persist last seen notification marker
-      const NOTIF_KEY = `notif_seen_${currentUser.id}`;
-      if (typeof window !== "undefined") {
-        localStorage.setItem(NOTIF_KEY, notifications[0].createdAt);
-      }
-    }
-  }, [isOwnProfile, activeTab, hasUnseenNotifications, notifications, currentUser]);
 
   useEffect(() => {
     setOpenFollowMenuUserId(null);
@@ -463,7 +427,6 @@ function ProfilePageInner() {
 
       setAllFollows((prev) => prev.map((follow) => (follow.id === note.id ? updatedFollow : follow)));
       setNotifications((prev) => prev.filter((notification) => notification.id !== note.id));
-      setHasUnseenNotifications((prev) => (followRequests.length > 1 ? prev : false));
 
       if (isOwnProfile) {
         setFollowers((prev) =>
@@ -480,7 +443,6 @@ function ProfilePageInner() {
     try {
       await removeFollowRecord(followId);
       setNotifications((prev) => prev.filter((notification) => notification.id !== followId));
-      setHasUnseenNotifications((prev) => (followRequests.length > 1 ? prev : false));
     } catch (error) {
       console.error("Error declining follow request:", error);
     }
@@ -869,7 +831,7 @@ function ProfilePageInner() {
             className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-zinc-100 backdrop-blur transition hover:bg-white/20"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+            Back to Home
           </button>
 
           {isOwnProfile && (
@@ -1202,10 +1164,10 @@ function ProfilePageInner() {
         )}
 
         <section className="mb-6 rounded-2xl border border-white/15 bg-white/5 p-2 shadow-[0_14px_40px_rgba(0,0,0,0.25)] backdrop-blur-xl">
-          <div className={`grid gap-2 ${isOwnProfile ? "grid-cols-4" : "grid-cols-3"}`}>
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setActiveTab("friends")}
-              className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
                 activeTab === "friends" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
               }`}
             >
@@ -1213,7 +1175,7 @@ function ProfilePageInner() {
             </button>
             <button
               onClick={() => setActiveTab("stats")}
-              className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
                 activeTab === "stats" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
               }`}
             >
@@ -1221,25 +1183,36 @@ function ProfilePageInner() {
             </button>
             <button
               onClick={() => setActiveTab("watchlist")}
-              className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
                 activeTab === "watchlist" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
               }`}
             >
               Watchlist
             </button>
-            {isOwnProfile && (
-              <button
-                onClick={() => setActiveTab("notifications")}
-                className={`relative rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                  activeTab === "notifications" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
-                }`}
-              >
-                Notifications
-                {hasUnseenNotifications && (
-                  <span className="absolute top-2 right-2 inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                )}
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab("posts")}
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                activeTab === "posts" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
+              }`}
+            >
+              Posts
+            </button>
+            <button
+              onClick={() => setActiveTab("saved-posts")}
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                activeTab === "saved-posts" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
+              }`}
+            >
+              Saved Posts
+            </button>
+            <button
+              onClick={() => setActiveTab("liked-posts")}
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                activeTab === "liked-posts" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
+              }`}
+            >
+              Liked Posts
+            </button>
           </div>
         </section>
 
@@ -1478,79 +1451,18 @@ function ProfilePageInner() {
           </section>
         )}
 
-        {isOwnProfile && activeTab === "notifications" && (
-          <section className="space-y-6 rounded-[2rem] border border-[#d8c8a6]/70 bg-[#f8f4ec] p-6 shadow-[0_18px_45px_rgba(6,9,16,0.25)]">
-            {notifications.length > 0 && (
-              <div className="flex justify-end mb-4">
-                <button
-                  onClick={handleClearAllNotifications}
-                  className="rounded-lg bg-red-100 text-red-700 px-4 py-2 text-sm font-semibold hover:bg-red-200 border border-red-200"
-                >
-                  Clear All Notifications
-                </button>
-              </div>
-            )}
-            <div className="mb-4 flex items-center gap-2">
-              <Bell className="h-5 w-5 text-zinc-700" />
-              <h2 className="text-lg font-bold text-zinc-900">Notifications</h2>
-            </div>
-
-            {notifications.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#cab995] bg-[#fffaf0] p-10 text-center text-zinc-600">
-                No new notifications.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {notifications.map((note) => (
-                  <Link
-                    key={note.id}
-                    href={
-                      note.type === "collaboration_request" && note.listId
-                        ? `/lists/${note.listId}`
-                        : `/profile/${note.fromUser.username}`
-                    }
-                    className="flex items-center justify-between rounded-2xl border border-[#dbc9a7] bg-white px-4 py-3 transition hover:bg-[#fff8e8]"
-                  >
-                    <div className="flex items-center gap-3">
-                      {note.fromUser.avatar_url ? (
-                        <img
-                          src={note.fromUser.avatar_url}
-                          alt={note.fromUser.name}
-                          className="h-10 w-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white">
-                          {note.fromUser.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-sm text-zinc-900">
-                          {note.type === "follow_request" ? (
-                            <>
-                              <span className="font-semibold">{note.fromUser.name}</span> requested to follow you.
-                            </>
-                          ) : (
-                            <>
-                              <span className="font-semibold">{note.fromUser.name}</span> sent you a collaboration
-                              request for <span className="font-semibold">{note.listName}</span>.
-                            </>
-                          )}
-                        </p>
-                        <p className="text-xs text-zinc-500">
-                          @{note.fromUser.username}
-                          {note.type === "collaboration_request" ? " • Tap to open list" : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-zinc-500">{new Date(note.createdAt).toLocaleDateString()}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            <Achievements achievements={achievements} />
-          </section>
+        {activeTab === "posts" && profileUser && (
+          <ProfileCinePostsPanel mode="posts" profileUserId={profileUser.id} currentUser={currentUser} />
         )}
+
+        {activeTab === "saved-posts" && profileUser && (
+          <ProfileCinePostsPanel mode="saved" profileUserId={profileUser.id} currentUser={currentUser} />
+        )}
+
+        {activeTab === "liked-posts" && profileUser && (
+          <ProfileCinePostsPanel mode="liked" profileUserId={profileUser.id} currentUser={currentUser} />
+        )}
+
       </div>
       {/* Add extra whitespace at the bottom for visual comfort */}
       <div className="h-12 sm:h-20" />

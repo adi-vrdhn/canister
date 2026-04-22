@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Content, User } from "@/types";
+import { createLogCinePost } from "@/lib/cineposts";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
 
 interface LogMovieModalProps {
@@ -41,6 +42,8 @@ export default function LogMovieModal({
   const [watchedDate, setWatchedDate] = useState(new Date().toISOString().split("T")[0]);
   const [reaction, setReaction] = useState<null | 0 | 1 | 2>(null); // 0=Bad, 1=Good, 2=Masterpiece
   const [notes, setNotes] = useState("");
+  const [shareAsPost, setShareAsPost] = useState(false);
+  const [postCaption, setPostCaption] = useState("");
 
   // Context Log
   const [showContextLog, setShowContextLog] = useState(false);
@@ -121,7 +124,7 @@ export default function LogMovieModal({
           )
         : undefined;
 
-      await createMovieLog(
+      const newLog = await createMovieLog(
         user.id,
         content.id,
         contentType,
@@ -132,10 +135,16 @@ export default function LogMovieModal({
         contextLog
       );
 
+      if (shareAsPost) {
+        await createLogCinePost(user, newLog, content, postCaption || notes);
+      }
+
       // Reset form
       setWatchedDate(new Date().toISOString().split("T")[0]);
       setReaction(null);
       setNotes("");
+      setShareAsPost(false);
+      setPostCaption("");
       setShowContextLog(false);
       setLocation("");
       setWatchedWith("");
@@ -301,6 +310,41 @@ export default function LogMovieModal({
               className="field resize-none py-3"
               rows={4}
             />
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={shareAsPost}
+                onChange={(e) => setShareAsPost(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900">Share as post</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Creates a post like &quot;Just watched {content.title} - Good&quot; so friends can like, save, and reply.
+                </p>
+              </div>
+            </label>
+
+            {shareAsPost && (
+              <div className="mt-4">
+                <label className="mb-1 block text-xs font-semibold text-slate-600">
+                  Optional post caption
+                </label>
+                <textarea
+                  value={postCaption}
+                  onChange={(e) => setPostCaption(e.target.value)}
+                  placeholder="Add a quick thought for the feed..."
+                  className="field min-h-20 resize-none py-3 text-sm"
+                  rows={3}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  If empty, your review will be used as the caption.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Context Log Section */}
