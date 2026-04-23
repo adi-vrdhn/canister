@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import { CinePostWithDetails, User } from "@/types";
 
 const PREVIEW_LIMIT = 130;
@@ -31,10 +32,14 @@ export default function CinePostPreviewList({
   posts,
   emptyText = "No posts yet.",
   className = "",
+  currentUser = null,
+  onPostMutated,
 }: {
   posts: CinePostWithDetails[];
   emptyText?: string;
   className?: string;
+  currentUser?: User | null;
+  onPostMutated?: () => void;
 }) {
   if (posts.length === 0) {
     return (
@@ -77,14 +82,24 @@ export default function CinePostPreviewList({
               <div className="aspect-[2/3] rounded-2xl bg-slate-100" />
             )}
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link href={profileHref(post.user)} className="font-black text-slate-950 hover:text-blue-600">
-                  {post.user.name}
-                </Link>
-                <span className="text-xs text-slate-400">{relativeTime(post.created_at)}</span>
-                <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
-                  {formatPostType(post.type)}
-                </span>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex flex-wrap items-center gap-2">
+                  <Link href={profileHref(post.user)} className="font-black text-slate-950 hover:text-blue-600">
+                    {post.user.name}
+                  </Link>
+                  <span className="text-xs text-slate-400">{relativeTime(post.created_at)}</span>
+                  <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
+                    {formatPostType(post.type)}
+                  </span>
+                </div>
+                {currentUser && currentUser.id === post.user_id && onPostMutated && (
+                  <CinePostOwnerMenu
+                    post={post}
+                    currentUser={currentUser}
+                    onDeleted={onPostMutated}
+                    onUpdated={onPostMutated}
+                  />
+                )}
               </div>
               <Link href={`/posts/${post.id}`} className="mt-2 block">
                 <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{preview(post.body)}</p>

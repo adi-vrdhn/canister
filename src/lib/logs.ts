@@ -24,10 +24,8 @@ function createFallbackMovieContent(movieId: number): Movie {
   };
 }
 
-async function getContentForLog(log: MovieLog): Promise<Content> {
+function createFallbackContentForLog(log: MovieLog): Content {
   if (log.content_type === "tv") {
-    const show = await getShowDetails(log.content_id);
-    if (show) return show as unknown as Content;
     return {
       id: log.content_id,
       title: "Unknown Show",
@@ -46,9 +44,69 @@ async function getContentForLog(log: MovieLog): Promise<Content> {
     } as Content;
   }
 
+  return createFallbackMovieContent(log.content_id) as Content;
+}
+
+async function getContentForLog(log: MovieLog): Promise<Content> {
+  if (log.content_type === "tv") {
+    const show = await getShowDetails(log.content_id);
+    if (show) return show as unknown as Content;
+    return createFallbackContentForLog(log);
+  }
+
   const movie = await getMovieDetails(log.content_id);
   if (movie) return movie as unknown as Content;
   return createFallbackMovieContent(log.content_id) as Content;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+  );
+
+  return results;
+}
+
+async function getContentMapForLogs(logs: MovieLog[]): Promise<Map<string, Content>> {
+  const uniqueLogs = Array.from(
+    new Map(logs.map((log) => [`${log.content_type}-${log.content_id}`, log])).values()
+  );
+  const contentEntries = await mapWithConcurrency(uniqueLogs, 4, async (log) => {
+    const key = `${log.content_type}-${log.content_id}`;
+    const content = await getContentForLog(log);
+    return [key, content] as const;
+  });
+
+  return new Map(contentEntries);
+}
+
+async function getUserForLogOwner(userId: string): Promise<User> {
+  const userRef = ref(db, `users/${userId}`);
+  const userSnapshot = await get(userRef);
+  const userData = userSnapshot.val();
+
+  return {
+    id: userData?.id || userId,
+    username: userData?.username || "",
+    name: userData?.name || "Unknown",
+    avatar_url: userData?.avatar_url || null,
+    created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
+  };
 }
 
 /**
@@ -152,30 +210,16 @@ export async function getUserMovieLogs(userId: string, limit: number = 50): Prom
       .sort((a: any, b: any) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
       .slice(0, limit) as MovieLog[];
 
-    // Fetch content details for each log
-    const logsWithContent: MovieLogWithContent[] = await Promise.all(
-      userLogs.map(async (log) => {
-        const content = await getContentForLog(log);
+    const [contentMap, user] = await Promise.all([
+      getContentMapForLogs(userLogs),
+      getUserForLogOwner(userId),
+    ]);
 
-        // Fetch user info
-        const userRef = ref(db, `users/${log.user_id}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.val();
-        const user: User = {
-          id: userData?.id || log.user_id,
-          username: userData?.username || "",
-          name: userData?.name || "Unknown",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.created_at || new Date().toISOString(),
-        };
-
-        return {
-          ...log,
-          content,
-          user,
-        };
-      })
-    );
+    const logsWithContent: MovieLogWithContent[] = userLogs.map((log) => ({
+      ...log,
+      content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
+      user,
+    }));
 
     return logsWithContent;
   } catch (error) {
@@ -199,30 +243,24 @@ export async function getPublicMovieLogs(limit: number = 50): Promise<MovieLogWi
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, limit) as MovieLog[];
 
-    // Fetch content and user details for each log
-    const logsWithContent: MovieLogWithContent[] = await Promise.all(
-      publicLogs.map(async (log) => {
-        const content = await getContentForLog(log);
+    const uniqueUserIds = Array.from(new Set(publicLogs.map((log) => log.user_id)));
+    const [contentMap, userEntries] = await Promise.all([
+      getContentMapForLogs(publicLogs),
+      mapWithConcurrency(uniqueUserIds, 6, async (userId) => [userId, await getUserForLogOwner(userId)] as const),
+    ]);
+    const usersById = new Map(userEntries);
 
-        // Fetch user info
-        const userRef = ref(db, `users/${log.user_id}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.val();
-        const user: User = {
-          id: userData?.id || log.user_id,
-          username: userData?.username || "",
-          name: userData?.name || "Unknown",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.created_at || new Date().toISOString(),
-        };
-
-        return {
-          ...log,
-          content,
-          user,
-        };
-      })
-    );
+    const logsWithContent: MovieLogWithContent[] = publicLogs.map((log) => ({
+      ...log,
+      content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
+      user: usersById.get(log.user_id) || {
+        id: log.user_id,
+        username: "",
+        name: "Unknown",
+        avatar_url: null,
+        created_at: new Date().toISOString(),
+      },
+    }));
 
     return logsWithContent;
   } catch (error) {

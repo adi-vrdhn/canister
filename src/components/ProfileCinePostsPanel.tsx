@@ -16,6 +16,7 @@ export default function ProfileCinePostsPanel({
 }) {
   const [posts, setPosts] = useState<CinePostWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +45,7 @@ export default function ProfileCinePostsPanel({
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, mode, profileUserId]);
+  }, [currentUser?.id, mode, profileUserId, refreshTick]);
 
   const title = mode === "posts" ? "Posts" : mode === "saved" ? "Saved Posts" : "Liked Posts";
   const empty =
@@ -55,16 +56,21 @@ export default function ProfileCinePostsPanel({
         : "No liked posts yet.";
 
   return (
-    <section className="rounded-[2rem] border border-[#d8c8a6]/70 bg-[#f8f4ec] p-4 shadow-[0_18px_45px_rgba(6,9,16,0.25)] sm:p-6">
-      <h2 className="mb-4 text-lg font-black text-zinc-900">{title}</h2>
+    <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-6">
+      <h2 className="mb-4 text-lg font-black text-slate-950">{title}</h2>
       {loading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((item) => (
-            <div key={item} className="h-32 animate-pulse rounded-3xl bg-white/70" />
+            <div key={item} className="h-32 animate-pulse rounded-3xl bg-slate-100" />
           ))}
         </div>
       ) : (
-        <CinePostPreviewList posts={posts} emptyText={empty} />
+        <CinePostPreviewList
+          posts={posts}
+          emptyText={empty}
+          currentUser={currentUser}
+          onPostMutated={() => setRefreshTick((value) => value + 1)}
+        />
       )}
     </section>
   );

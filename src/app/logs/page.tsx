@@ -17,7 +17,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   Loader2,
   Pencil,
   Plus,
@@ -63,6 +62,12 @@ function formatMonthTitle(date: Date): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
+  }).format(date);
+}
+
+function formatMonthName(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
   }).format(date);
 }
 
@@ -140,51 +145,61 @@ function LogCard({
   return (
     <button
       onClick={() => onOpen(log)}
-      className="group w-full rounded-3xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:rounded-2xl sm:p-4"
+      className="group grid w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-2.5 text-left sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-4"
     >
-      <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[3rem_3.5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
-        <div className="relative row-span-2 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 shadow-sm sm:row-span-1 sm:rounded-lg">
-          {log.content.poster_url ? (
-            <img
-              src={log.content.poster_url}
-              alt={log.content.title}
-              className="aspect-[2/3] w-full object-cover sm:h-20 sm:w-14"
-            />
-          ) : (
-            <div className="flex aspect-[2/3] w-full items-center justify-center px-2 text-center text-xs text-gray-500 sm:h-20 sm:w-14">
-              No image
+      <div className="relative flex flex-col items-center justify-center text-slate-900">
+        <span className="text-2xl font-black leading-none tracking-tight sm:text-3xl">
+          {getDayDD(log.watched_date)}
+        </span>
+        <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:text-xs">
+          {new Date(`${log.watched_date}T00:00:00`).toLocaleDateString("en-US", { month: "short" })}
+        </span>
+      </div>
+
+      <div className="rounded-[1.35rem] bg-white p-2.5 shadow-[0_16px_35px_rgba(15,23,42,0.16)] transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_20px_45px_rgba(15,23,42,0.24)] sm:rounded-[1.5rem] sm:p-3">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto]">
+          <div className="relative overflow-hidden rounded-lg border border-gray-200 bg-gray-100 shadow-sm">
+            {log.content.poster_url ? (
+              <img
+                src={log.content.poster_url}
+                alt={log.content.title}
+                className="h-[4.3rem] w-full object-cover sm:h-[5rem]"
+              />
+            ) : (
+              <div className="flex h-[4.3rem] w-full items-center justify-center px-1 text-center text-[9px] text-gray-500 sm:h-[5rem]">
+                No image
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold leading-tight text-gray-950 sm:text-sm">
+              {log.content.title}
+            </p>
+            <p className="mt-0.5 truncate text-[10px] font-medium text-gray-500 sm:text-xs">
+              Watched {formatWatchedDate(log.watched_date)}
+            </p>
+            {isUnavailableContent(log) && (
+              <span className="mt-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                Details unavailable
+              </span>
+            )}
+
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${getReactionClasses(log)}`}>
+                {getReactionLabel(log)}
+              </span>
+              <span className="text-[10px] font-semibold text-gray-400 transition group-hover:text-blue-600 sm:hidden">
+                Details
+              </span>
             </div>
-          )}
-          <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-bold text-gray-900 shadow-sm sm:hidden">
-            {getDayDD(log.watched_date)}
-          </span>
-        </div>
+          </div>
 
-        <div className="hidden w-12 text-center sm:block">
-          <span className="text-xl font-bold text-gray-900">{getDayDD(log.watched_date)}</span>
-        </div>
-
-        <div className="min-w-0 self-start sm:self-center">
-          <p className="line-clamp-2 text-base font-bold leading-snug text-gray-950 sm:truncate sm:text-sm">
-            {log.content.title}
-          </p>
-          <p className="mt-1 text-xs font-medium text-gray-500 sm:hidden">
-            Watched {formatWatchedDate(log.watched_date)}
-          </p>
-          {isUnavailableContent(log) && (
-            <span className="mt-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-              Details unavailable
+          <div className="hidden justify-end sm:flex">
+            <span className="rounded-full border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-500 transition group-hover:border-blue-200 group-hover:text-blue-700">
+              Details
             </span>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 self-end sm:justify-end sm:self-center">
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold sm:px-2 ${getReactionClasses(log)}`}>
-            {getReactionLabel(log)}
-          </span>
-          <span className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-500 transition group-hover:border-blue-200 group-hover:text-blue-700 sm:hidden">
-            Details
-          </span>
+          </div>
         </div>
       </div>
     </button>
@@ -461,48 +476,56 @@ export default function LogsPage() {
           </button>
         </div>
 
-        <div className="rounded-[2rem] border border-gray-200 bg-white p-2 shadow-sm sm:rounded-2xl sm:p-5">
-          <div className="mb-2 flex items-center justify-between sm:mb-4">
+        <div className="overflow-hidden bg-[#fbfcff]">
+          <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 sm:px-5 sm:py-3">
             <button
               onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              className="rounded-xl border border-gray-200 bg-gray-50 p-1.5 hover:bg-gray-100 sm:rounded-lg sm:border-0 sm:bg-transparent sm:p-2"
+              className="rounded-full border border-slate-200 bg-white p-1.5 text-slate-700 shadow-sm transition hover:bg-slate-50 sm:p-2"
               aria-label="Previous month"
             >
-              <ChevronLeft className="h-4 w-4 text-gray-700 sm:h-5 sm:w-5" />
+              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
 
-            <h2 className="text-base font-bold tracking-tight text-gray-900 sm:text-lg">{formatMonthTitle(currentMonth)}</h2>
+            <div className="min-w-0 text-center">
+              <h2 className="text-2xl font-black uppercase leading-none tracking-normal text-blue-900/70 sm:text-4xl">
+                {formatMonthName(currentMonth)}
+              </h2>
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.24em] text-slate-500 sm:text-[10px]">
+                {currentMonth.getFullYear()}
+              </p>
+            </div>
 
             <button
               onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              className="rounded-xl border border-gray-200 bg-gray-50 p-1.5 hover:bg-gray-100 sm:rounded-lg sm:border-0 sm:bg-transparent sm:p-2"
+              className="rounded-full border border-slate-200 bg-white p-1.5 text-slate-700 shadow-sm transition hover:bg-slate-50 sm:p-2"
               aria-label="Next month"
             >
-              <ChevronRight className="h-4 w-4 text-gray-700 sm:h-5 sm:w-5" />
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           </div>
 
-          <div className="mb-1 grid grid-cols-7 gap-0.5 sm:mb-2 sm:gap-2">
+          <div className="grid grid-cols-7 border-b border-slate-200 bg-white/70">
             {WEEKDAYS.map((day) => (
-              <div key={day} className="py-1 text-center text-[10px] font-bold text-gray-500 sm:text-xs">
+              <div key={day} className="border-r border-slate-200 py-2 text-center text-[9px] font-black uppercase tracking-[0.16em] text-slate-600 last:border-r-0 sm:text-xs">
                 {day}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5 sm:gap-1.5">
+          <div className="grid grid-cols-7 bg-white">
             {calendarCells.map((cell) => {
               if (!cell.inMonth || !cell.date) {
-                return <div key={cell.key} className="aspect-[3/4] rounded-lg bg-gray-50 sm:aspect-[2/3] sm:rounded-lg" />;
+                return <div key={cell.key} className="min-h-[5.5rem] border-b border-r border-slate-200 bg-slate-50/75 sm:min-h-[8.5rem]" />;
               }
 
               const day = cell.date.getDate();
               const dayKey = cell.key;
-              // Sort logs so the most recent is first
               const dayLogsInCell = (logsByDate.get(dayKey) || []).slice().sort(compareLogsDesc);
               const isSelected = selectedDay === dayKey;
+              const visibleStackCount = Math.min(dayLogsInCell.length, 3);
+              const stackOffsetPx = dayLogsInCell.length > 1 ? 6 : 0;
+              const stackHeightOffsetPx = (visibleStackCount - 1) * stackOffsetPx;
 
-              // Show stack of up to 3 posters per day with animation, and always show the badge
               return (
                 <button
                   key={cell.key}
@@ -511,38 +534,62 @@ export default function LogsPage() {
                     setSelectedDay((prev) => (prev === dayKey ? null : dayKey));
                     scrollToListSection();
                   }}
-                  className={`relative overflow-hidden rounded-lg border p-0.5 text-left [aspect-ratio:3/4] transition-colors sm:rounded-lg sm:[aspect-ratio:2/3] ${
+                  className={`group relative min-h-[5.5rem] overflow-hidden border-b border-r border-slate-200 text-left transition sm:min-h-[8.5rem] ${
                     isSelected
-                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100"
+                      ? "bg-blue-50 shadow-[inset_0_0_0_2px_rgba(37,99,235,0.55)]"
                       : dayLogsInCell.length > 0
-                      ? "border-gray-300 bg-white hover:bg-gray-50"
-                      : "border-gray-200 bg-white hover:bg-gray-50"
+                      ? "bg-white hover:bg-sky-50/70"
+                      : "bg-[#fbfcff] hover:bg-white"
                   }`}
                 >
                   {dayLogsInCell.length > 0 ? (
-                    <div className="h-full w-full flex items-center justify-center relative">
-                      {dayLogsInCell.slice(0, 3).map((log, idx) => (
-                        <img
-                          key={log.id}
-                          src={log.content.poster_url || undefined}
-                          alt={log.content.title}
-                          className={`h-full w-full rounded object-cover border border-white shadow absolute ${getPosterStackClass(idx)}`}
-                          style={{
-                            zIndex: 10 + idx,
-                          }}
-                        />
-                      ))}
-                      {/* Show badge only if more than one movie watched */}
+                    <div className="absolute inset-0">
+                      <div className="relative flex h-full w-full items-center justify-center">
+                        {dayLogsInCell.slice(0, 3).map((log, idx) => (
+                          log.content.poster_url ? (
+                            <img
+                              key={log.id}
+                              src={log.content.poster_url}
+                              alt={log.content.title}
+                              className={`absolute h-full w-full object-cover shadow-[0_8px_18px_rgba(15,23,42,0.22)] transition duration-200 group-hover:-translate-y-0.5 ${getPosterStackClass(idx)}`}
+                              style={{
+                                height: `calc(100% - ${stackHeightOffsetPx}px)`,
+                                left: 0,
+                                top: idx * stackOffsetPx,
+                                width: "100%",
+                                zIndex: 10 + idx,
+                              }}
+                            />
+                          ) : (
+                            <div
+                              key={log.id}
+                              className={`absolute flex h-full w-full items-center justify-center bg-slate-100 px-1 text-center text-[8px] font-bold text-slate-400 shadow-[0_8px_18px_rgba(15,23,42,0.16)] sm:text-[10px] ${getPosterStackClass(idx)}`}
+                              style={{
+                                height: `calc(100% - ${stackHeightOffsetPx}px)`,
+                                left: 0,
+                                top: idx * stackOffsetPx,
+                                width: "100%",
+                                zIndex: 10 + idx,
+                              }}
+                            >
+                              No poster
+                            </div>
+                          )
+                        ))}
+                      </div>
                       {dayLogsInCell.length > 1 && (
-                        <span className="absolute left-1 top-1 z-30 rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow sm:px-2 sm:text-xs">
+                        <span className="absolute bottom-1 right-1 z-40 rounded-sm bg-slate-950 px-1.5 py-0.5 text-[10px] font-black leading-none text-white shadow-sm sm:bottom-1.5 sm:right-1.5 sm:text-xs">
                           {dayLogsInCell.length}
                         </span>
                       )}
                     </div>
                   ) : (
-                    <div className="w-full h-full flex items-start justify-start p-1">
-                      <span className="text-[10px] font-semibold text-gray-400 sm:text-xs">{day}</span>
-                    </div>
+                    <>
+                      <span className={`absolute left-1.5 top-1.5 z-20 text-[11px] font-black sm:left-2.5 sm:top-2.5 sm:text-sm ${isSelected ? "text-blue-700" : "text-slate-600"}`}>
+                        {day}
+                      </span>
+                      <div className="pointer-events-none absolute inset-x-3 bottom-3 hidden h-px bg-slate-200/70 sm:block" />
+                    </>
                   )}
                 </button>
               );
@@ -550,24 +597,31 @@ export default function LogsPage() {
           </div>
         </div>
 
-        <div ref={listSectionRef} className="scroll-mt-24 rounded-[2rem] border border-gray-200 bg-white p-4 shadow-sm sm:rounded-2xl sm:p-5">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-2">
-              <Clock3 className="mt-1 h-4 w-4 flex-shrink-0 text-gray-600" />
-              <h3 className="text-2xl font-extrabold leading-tight text-gray-900 sm:text-lg sm:font-bold">
+        <div
+          ref={listSectionRef}
+          className="relative -mx-1 scroll-mt-24 overflow-hidden rounded-[2.25rem] border border-blue-100 bg-gradient-to-b from-blue-100/90 via-sky-50/95 to-white p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_24px_70px_rgba(37,99,235,0.12)] sm:-mx-2 sm:p-5"
+        >
+          <div className="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-blue-300/25 blur-3xl" />
+          <div className="pointer-events-none absolute -right-20 top-64 h-72 w-72 rounded-full bg-cyan-200/35 blur-3xl" />
+          <div className="relative mb-5 flex flex-col items-center gap-3 text-center">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-500/70">
+                Watch Diary
+              </p>
+              <h3 className="mt-1 text-2xl font-black leading-tight text-slate-950 sm:text-3xl">
                 {listMode === "all"
-                  ? "All Movies"
+                  ? "All Months"
                   : selectedDay
                   ? `Logs for ${selectedDay}`
                   : `Logs for ${formatMonthTitle(currentMonth)}`}
               </h3>
             </div>
 
-            <div className="grid w-full grid-cols-2 rounded-2xl border border-gray-300 bg-gray-50 p-1 sm:inline-flex sm:w-auto sm:rounded-lg sm:bg-white">
+            <div className="grid w-full max-w-xs grid-cols-2 rounded-full border border-white/70 bg-white/75 p-1 shadow-sm backdrop-blur sm:inline-grid">
               <button
                 onClick={() => setListMode("month")}
-                className={`rounded-xl px-3 py-2 text-sm font-semibold sm:rounded-md sm:py-1 ${
-                  listMode === "month" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                className={`rounded-full px-3 py-2 text-sm font-black transition ${
+                  listMode === "month" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-white"
                 }`}
               >
                 Month
@@ -577,8 +631,8 @@ export default function LogsPage() {
                   setListMode("all");
                   setSelectedDay(null);
                 }}
-                className={`rounded-xl px-3 py-2 text-sm font-semibold sm:rounded-md sm:py-1 ${
-                  listMode === "all" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
+                className={`rounded-full px-3 py-2 text-sm font-black transition ${
+                  listMode === "all" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-white"
                 }`}
               >
                 All
@@ -589,10 +643,12 @@ export default function LogsPage() {
           {displayLogs.length > 0 ? (
             listMode === "all" ? (
               // Grouped by month for "All" mode
-              <div className="space-y-6">
+              <div className="relative space-y-7">
                 {groupLogsByMonth(displayLogs).map((group) => (
                   <div key={group.month}>
-                    <h4 className="text-lg font-bold text-gray-900 mb-3">{group.month}</h4>
+                    <h4 className="mb-3 text-center text-sm font-black uppercase tracking-[0.18em] text-slate-700">
+                      {group.month}
+                    </h4>
                     <div className="space-y-3">
                       {group.logs.map((log) => (
                         <LogCard
@@ -607,7 +663,7 @@ export default function LogsPage() {
               </div>
             ) : (
               // Regular list for "Month" mode
-              <div className="space-y-3">
+              <div className="relative space-y-3">
                 {displayLogs.map((log) => (
                   <LogCard
                     key={log.id}
@@ -618,7 +674,7 @@ export default function LogsPage() {
               </div>
             )
           ) : (
-            <div className="py-10 text-center text-gray-500">
+            <div className="relative py-10 text-center text-slate-500">
               No logs for this selection.
             </div>
           )}

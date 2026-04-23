@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import ShareModal from "@/components/ShareModal";
 import CinematicLoading from "@/components/CinematicLoading";
+import LogMovieModal from "@/components/LogMovieModal";
 import { User, ShareWithDetails, Content, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -14,7 +15,7 @@ import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import { getFriendLogs } from "@/lib/friend-logs";
 import Link from "next/link";
-import { Clapperboard, Film, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
+import { Clapperboard, Film, Loader2, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
 
 import CinePostsFeed from "@/components/CinePostsFeed";
 import CinePostModal from "@/components/CinePostModal";
@@ -44,6 +45,13 @@ export default function DashboardPage() {
   const [showCinePostModal, setShowCinePostModal] = useState(false);
   const [cinePostRefreshKey, setCinePostRefreshKey] = useState(0);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showQuickLogSearch, setShowQuickLogSearch] = useState(false);
+  const [showQuickLogModal, setShowQuickLogModal] = useState(false);
+  const [quickLogContent, setQuickLogContent] = useState<Content | null>(null);
+  const [quickLogQuery, setQuickLogQuery] = useState("");
+  const [quickLogResults, setQuickLogResults] = useState<Content[]>([]);
+  const [quickLogSearching, setQuickLogSearching] = useState(false);
+  const [quickLogFilter, setQuickLogFilter] = useState<"all" | "movie" | "tv">("all");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -248,6 +256,71 @@ export default function DashboardPage() {
     setAccountResults([]);
   };
 
+  const handleQuickLogSearch = async (queryText: string) => {
+    setQuickLogQuery(queryText);
+
+    if (queryText.trim().length < 2) {
+      setQuickLogResults([]);
+      return;
+    }
+
+    setQuickLogSearching(true);
+    try {
+      const movies = quickLogFilter === "tv" ? [] : await searchMovies(queryText);
+      const shows = quickLogFilter === "movie" ? [] : await searchShows(queryText);
+
+      const movieResults = movies.map((movie: any) => ({
+        id: movie.id,
+        title: movie.title,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+        genres: (movie.genres || []).map((genreId: number) => String(genreId)),
+        release_date: movie.release_date || "",
+        overview: movie.overview || "",
+        runtime: movie.runtime || 0,
+        rating: typeof movie.vote_average === "number" ? movie.vote_average : 0,
+        type: "movie" as const,
+        platforms: [],
+        director: null,
+        created_at: new Date().toISOString(),
+      }));
+
+      const showResults = shows.map((show: any) => ({
+        id: show.id,
+        title: show.name || show.title || "",
+        name: show.name,
+        poster_url: show.poster_url || null,
+        genres: show.genres || [],
+        release_date: show.release_date || "",
+        overview: show.overview || "",
+        runtime: show.runtime || 0,
+        rating: typeof show.rating === "number" ? show.rating : 0,
+        type: "tv" as const,
+        status: show.status || null,
+        network: undefined,
+        created_at: new Date().toISOString(),
+      }));
+
+      setQuickLogResults([...movieResults, ...showResults].slice(0, 20));
+    } catch (error) {
+      console.error("Quick log search error:", error);
+    } finally {
+      setQuickLogSearching(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showQuickLogSearch && quickLogQuery.trim().length >= 2) {
+      void handleQuickLogSearch(quickLogQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickLogFilter]);
+
+  const handleSelectQuickLogContent = (content: Content) => {
+    setQuickLogContent(content);
+    setShowQuickLogSearch(false);
+    setShowQuickLogModal(true);
+  };
+
   const handleSignOut = async () => {
     try {
       await authSignOut();
@@ -292,6 +365,9 @@ export default function DashboardPage() {
   ]
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
     .slice(0, 10);
+  const filteredQuickLogResults = quickLogResults.filter(
+    (result) => quickLogFilter === "all" || result.type === quickLogFilter
+  );
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
@@ -589,7 +665,10 @@ export default function DashboardPage() {
                   type="button"
                   onClick={() => {
                     setShowQuickActions(false);
-                    router.push("/logs");
+                    setQuickLogQuery("");
+                    setQuickLogResults([]);
+                    setQuickLogFilter("all");
+                    setShowQuickLogSearch(true);
                   }}
                   className="flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 text-left transition hover:bg-slate-50"
                 >
@@ -638,6 +717,124 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {showQuickLogSearch && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-4">
+            <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:max-h-[90vh]">
+              <div className="flex items-center justify-between border-b border-gray-200 p-4 sm:p-6">
+                <div>
+                  <h2 className="text-lg font-black text-gray-900 sm:text-xl">Search & Log Movie</h2>
+                  <p className="mt-1 text-sm text-gray-500">Choose a movie or show, then log it here.</p>
+                </div>
+                <button
+                  onClick={() => setShowQuickLogSearch(false)}
+                  className="rounded-full border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  aria-label="Close search modal"
+                  title="Close search modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="border-b border-gray-200 p-4 sm:p-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 transform text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search movies & shows..."
+                    value={quickLogQuery}
+                    onChange={(e) => handleQuickLogSearch(e.target.value)}
+                    autoFocus
+                    className="w-full rounded-2xl border border-gray-300 py-3 pl-10 pr-4 text-base text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {(quickLogResults.length > 0 || quickLogQuery.length >= 2 || quickLogSearching) && (
+                <>
+                  <div className="flex gap-2 overflow-x-auto border-b border-gray-200 bg-white p-4">
+                    {(["all", "movie", "tv"] as const).map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => setQuickLogFilter(filter)}
+                        className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                          quickLogFilter === filter
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        {filter === "all" ? "All" : filter === "movie" ? "Movies" : "TV Shows"}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto overscroll-contain">
+                    {filteredQuickLogResults.map((result) => (
+                      <button
+                        key={`${result.type}-${result.id}`}
+                        type="button"
+                        onClick={() => handleSelectQuickLogContent(result)}
+                        className="flex w-full cursor-pointer items-center gap-3 border-b border-gray-100 p-4 text-left transition-colors last:border-b-0 hover:bg-gray-100"
+                      >
+                        {result.poster_url ? (
+                          <img
+                            src={result.poster_url}
+                            alt={result.title}
+                            className="h-20 w-14 rounded-xl object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-14 items-center justify-center rounded-xl bg-gray-200 text-xs text-gray-500">
+                            No Image
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="line-clamp-2 font-semibold text-gray-900">{result.title}</h3>
+                          <p className="text-sm text-gray-600">{result.type === "tv" ? "TV Show" : "Movie"}</p>
+                        </div>
+                      </button>
+                    ))}
+
+                    {filteredQuickLogResults.length === 0 && quickLogQuery.length >= 2 && !quickLogSearching && (
+                      <div className="p-10 text-center text-gray-500">
+                        No {quickLogFilter === "tv" ? "TV shows" : quickLogFilter === "movie" ? "movies" : "results"} found.
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {quickLogQuery.length < 2 && !quickLogSearching && (
+                <div className="p-12 text-center">
+                  <Film className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+                  <p className="text-gray-600">Search for what you watched.</p>
+                </div>
+              )}
+
+              {quickLogSearching && (
+                <div className="p-12 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {quickLogContent && user && (
+          <LogMovieModal
+            isOpen={showQuickLogModal}
+            onClose={() => {
+              setShowQuickLogModal(false);
+              setQuickLogContent(null);
+            }}
+            content={quickLogContent}
+            user={user}
+            onLogCreated={() => {
+              setShowQuickLogModal(false);
+              setQuickLogContent(null);
+              router.push("/logs");
+            }}
+          />
         )}
 
 

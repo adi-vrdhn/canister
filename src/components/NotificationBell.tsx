@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, X } from "lucide-react";
-import { onValue, ref, remove } from "firebase/database";
+import { get, onValue, ref, remove, set } from "firebase/database";
 import { db } from "@/lib/firebase";
 import type { User } from "@/types";
 
@@ -139,6 +139,29 @@ export default function NotificationBell({ user }: { user: User | null }) {
     setOpen(false);
   };
 
+  const acceptFollowRequest = async (note: NotificationItem) => {
+    if (!user) return;
+
+    const followRef = ref(db, `follows/${note.id}`);
+    const followSnapshot = await get(followRef);
+    if (followSnapshot.exists()) {
+      await set(followRef, {
+        ...followSnapshot.val(),
+        status: "accepted",
+      });
+    }
+    await remove(ref(db, `notifications/${user.id}/${note.id}`));
+  };
+
+  const declineFollowRequest = async (note: NotificationItem) => {
+    if (!user) return;
+
+    await Promise.all([
+      remove(ref(db, `follows/${note.id}`)),
+      remove(ref(db, `notifications/${user.id}/${note.id}`)),
+    ]);
+  };
+
   if (!user) return null;
 
   return (
@@ -177,33 +200,73 @@ export default function NotificationBell({ user }: { user: User | null }) {
           ) : (
             <>
               <div className="max-h-96 overflow-y-auto p-2">
-                {notifications.map((note) => (
-                  <Link
-                    key={note.id}
-                    href={notificationHref(note)}
-                    onClick={() => setOpen(false)}
-                    className="flex gap-3 rounded-2xl p-3 transition hover:bg-slate-50"
-                  >
-                    {note.fromUser?.avatar_url ? (
-                      <img
-                        src={note.fromUser.avatar_url}
-                        alt={note.fromUser.name}
-                        className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
-                        {note.fromUser?.name?.charAt(0)?.toUpperCase() || "N"}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-5 text-slate-700">
-                        <span className="font-black text-slate-950">{note.fromUser?.name || "Someone"}</span>{" "}
-                        {notificationText(note)}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">{formatDate(note.createdAt)}</p>
+                {notifications.map((note) => {
+                  const avatar = note.fromUser?.avatar_url ? (
+                    <img
+                      src={note.fromUser.avatar_url}
+                      alt={note.fromUser.name}
+                      className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
+                      {note.fromUser?.name?.charAt(0)?.toUpperCase() || "N"}
                     </div>
-                  </Link>
-                ))}
+                  );
+
+                  const content = (
+                    <>
+                      {avatar}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm leading-5 text-slate-700">
+                          <span className="font-black text-slate-950">{note.fromUser?.name || "Someone"}</span>{" "}
+                          {notificationText(note)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">{formatDate(note.createdAt)}</p>
+                      </div>
+                    </>
+                  );
+
+                  if (note.type === "follow_request") {
+                    return (
+                      <div key={note.id} className="rounded-2xl p-3 transition hover:bg-slate-50">
+                        <Link
+                          href={notificationHref(note)}
+                          onClick={() => setOpen(false)}
+                          className="flex gap-3"
+                        >
+                          {content}
+                        </Link>
+                        <div className="mt-3 grid grid-cols-2 gap-2 pl-[3.25rem]">
+                          <button
+                            type="button"
+                            onClick={() => acceptFollowRequest(note)}
+                            className="rounded-full bg-slate-950 px-3 py-2 text-xs font-black text-white transition hover:bg-slate-800"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => declineFollowRequest(note)}
+                            className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-200"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={note.id}
+                      href={notificationHref(note)}
+                      onClick={() => setOpen(false)}
+                      className="flex gap-3 rounded-2xl p-3 transition hover:bg-slate-50"
+                    >
+                      {content}
+                    </Link>
+                  );
+                })}
               </div>
               <div className="border-t border-slate-100 p-3">
                 <button

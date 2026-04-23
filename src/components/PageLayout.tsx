@@ -3,6 +3,7 @@
 import Sidebar from "./Sidebar";
 import EmailVerificationBadge from "./EmailVerificationBadge";
 import NotificationBell from "./NotificationBell";
+import Link from "next/link";
 import { User } from "@/types";
 import { ReactNode, useState } from "react";
 
@@ -30,9 +31,9 @@ export default function PageLayout({ user, children, onSignOut, fullWidth = fals
           </svg>
         </button>
 
-        <span className="brand-wordmark text-2xl font-bold text-zinc-950 sm:text-3xl">
+        <Link href="/dashboard" className="brand-wordmark text-2xl font-bold text-zinc-950 transition hover:opacity-80 sm:text-3xl" aria-label="Go to home">
           CANISTER
-        </span>
+        </Link>
         <NotificationBell user={user} />
       </header>
 

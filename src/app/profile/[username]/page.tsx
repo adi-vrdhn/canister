@@ -9,22 +9,19 @@ import { useEffect, useMemo, useState } from "react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DOMPurify from 'dompurify';
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { get, ref, set } from "firebase/database";
-import { ArrowLeft, Film, Loader2, MoreHorizontal, Plus, Sparkles, Upload, Users } from "lucide-react";
+import { get, ref, remove, set } from "firebase/database";
+import { ArrowLeft, Loader2, MoreHorizontal, Settings, Sparkles, Upload, Users } from "lucide-react";
+import PageLayout from "@/components/PageLayout";
 import StatsInsights from "@/components/StatsInsights";
-import Achievements from "@/components/Achievements";
-import SearchBar from "@/components/SearchBar";
-import EmailVerificationBadge from "@/components/EmailVerificationBadge";
 import CinematicLoading from "@/components/CinematicLoading";
 import ProfileCinePostsPanel from "@/components/ProfileCinePostsPanel";
 import { auth, db } from "@/lib/firebase";
-import { addToWatchlist, createMovieLog, getUserWatchlist } from "@/lib/logs";
+import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { getListWithDetails, getUserLists } from "@/lib/lists";
 import { searchMovies } from "@/lib/tmdb";
 import {
-  calculateAchievements,
   getFollowerCount,
   getFollowingCount,
   getMostWatchedGenres,
@@ -32,11 +29,11 @@ import {
   getUserProfile,
   getUserStats,
   updateUserProfile,
-  updateMoodTags,
 } from "@/lib/profile";
+import { signOut as authSignOut } from "@/lib/auth";
 import type { ListWithItems, MovieLogWithContent, User } from "@/types";
 
-type FollowModalType = "followers" | "following" | "requests";
+type FollowModalType = "followers" | "following" | "requests" | "sent-requests";
 
 interface SocialNotification {
   id: string;
@@ -57,6 +54,38 @@ interface FollowRecord {
   createdAt?: string;
 }
 
+function formatCompactCount(count: number): string {
+  if (count < 1000) return String(count);
+  return new Intl.NumberFormat("en", {
+    maximumFractionDigits: count < 100000 ? 1 : 0,
+    notation: "compact",
+  }).format(count).toLowerCase();
+}
+
+function getRecentMoodGenres(logs: MovieLogWithContent[], limit = 3): string[] {
+  const genreScores = new Map<string, { count: number; firstSeen: number }>();
+
+  logs.forEach((log, index) => {
+    const genres = log.content?.genres || [];
+    genres.forEach((genre) => {
+      const current = genreScores.get(genre);
+      if (current) {
+        current.count += 1;
+      } else {
+        genreScores.set(genre, { count: 1, firstSeen: index });
+      }
+    });
+  });
+
+  return Array.from(genreScores.entries())
+    .sort((a, b) => {
+      if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+      return a[1].firstSeen - b[1].firstSeen;
+    })
+    .slice(0, limit)
+    .map(([genre]) => genre);
+}
+
 function ProfilePageInner() {
     // --- Ratings Import Modal State ---
     const [isRatingsImportOpen, setIsRatingsImportOpen] = useState(false);
@@ -64,6 +93,7 @@ function ProfilePageInner() {
     const [ratingsImportError, setRatingsImportError] = useState("");
     const [ratingsImportSummary, setRatingsImportSummary] = useState<null | { totalRows: number; imported: number; skipped: number }>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const params = useParams();
   const username = params.username as string;
 
@@ -74,15 +104,14 @@ function ProfilePageInner() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasCurrentUserProfile, setHasCurrentUserProfile] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [mostWatchedGenres, setMostWatchedGenres] = useState<any[]>([]);
-  const [achievements, setAchievements] = useState<any[]>([]);
-  const [watchlist, setWatchlist] = useState<MovieLogWithContent[]>([]);
+  const [recentMoodGenres, setRecentMoodGenres] = useState<string[]>([]);
   const [notifications, setNotifications] = useState<SocialNotification[]>([]);
   const [allFollows, setAllFollows] = useState<FollowRecord[]>([]);
+  const [usersById, setUsersById] = useState<Record<string, User>>({});
   const [followers, setFollowers] = useState<User[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
   const [displayList, setDisplayList] = useState<ListWithItems | null>(null);
@@ -98,18 +127,25 @@ function ProfilePageInner() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<string>("friends");
+  const handleSignOut = async () => {
+    try {
+      await authSignOut();
+      router.push("/auth/login");
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState<string>("posts");
   const [followModalType, setFollowModalType] = useState<FollowModalType>("followers");
+  const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
   const [followSearch, setFollowSearch] = useState("");
   const [openFollowMenuUserId, setOpenFollowMenuUserId] = useState<string | null>(null);
   const [followActionLoading, setFollowActionLoading] = useState<string | null>(null);
   const [profileFollowActionLoading, setProfileFollowActionLoading] = useState(false);
-  const [isWatchlistSearchOpen, setIsWatchlistSearchOpen] = useState(false);
-  const [watchlistModalError, setWatchlistModalError] = useState("");
   const [profilePageError, setProfilePageError] = useState<string | null>(null);
   const [followRequestError, setFollowRequestError] = useState<string | null>(null);
   const [displayListError, setDisplayListError] = useState<string | null>(null);
-  const [watchlistModalLoading, setWatchlistModalLoading] = useState(false);
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('[PROFILE] useEffect triggered. username param:', username);
@@ -181,21 +217,43 @@ function ProfilePageInner() {
         setProfileUser(profileUserObj);
         console.log('[PROFILE] Profile user set:', profileUserObj);
 
-        // Fetch stats
-        const statsObj = await getUserStats(profileUserObj.id);
+        const [
+          statsObj,
+          followerCountVal,
+          followingCountVal,
+          followersSnap,
+          usersSnap,
+          genres,
+          recentLogs,
+          lists,
+          notificationsSnap,
+          connectedDisplayList,
+        ] = await Promise.all([
+          getUserStats(profileUserObj.id),
+          getFollowerCount(profileUserObj.id),
+          getFollowingCount(profileUserObj.id),
+          get(ref(db, `follows`)),
+          get(ref(db, `users`)),
+          getMostWatchedGenres(profileUserObj.id),
+          getUserMovieLogs(profileUserObj.id, 5),
+          getUserLists(profileUserObj.id),
+          isOwnProfile
+            ? get(ref(db, `notifications/${profileUserObj.id}`))
+            : Promise.resolve(null),
+          profileUserObj.display_list_id
+            ? getListWithDetails(profileUserObj.display_list_id).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+
         setStats(statsObj);
-        console.log('[PROFILE] Stats:', statsObj);
-
-        // Fetch friends (followers/following)
-        const followerCountVal = await getFollowerCount(profileUserObj.id);
         setFollowerCount(followerCountVal);
-        const followingCountVal = await getFollowingCount(profileUserObj.id);
         setFollowingCount(followingCountVal);
+        setMostWatchedGenres(genres);
+        setRecentMoodGenres(getRecentMoodGenres(recentLogs));
+        console.log('[PROFILE] Stats:', statsObj);
         console.log('[PROFILE] Follower count:', followerCountVal, 'Following count:', followingCountVal);
+        console.log('[PROFILE] Most watched genres:', genres);
 
-        // Fetch followers and following user arrays
-        // Followers: users who follow this profile
-        const followersSnap = await get(ref(db, `follows`));
         const allFollowsRaw: FollowRecord[] = followersSnap.exists()
           ? Object.entries(
               followersSnap.val() as Record<
@@ -213,33 +271,15 @@ function ProfilePageInner() {
           .filter((f) => f.follower_id === profileUserObj.id && f.status === 'accepted')
           .map((f) => f.following_id);
 
-        // Fetch user objects for followers and following
-        const usersSnap = await get(ref(db, `users`));
         const allUsersRaw = usersSnap.exists() ? usersSnap.val() : {};
         const followersArr = followerUserIds.map((uid: string) => allUsersRaw[uid]).filter(Boolean);
         const followingArr = followingUserIds.map((uid: string) => allUsersRaw[uid]).filter(Boolean);
         setFollowers(followersArr);
         setFollowing(followingArr);
         setAllFollows(allFollowsRaw);
+        setUsersById(allUsersRaw);
 
-        // Fetch most watched genres
-        const genres = await getMostWatchedGenres(profileUserObj.id);
-        setMostWatchedGenres(genres);
-        console.log('[PROFILE] Most watched genres:', genres);
-
-        // Fetch achievements
-        const ach = await calculateAchievements(profileUserObj.id);
-        setAchievements(ach);
-        console.log('[PROFILE] Achievements:', ach);
-
-        // Fetch watchlist
-        const watchlistData = await getUserWatchlist(profileUserObj.id);
-        setWatchlist(watchlistData);
-        console.log('[PROFILE] Watchlist:', watchlistData);
-
-        // Fetch notifications if own profile
-        if (username === currentUserObj.username) {
-          const notificationsSnap = await get(ref(db, `notifications/${profileUserObj.id}`));
+        if (notificationsSnap?.exists()) {
           const notificationRows: SocialNotification[] = notificationsSnap.exists()
             ? Object.entries(notificationsSnap.val()).map(([id, raw]: any) => ({
                 id,
@@ -262,22 +302,16 @@ function ProfilePageInner() {
               (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             )
           );
+        } else {
+          setNotifications([]);
         }
 
-        // Fetch lists
-        const lists = await getUserLists(profileUserObj.id);
         setOwnerPublicLists(lists.filter((l: any) => l.privacy === "public"));
         console.log('[PROFILE] Public lists:', lists.filter((l: any) => l.privacy === "public"));
 
-        // Persist and reload connected display list if present
         if (profileUserObj.display_list_id) {
-          try {
-            const connected = await getListWithDetails(profileUserObj.display_list_id);
-            setDisplayList(connected && connected.privacy === "public" ? connected : null);
-            setSelectedDisplayListId(profileUserObj.display_list_id);
-          } catch (err) {
-            setDisplayList(null);
-          }
+          setDisplayList(connectedDisplayList && connectedDisplayList.privacy === "public" ? connectedDisplayList : null);
+          setSelectedDisplayListId(profileUserObj.display_list_id);
         } else {
           setDisplayList(null);
           setSelectedDisplayListId("");
@@ -300,22 +334,35 @@ function ProfilePageInner() {
   }, [activeTab, followModalType]);
 
   useEffect(() => {
-    if (!isOwnProfile && followModalType === "requests") {
+    if (!isOwnProfile && (followModalType === "requests" || followModalType === "sent-requests")) {
       setFollowModalType("followers");
     }
   }, [isOwnProfile, followModalType]);
 
+  useEffect(() => {
+    if (!isOwnProfile && activeTab === "saved-posts") {
+      setActiveTab("posts");
+    }
+  }, [activeTab, isOwnProfile]);
+
+  useEffect(() => {
+    if (!isOwnProfile || searchParams.get("importRatings") !== "1") return;
+    setRatingsImportError("");
+    setRatingsImportSummary(null);
+    setIsRatingsImportOpen(true);
+  }, [isOwnProfile, searchParams]);
+
   // Email removed from profile for privacy
 
   const currentlyIntoText = useMemo(() => {
-    if (!profileUser?.mood_tags || profileUser.mood_tags.length === 0) {
+    if (!recentMoodGenres || recentMoodGenres.length === 0) {
       return "Not set yet";
     }
-    return profileUser.mood_tags.join(", ");
-  }, [profileUser]);
+    return recentMoodGenres.join(", ");
+  }, [recentMoodGenres]);
 
   const shownUsers = useMemo(() => {
-    if (followModalType === "requests") {
+    if (followModalType === "requests" || followModalType === "sent-requests") {
       return [];
     }
 
@@ -336,6 +383,21 @@ function ProfilePageInner() {
   const followRequests = useMemo(
     () => notifications.filter((notification) => notification.type === "follow_request"),
     [notifications]
+  );
+
+  const sentFollowRequests = useMemo(() => {
+    if (!currentUser) return [];
+    return allFollows.filter(
+      (follow) => follow.follower_id === currentUser.id && follow.status === "pending"
+    );
+  }, [allFollows, currentUser]);
+
+  const sentRequestUsers = useMemo(
+    () =>
+      sentFollowRequests
+        .map((follow) => usersById[follow.following_id])
+        .filter(Boolean),
+    [sentFollowRequests, usersById]
   );
 
   const viewerToProfileFollow = useMemo(() => {
@@ -362,7 +424,6 @@ function ProfilePageInner() {
   const isFollowingProfile = viewerToProfileFollow?.status === "accepted";
   const isFollowRequestSent = viewerToProfileFollow?.status === "pending";
   const hasIncomingFollowRequestFromProfile = !!profileToViewerPendingFollow;
-  const followMenuActionLabel = followModalType === "following" ? "Remove as following" : "Stop Following";
 
   const getMyAcceptedFollowRecordToUser = (targetUserId: string) => {
     if (!currentUser) return null;
@@ -376,9 +437,52 @@ function ProfilePageInner() {
     );
   };
 
+  const getMyFollowRecordToUser = (targetUserId: string) => {
+    if (!currentUser) return null;
+    return (
+      allFollows.find(
+        (follow) => follow.follower_id === currentUser.id && follow.following_id === targetUserId
+      ) || null
+    );
+  };
+
   const removeFollowRecord = async (followId: string) => {
     await set(ref(db, `follows/${followId}`), null);
     setAllFollows((prev) => prev.filter((follow) => follow.id !== followId));
+  };
+
+  const sendFollowRequestToUser = async (targetUser: User) => {
+    if (!currentUser || currentUser.id === targetUser.id) return;
+    const existingFollow = allFollows.find(
+      (follow) => follow.follower_id === currentUser.id && follow.following_id === targetUser.id
+    );
+    if (existingFollow) return;
+
+    const followId = `${currentUser.id}-${targetUser.id}-${Date.now()}`;
+    const createdAt = new Date().toISOString();
+    const newFollow: FollowRecord = {
+      id: followId,
+      follower_id: currentUser.id,
+      following_id: targetUser.id,
+      status: "pending",
+      created_at: createdAt,
+      createdAt,
+    };
+
+    await set(ref(db, `follows/${followId}`), newFollow);
+    await set(ref(db, `notifications/${targetUser.id}/${followId}`), {
+      type: "follow_request",
+      seen: false,
+      fromUser: {
+        id: currentUser.id,
+        username: currentUser.username,
+        name: currentUser.name,
+        avatar_url: currentUser.avatar_url || null,
+      },
+      created_at: createdAt,
+      createdAt,
+    });
+    setAllFollows((prev) => [...prev, newFollow]);
   };
 
   const handleSendFollowRequest = async () => {
@@ -386,30 +490,7 @@ function ProfilePageInner() {
     setFollowRequestError(null);
     try {
       setProfileFollowActionLoading(true);
-      if (viewerToProfileFollow) {
-        return;
-      }
-      const followId = `${currentUser.id}-${profileUser.id}-${Date.now()}`;
-      const createdAt = new Date().toISOString();
-      await set(ref(db, `follows/${followId}`), {
-        id: followId,
-        follower_id: currentUser.id,
-        following_id: profileUser.id,
-        status: "pending",
-        created_at: createdAt,
-        createdAt,
-      });
-      setAllFollows((prev) => [
-        ...prev,
-        {
-          id: followId,
-          follower_id: currentUser.id,
-          following_id: profileUser.id,
-          status: "pending",
-          created_at: createdAt,
-          createdAt,
-        },
-      ]);
+      await sendFollowRequestToUser(profileUser);
     } catch (error) {
       setFollowRequestError("Failed to send follow request. Please try again.");
     } finally {
@@ -417,13 +498,33 @@ function ProfilePageInner() {
     }
   };
 
+  const handleUnfollowProfile = async () => {
+    if (!viewerToProfileFollow || !profileUser || viewerToProfileFollow.status !== "accepted") return;
+    const shouldUnfollow = window.confirm(`Unfollow @${profileUser.username}?`);
+    if (!shouldUnfollow) return;
+
+    setFollowRequestError(null);
+    try {
+      setProfileFollowActionLoading(true);
+      await removeFollowRecord(viewerToProfileFollow.id);
+      setFollowers((prev) => prev.filter((entry) => entry.id !== currentUser?.id));
+      setFollowerCount((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      setFollowRequestError("Failed to unfollow. Please try again.");
+    } finally {
+      setProfileFollowActionLoading(false);
+    }
+  };
+
   const handleAcceptFollowRequest = async (note: SocialNotification) => {
+    if (!currentUser) return;
     const followRecord = allFollows.find((follow) => follow.id === note.id);
     if (!followRecord) return;
 
     try {
       const updatedFollow: FollowRecord = { ...followRecord, status: "accepted" };
       await set(ref(db, `follows/${note.id}`), updatedFollow);
+      await remove(ref(db, `notifications/${currentUser.id}/${note.id}`));
 
       setAllFollows((prev) => prev.map((follow) => (follow.id === note.id ? updatedFollow : follow)));
       setNotifications((prev) => prev.filter((notification) => notification.id !== note.id));
@@ -442,9 +543,44 @@ function ProfilePageInner() {
   const handleDeclineFollowRequest = async (followId: string) => {
     try {
       await removeFollowRecord(followId);
+      if (currentUser) {
+        await remove(ref(db, `notifications/${currentUser.id}/${followId}`));
+      }
       setNotifications((prev) => prev.filter((notification) => notification.id !== followId));
     } catch (error) {
       console.error("Error declining follow request:", error);
+    }
+  };
+
+  const handleCancelSentFollowRequest = async (targetUserId: string) => {
+    const pendingFollow = allFollows.find(
+      (follow) =>
+        currentUser &&
+        follow.follower_id === currentUser.id &&
+        follow.following_id === targetUserId &&
+        follow.status === "pending"
+    );
+    if (!pendingFollow) return;
+
+    try {
+      setFollowActionLoading(targetUserId);
+      await removeFollowRecord(pendingFollow.id);
+      await remove(ref(db, `notifications/${targetUserId}/${pendingFollow.id}`));
+    } catch (error) {
+      console.error("Error cancelling follow request:", error);
+    } finally {
+      setFollowActionLoading(null);
+    }
+  };
+
+  const handleFollowBack = async (targetUser: User) => {
+    try {
+      setFollowActionLoading(targetUser.id);
+      await sendFollowRequestToUser(targetUser);
+    } catch (error) {
+      console.error("Error sending follow back request:", error);
+    } finally {
+      setFollowActionLoading(null);
     }
   };
 
@@ -466,15 +602,6 @@ function ProfilePageInner() {
       setFollowActionLoading(null);
       setOpenFollowMenuUserId(null);
     }
-  };
-
-  const handleMoviesLoggedClick = () => {
-    if (!profileUser) return;
-    if (isOwnProfile) {
-      router.push("/logs");
-      return;
-    }
-    router.push(`/user/${profileUser.username}/logs`);
   };
 
   const handleStatDrillDown = (type: "total" | "masterpiece" | "good" | "bad") => {
@@ -522,50 +649,6 @@ function ProfilePageInner() {
       console.error("Error clearing display list:", error);
     } finally {
       setUpdatingDisplayList(false);
-    }
-  };
-
-  const handleWatchlistSearch = async (query: string) => {
-    const results = await searchMovies(query, 1);
-
-    return results.slice(0, 10).map((movie) => ({
-      id: movie.id,
-      originalId: movie.id,
-      title: movie.title,
-      subtitle: movie.release_date
-        ? `${movie.release_date.split("-")[0]} • ${movie.vote_average?.toFixed(1) || "N/A"}/10`
-        : `Rating ${movie.vote_average?.toFixed(1) || "N/A"}/10`,
-      image: movie.poster_path ? `https://image.tmdb.org/t/p/w342${movie.poster_path}` : undefined,
-      type: "movie",
-    }));
-  };
-
-  const handleAddMovieToWatchlist = async (item: {
-    id: string | number;
-    originalId?: number;
-    title: string;
-  }) => {
-    if (!currentUser || !profileUser || !isOwnProfile) return;
-    setWatchlistModalError("");
-    try {
-      const movieId = Number(item.originalId ?? item.id);
-      if (!movieId) return;
-      const alreadyAdded = watchlist.some(
-        (entry) => entry.content_type === "movie" && entry.content_id === movieId
-      );
-      if (alreadyAdded) {
-        setWatchlistModalError("This movie is already in your watchlist.");
-        return;
-      }
-      setWatchlistModalLoading(true);
-      await addToWatchlist(currentUser.id, movieId, "movie");
-      const updatedWatchlist = await getUserWatchlist(profileUser.id);
-      setWatchlist(updatedWatchlist);
-      setIsWatchlistSearchOpen(false);
-    } catch (error) {
-      setWatchlistModalError("Failed to add movie. Please try again.");
-    } finally {
-      setWatchlistModalLoading(false);
     }
   };
 
@@ -788,12 +871,8 @@ function ProfilePageInner() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#090b12] pb-16">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-16 top-24 h-72 w-72 rounded-full bg-[#c89d4a]/20 blur-3xl" />
-        <div className="absolute right-0 top-56 h-80 w-80 rounded-full bg-[#40527f]/30 blur-3xl" />
-        <div className="absolute bottom-8 left-1/4 h-64 w-64 rounded-full bg-[#723d5f]/20 blur-3xl" />
-      </div>
+    <PageLayout user={currentUser} onSignOut={handleSignOut}>
+    <div className="relative min-h-screen bg-transparent pb-16 text-slate-950">
       {/* Error banners for user-facing errors */}
       {profilePageError && (
         <div className="relative z-10 mx-auto mt-4 w-full max-w-7xl rounded-2xl border border-red-400/40 bg-red-900/40 px-4 py-3 text-sm text-red-100 backdrop-blur">
@@ -810,25 +889,11 @@ function ProfilePageInner() {
           {displayListError}
         </div>
       )}
-      <div className="relative z-10 mx-auto w-full max-w-7xl pt-3">
-        <EmailVerificationBadge />
-      </div>
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-10 mt-8 flex flex-col items-center gap-3 text-center">
-          <p className="rounded-full border border-[#d6b470]/40 bg-[#d6b470]/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-[#f1d39a]">
-            Cinematic Profile
-          </p>
-          <h1
-            className="brand-wordmark text-4xl font-bold tracking-tight text-[#f8e9c8] sm:text-5xl"
-          >
-            CANISTER
-          </h1>
-          <p className="text-sm text-zinc-300 sm:text-base">A movie-first space for stories, taste, and timeless frames.</p>
-        </div>
-        <div className="mb-8 flex items-center justify-between gap-3">
+        <div className="mb-5 flex items-center justify-between gap-3">
           <button
             onClick={() => router.push("/dashboard")}
-            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-zinc-100 backdrop-blur transition hover:bg-white/20"
+            className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:inline-flex"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Home
@@ -836,205 +901,177 @@ function ProfilePageInner() {
 
           {isOwnProfile && (
             <Link
-              href="/profile/edit"
-              className="rounded-full border border-[#d6b470]/40 bg-[#d6b470]/15 px-4 py-2 text-sm font-medium text-[#f3ddb1] transition hover:bg-[#d6b470]/25"
+              href="/profile/settings"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
             >
-              Edit Profile
+              <Settings className="h-4 w-4" />
+              Settings
             </Link>
           )}
         </div>
 
-        <section className="relative mb-8 overflow-hidden rounded-[2rem] border border-[#d6b470]/25 bg-gradient-to-br from-[#111826]/95 via-[#151f34]/95 to-[#1f1b2e]/95 p-6 shadow-[0_28px_80px_rgba(0,0,0,0.45)] sm:p-8">
-          <div className="pointer-events-none absolute -right-10 top-0 h-48 w-48 rounded-full bg-[#f1d39a]/15 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-0 left-16 h-40 w-40 rounded-full bg-[#7e9cd6]/20 blur-3xl" />
-          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-4 sm:gap-5">
+        <section className="mb-8 overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+          <div className="border-b border-slate-200/80 bg-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex min-w-0 items-start gap-4 sm:gap-5">
               {profileUser.avatar_url ? (
                 <img
                   src={profileUser.avatar_url}
                   alt={profileUser.name}
-                  className="h-20 w-20 rounded-full border-2 border-[#f1d39a]/65 object-cover shadow-[0_0_30px_rgba(214,180,112,0.35)] sm:h-24 sm:w-24"
+                  className="h-24 w-20 rounded-[1.1rem] border border-slate-200 object-cover shadow-sm sm:h-28 sm:w-24"
                 />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-[#f1d39a]/65 bg-[#1d2233] text-2xl font-semibold text-[#f8e9c8] shadow-[0_0_30px_rgba(214,180,112,0.35)] sm:h-24 sm:w-24 sm:text-3xl">
+                <div className="flex h-24 w-20 items-center justify-center rounded-[1.1rem] border border-slate-200 bg-slate-950 text-3xl font-semibold text-white shadow-sm sm:h-28 sm:w-24">
                   {profileUser.name.charAt(0).toUpperCase()}
                 </div>
               )}
 
-              <div>
-                <h1
-                  className="text-2xl font-semibold tracking-tight text-[#f8e9c8] sm:text-4xl"
-                  style={{ fontFamily: '"Bodoni Moda", "Playfair Display", "Times New Roman", serif' }}
-                >
-                  {DOMPurify.sanitize(profileUser.name)}
-                </h1>
-                <p className="mt-1 inline-flex rounded-full border border-[#d6b470]/35 bg-[#d6b470]/10 px-3 py-1 text-xs font-medium tracking-wide text-[#f1d39a] sm:text-sm">
-                  @{DOMPurify.sanitize(profileUser.username)}
-                </p>
-                {/* Email removed for privacy */}
-                {profileUser.bio && <p className="mt-3 max-w-2xl text-zinc-200">{DOMPurify.sanitize(profileUser.bio)}</p>}
-                <p className="mt-3 text-sm text-zinc-300">
-                  <span className="font-semibold text-[#f8e9c8]">Now screening in their mood:</span>{" "}
-                  {DOMPurify.sanitize(currentlyIntoText)}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid w-full max-w-md grid-cols-3 gap-2 sm:gap-3">
-              <button
-                onClick={handleMoviesLoggedClick}
-                className="rounded-2xl border border-[#d6b470]/25 bg-white/10 px-3 py-3 text-left backdrop-blur transition hover:bg-white/20"
-              >
-                <p className="text-xl font-bold text-[#f8e9c8]">{stats.totalLogged}</p>
-                <p className="text-xs text-zinc-300">Movies Logged</p>
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab("friends");
-                  setFollowModalType("followers");
-                }}
-                className="rounded-2xl border border-[#d6b470]/25 bg-white/10 px-3 py-3 text-left backdrop-blur transition hover:bg-white/20"
-              >
-                <p className="text-xl font-bold text-[#f8e9c8]">{followerCount}</p>
-                <p className="text-xs text-zinc-300">Followers</p>
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab("friends");
-                  setFollowModalType("following");
-                }}
-                className="rounded-2xl border border-[#d6b470]/25 bg-white/10 px-3 py-3 text-left backdrop-blur transition hover:bg-white/20"
-              >
-                <p className="text-xl font-bold text-[#f8e9c8]">{followingCount}</p>
-                <p className="text-xs text-zinc-300">Following</p>
-              </button>
-              {!isOwnProfile && hasCurrentUserProfile && (
-                <div className="col-span-3 flex items-center justify-end gap-2">
-                  {hasIncomingFollowRequestFromProfile ? (
-                    <>
-                      <button
-                        onClick={() =>
-                          profileToViewerPendingFollow &&
-                          handleAcceptFollowRequest({
-                            id: profileToViewerPendingFollow.id,
-                            type: "follow_request",
-                            fromUser: profileUser,
-                            createdAt:
-                              profileToViewerPendingFollow.created_at ||
-                              profileToViewerPendingFollow.createdAt ||
-                              new Date().toISOString(),
-                          })
-                        }
-                        disabled={profileFollowActionLoading}
-                        className="rounded-xl border border-emerald-300/35 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        onClick={() =>
-                          profileToViewerPendingFollow &&
-                          handleDeclineFollowRequest(profileToViewerPendingFollow.id)
-                        }
-                        disabled={profileFollowActionLoading}
-                        className="rounded-xl border border-rose-300/35 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
-                      >
-                        Decline
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleSendFollowRequest}
-                      disabled={isFollowingProfile || isFollowRequestSent || profileFollowActionLoading}
-                      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                        isFollowingProfile
-                          ? "bg-emerald-500/30 text-emerald-100"
-                          : isFollowRequestSent
-                          ? "bg-amber-500/25 text-amber-100"
-                          : "border border-[#d6b470]/35 bg-[#d6b470]/15 text-[#f7ddb0] hover:bg-[#d6b470]/25"
-                      } disabled:cursor-not-allowed disabled:opacity-70`}
-                    >
-                      {isFollowingProfile ? "Following" : isFollowRequestSent ? "Request Sent" : "Follow"}
-                    </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <h1
+                    className="min-w-0 text-3xl font-semibold tracking-tight text-slate-950 sm:text-5xl"
+                    style={{ fontFamily: '"Bodoni Moda", "Playfair Display", "Times New Roman", serif' }}
+                  >
+                    {DOMPurify.sanitize(profileUser.name)}
+                  </h1>
+                  {!isOwnProfile && currentUser && (
+                    <div className="flex items-center gap-2">
+                      {hasIncomingFollowRequestFromProfile ? (
+                        <>
+                          <button
+                            onClick={() =>
+                              profileToViewerPendingFollow &&
+                              handleAcceptFollowRequest({
+                                id: profileToViewerPendingFollow.id,
+                                type: "follow_request",
+                                fromUser: profileUser,
+                                createdAt:
+                                  profileToViewerPendingFollow.created_at ||
+                                  profileToViewerPendingFollow.createdAt ||
+                                  new Date().toISOString(),
+                              })
+                            }
+                            disabled={profileFollowActionLoading}
+                            className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-black text-white transition hover:bg-emerald-500 disabled:opacity-50 sm:px-4 sm:text-sm"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() =>
+                              profileToViewerPendingFollow &&
+                              handleDeclineFollowRequest(profileToViewerPendingFollow.id)
+                            }
+                            disabled={profileFollowActionLoading}
+                            className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-black text-white transition hover:bg-rose-500 disabled:opacity-50 sm:px-4 sm:text-sm"
+                          >
+                            Decline
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={isFollowingProfile ? handleUnfollowProfile : handleSendFollowRequest}
+                          disabled={isFollowRequestSent || profileFollowActionLoading}
+                          className={`rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:text-sm ${
+                            isFollowingProfile
+                              ? "border border-slate-300 bg-white text-slate-800 hover:bg-red-50 hover:text-red-700"
+                              : isFollowRequestSent
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-blue-600 text-white hover:bg-blue-700"
+                          } disabled:cursor-not-allowed disabled:opacity-70`}
+                        >
+                          {isFollowingProfile ? "Following" : isFollowRequestSent ? "Request Sent" : "Follow"}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-              {isOwnProfile ? (
-                <>
-                  <button
-                    onClick={() => router.push(`/profile/${profileUser.username}/movie-personality`)}
-                    className="col-span-3 rounded-2xl border border-white/25 bg-gradient-to-r from-white/15 to-white/5 px-4 py-3 text-left transition hover:from-white/20 hover:to-white/10"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-[#f1d39a]" />
-                      <p className="text-sm font-semibold text-[#f8e9c8]">Your Movie Personality</p>
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-300">Open your cinematic taste identity profile</p>
-                  </button>
 
+                <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-base font-semibold tracking-wide text-slate-600 sm:text-lg">
+                  @{DOMPurify.sanitize(profileUser.username)}
+                </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-600 sm:text-base">
                   <button
                     onClick={() => {
-                      setRatingsImportError("");
-                      setRatingsImportSummary(null);
-                      setIsRatingsImportOpen(true);
+                      setFollowModalType("followers");
+                      setFollowSearch("");
+                      setIsFollowModalOpen(true);
                     }}
-                    className="col-span-3 rounded-2xl border border-white/25 bg-gradient-to-r from-[#4f7467]/30 to-[#2d5d66]/30 px-4 py-3 text-left transition hover:from-[#4f7467]/45 hover:to-[#2d5d66]/45"
+                    className="font-medium transition hover:text-slate-950"
                   >
-                    <div className="flex items-center gap-2">
-                      <Upload className="h-4 w-4 text-[#f1d39a]" />
-                      <p className="text-sm font-semibold text-[#f8e9c8]">Import Ratings CSV</p>
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-300">Upload your ratings export and auto-build your diary</p>
+                    <span className="font-bold text-slate-950">{formatCompactCount(followerCount)}</span> followers
                   </button>
-                </>
-              ) : hasCurrentUserProfile ? (
-                <div className="col-span-3 grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => {
+                      setFollowModalType("following");
+                      setFollowSearch("");
+                      setIsFollowModalOpen(true);
+                    }}
+                    className="font-medium transition hover:text-slate-950"
+                  >
+                    <span className="font-bold text-slate-950">{formatCompactCount(followingCount)}</span> following
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 bg-white px-4 py-4 sm:px-6 sm:py-5">
+            <p className="max-w-2xl text-base leading-snug text-slate-600 sm:text-lg">
+              {profileUser.bio ? DOMPurify.sanitize(profileUser.bio) : "Movie fan"}
+            </p>
+            <p className="max-w-3xl text-base leading-snug text-slate-500 sm:text-lg">
+              <span className="font-semibold text-slate-900">Now screening in their mood:</span>{" "}
+              {DOMPurify.sanitize(currentlyIntoText)}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href={`/profile/${profileUser.username}/movie-personality`}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+              >
+                <Sparkles className="h-5 w-5 text-blue-600" />
+                Movie Personality
+              </Link>
+              {isOwnProfile && followRequests.length > 0 && (
+                <button
+                  onClick={() => {
+                    setFollowModalType("requests");
+                    setIsFollowModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-1.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                >
+                  {followRequests.length} requests
+                </button>
+              )}
+              {!isOwnProfile && currentUser && (
+                <>
                   <Link
                     href={`/profile/${profileUser.username}/shared-movies`}
-                    className="flex min-h-[96px] flex-col justify-between rounded-2xl border border-white/25 bg-gradient-to-br from-[#2f4963]/45 to-[#1f6075]/45 px-4 py-3 text-left transition hover:from-[#2f4963]/55 hover:to-[#1f6075]/55"
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
                   >
-                    <div>
-                      <p className="text-sm font-semibold text-[#f8e9c8]">Movies Shared Between You</p>
-                      <p className="mt-1 text-xs text-zinc-300">
-                        See movies and shows both of you have watched or loved.
-                      </p>
-                    </div>
-                    <p className="text-xs font-medium text-[#d8c8a6]">Open shared movies</p>
+                    Shared movies
                   </Link>
-
                   <Link
                     href={`/movie-matcher/${profileUser.username}`}
-                    className="flex min-h-[96px] flex-col justify-between rounded-2xl border border-white/25 bg-gradient-to-br from-[#3b376a]/45 to-[#513067]/45 px-4 py-3 text-left transition hover:from-[#3b376a]/55 hover:to-[#513067]/55"
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
                   >
-                    <div>
-                      <p className="text-sm font-semibold text-[#f8e9c8]">Movie Matcher</p>
-                      <p className="mt-1 text-xs text-zinc-300">
-                        Open the full taste match report between both profiles.
-                      </p>
-                    </div>
-                    <p className="text-xs font-medium text-[#d8c8a6]">View match report</p>
+                    Movie matcher
                   </Link>
-                </div>
-              ) : (
-                <div className="col-span-3 rounded-2xl border border-dashed border-white/30 bg-white/10 px-4 py-5 text-center text-sm text-zinc-200">
-                  Build your profile first to compare taste with other users.
-                </div>
+                </>
               )}
             </div>
           </div>
         </section>
 
         {(displayList || isOwnProfile) && (
-          <section className="relative mb-6 overflow-hidden rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#111826]/95 via-[#15233a]/95 to-[#1f1b2e]/95 p-6 shadow-[0_24px_70px_rgba(0,0,0,0.45)] sm:p-8">
-            <div className="pointer-events-none absolute -right-16 top-0 h-56 w-56 rounded-full bg-[#f1d39a]/15 blur-3xl" />
-            <div className="pointer-events-none absolute bottom-0 left-16 h-44 w-44 rounded-full bg-[#7092d4]/15 blur-3xl" />
-            <div className="relative z-10 mb-5 flex flex-wrap items-start justify-between gap-3">
+          <section className="relative mb-6 overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8">
+            <div className="pointer-events-none absolute -right-16 top-0 h-56 w-56 rounded-full bg-blue-50 blur-3xl" />
+            <div className="pointer-events-none absolute bottom-0 left-16 h-44 w-44 rounded-full bg-amber-50 blur-3xl" />
+            <div className="relative z-10 mb-4 flex flex-wrap items-start justify-between gap-3 sm:mb-5">
               <div>
-                <p className="inline-flex rounded-full border border-[#d6b470]/35 bg-[#d6b470]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#f1d39a]">
-                  Featured Collection
-                </p>
                 {displayList && (
                   <h2
-                    className="mt-2 text-2xl font-semibold text-[#f8e9c8]"
+                    className="text-2xl font-black text-slate-950 sm:text-3xl"
                     style={{ fontFamily: '"Bodoni Moda", "Playfair Display", "Times New Roman", serif' }}
                   >
                     {displayList.name}
@@ -1045,7 +1082,7 @@ function ProfilePageInner() {
                 {displayList && (
                   <Link
                     href={`/lists/${displayList.id}`}
-                    className="rounded-full border border-[#d6b470]/40 bg-[#d6b470]/15 px-4 py-2 text-sm font-semibold text-[#f7ddb0] transition hover:bg-[#d6b470]/25"
+                    className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                   >
                     View full list
                   </Link>
@@ -1054,7 +1091,7 @@ function ProfilePageInner() {
                   <button
                     onClick={handleClearDisplayList}
                     disabled={updatingDisplayList}
-                    className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-zinc-100 transition hover:bg-white/20 disabled:opacity-50"
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                   >
                     Remove
                   </button>
@@ -1064,29 +1101,19 @@ function ProfilePageInner() {
 
             {displayList ? (
               <div className="relative z-10">
-                <p className="mb-4 text-xs font-medium uppercase tracking-[0.16em] text-zinc-300">
-                  {displayList.items.length} title{displayList.items.length === 1 ? "" : "s"} in spotlight
-                </p>
                 {displayList.items.length > 0 ? (
                   <div className="-mx-1 overflow-x-auto px-1 pb-2">
-                    <div className="flex gap-4">
+                    <div className="flex gap-3 sm:gap-4">
                       {displayList.items.slice(0, 10).map((item) => {
                         const title = item.content?.title || "Untitled";
-                        const releaseYear = (
-                          item.content?.release_date ||
-                          (item.content as any)?.first_air_date ||
-                          ""
-                        )
-                          .split("-")
-                          .filter(Boolean)[0];
 
                         return (
                           <Link
                             key={item.id}
                             href={item.content_type === "movie" ? `/movie/${item.content_id}` : `/tv/${item.content_id}`}
-                            className="group w-[180px] shrink-0"
+                            className="group w-[7rem] shrink-0 sm:w-[180px]"
                           >
-                            <div className="relative overflow-hidden rounded-2xl border border-white/20 bg-[#1a2133] shadow-[0_12px_35px_rgba(0,0,0,0.4)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_16px_45px_rgba(0,0,0,0.52)]">
+                            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm transition duration-300 group-hover:-translate-y-1 group-hover:shadow-lg sm:rounded-2xl">
                               {item.content?.poster_url ? (
                                 <img
                                   src={item.content.poster_url}
@@ -1094,32 +1121,25 @@ function ProfilePageInner() {
                                   className="aspect-[2/3] w-full object-cover"
                                 />
                               ) : (
-                                <div className="flex aspect-[2/3] w-full items-center justify-center bg-gradient-to-br from-[#2f3f61] to-[#1d2740] text-xs text-zinc-200">
+                                <div className="flex aspect-[2/3] w-full items-center justify-center bg-slate-100 text-xs text-slate-500">
                                   No poster
                                 </div>
                               )}
-                              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/75 to-transparent" />
                             </div>
-                            <p className="mt-2 line-clamp-2 text-sm font-semibold text-[#f8e9c8] group-hover:text-[#f1d39a]">
-                              {title}
-                            </p>
-                            <p className="text-xs text-zinc-300">
-                              {releaseYear || "Unknown year"} • {item.content_type === "movie" ? "Movie" : "TV"}
-                            </p>
                           </Link>
                         );
                       })}
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-white/30 bg-white/10 p-8 text-center text-zinc-200">
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
                     This list has no movies yet.
                   </div>
                 )}
               </div>
             ) : isOwnProfile ? (
-              <div className="relative z-10 rounded-2xl border border-dashed border-white/30 bg-white/10 p-5">
-                <p className="mb-3 text-sm font-medium text-zinc-100">
+              <div className="relative z-10 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+                <p className="mb-3 text-sm font-medium text-slate-700">
                   Connect one of your public lists to feature it on your profile.
                 </p>
 
@@ -1129,7 +1149,7 @@ function ProfilePageInner() {
                       title="Select an option"
                       value={selectedDisplayListId}
                       onChange={(e) => setSelectedDisplayListId(e.target.value)}
-                      className="w-full rounded-xl border border-white/30 bg-[#0f1627]/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-[#d6b470] sm:max-w-sm"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 sm:max-w-sm"
                     >
                       <option value="">Select a public list</option>
                       {ownerPublicLists.map((list: any) => (
@@ -1142,17 +1162,17 @@ function ProfilePageInner() {
                     <button
                       onClick={handleConnectDisplayList}
                       disabled={!selectedDisplayListId || updatingDisplayList}
-                      className="rounded-xl border border-[#d6b470]/40 bg-[#d6b470]/15 px-4 py-2 text-sm font-semibold text-[#f7ddb0] transition hover:bg-[#d6b470]/25 disabled:opacity-50"
+                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
                     >
                       {updatingDisplayList ? "Connecting..." : "Connect List"}
                     </button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-sm text-zinc-300">You have no public lists to connect.</p>
+                    <p className="text-sm text-slate-500">You have no public lists to connect.</p>
                     <Link
                       href="/lists"
-                      className="text-sm font-medium text-[#f1d39a] hover:text-[#f8e9c8]"
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700"
                     >
                       Go to Lists
                     </Link>
@@ -1163,71 +1183,94 @@ function ProfilePageInner() {
           </section>
         )}
 
-        <section className="mb-6 rounded-2xl border border-white/15 bg-white/5 p-2 shadow-[0_14px_40px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_14px_35px_rgba(15,23,42,0.06)]">
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setActiveTab("friends")}
-              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "friends" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
-              }`}
-            >
-              Friends
-            </button>
-            <button
-              onClick={() => setActiveTab("stats")}
-              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "stats" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
-              }`}
-            >
-              Stats
-            </button>
-            <button
-              onClick={() => setActiveTab("watchlist")}
-              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "watchlist" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
-              }`}
-            >
-              Watchlist
-            </button>
             <button
               onClick={() => setActiveTab("posts")}
               className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "posts" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
+                activeTab === "posts" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-50"
               }`}
             >
               Posts
             </button>
             <button
-              onClick={() => setActiveTab("saved-posts")}
+              onClick={() => setActiveTab("stats")}
               className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "saved-posts" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
+                activeTab === "stats" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-50"
               }`}
             >
-              Saved Posts
+              Stats
             </button>
+            {isOwnProfile && (
+              <button
+                onClick={() => setActiveTab("saved-posts")}
+                className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                  activeTab === "saved-posts" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Saved
+              </button>
+            )}
             <button
               onClick={() => setActiveTab("liked-posts")}
               className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "liked-posts" ? "bg-[#d6b470] text-[#111826]" : "text-zinc-100 hover:bg-white/15"
+                activeTab === "liked-posts" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-50"
               }`}
             >
-              Liked Posts
+              Liked
             </button>
+            {isOwnProfile && (
+              <Link
+                href="/lists"
+                className="flex-1 rounded-xl px-4 py-3 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Lists
+              </Link>
+            )}
           </div>
         </section>
 
-        {activeTab === "friends" && (
-          <div className="space-y-6">
-            <div className="mb-4 flex flex-wrap gap-4">
+        {isFollowModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 backdrop-blur-sm sm:items-center">
+            <button
+              type="button"
+              className="absolute inset-0 cursor-default"
+              onClick={() => setIsFollowModalOpen(false)}
+              aria-label="Close people list"
+            />
+            <div className="relative max-h-[86dvh] w-full max-w-2xl overflow-y-auto rounded-t-[2rem] border border-slate-200 bg-white p-4 shadow-2xl sm:rounded-[2rem] sm:p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">People</p>
+                  <h2 className="text-xl font-black text-slate-950">
+                    {followModalType === "followers"
+                      ? "Followers"
+                      : followModalType === "following"
+                        ? "Following"
+                        : followModalType === "requests"
+                          ? "Follow Requests"
+                          : "Pending Requests"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFollowModalOpen(false)}
+                  className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mb-4 flex flex-wrap gap-3">
               <button
                 onClick={() => setFollowModalType("followers")}
-                className={`rounded-xl px-4 py-2 font-semibold transition ${followModalType === "followers" ? "bg-[#d6b470] text-[#111826]" : "bg-white/10 text-zinc-100 hover:bg-white/20"}`}
+                className={`rounded-xl px-4 py-2 font-semibold transition ${followModalType === "followers" ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
               >
                 {followerCount} Followers
               </button>
               <button
                 onClick={() => setFollowModalType("following")}
-                className={`rounded-xl px-4 py-2 font-semibold transition ${followModalType === "following" ? "bg-[#d6b470] text-[#111826]" : "bg-white/10 text-zinc-100 hover:bg-white/20"}`}
+                className={`rounded-xl px-4 py-2 font-semibold transition ${followModalType === "following" ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
               >
                 {followingCount} Following
               </button>
@@ -1236,8 +1279,8 @@ function ProfilePageInner() {
                   onClick={() => setFollowModalType("requests")}
                   className={`relative rounded-xl px-4 py-2 font-semibold transition ${
                     followModalType === "requests"
-                      ? "bg-[#d6b470] text-[#111826]"
-                      : "bg-white/10 text-zinc-100 hover:bg-white/20"
+                      ? "bg-slate-950 text-white"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
                 >
                   Requests
@@ -1248,23 +1291,40 @@ function ProfilePageInner() {
                   )}
                 </button>
               )}
-              {followModalType !== "requests" && (
+              {isOwnProfile && (
+                <button
+                  onClick={() => setFollowModalType("sent-requests")}
+                  className={`relative rounded-xl px-4 py-2 font-semibold transition ${
+                    followModalType === "sent-requests"
+                      ? "bg-slate-950 text-white"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  Pending
+                  {sentRequestUsers.length > 0 && (
+                    <span className="absolute -top-2 -right-2 inline-flex items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-bold leading-none text-white">
+                      {sentRequestUsers.length}
+                    </span>
+                  )}
+                </button>
+              )}
+              {followModalType !== "requests" && followModalType !== "sent-requests" && (
                 <input
                   value={followSearch}
                   onChange={e => setFollowSearch(e.target.value)}
                   placeholder={`Search ${followModalType}...`}
-                  className="ml-0 min-w-[180px] flex-1 rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-300/70 focus:ring-2 focus:ring-[#d6b470]"
+                  className="ml-0 min-w-[180px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500"
                 />
               )}
             </div>
             {followModalType === "requests" && isOwnProfile ? (
-              <section className="space-y-6 rounded-[2rem] border border-[#d8c8a6]/70 bg-[#f8f4ec] p-6 shadow-[0_18px_45px_rgba(6,9,16,0.25)]">
+              <section className="space-y-6 rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center gap-2">
-                  <Users className="h-5 w-5 text-zinc-700" />
-                  <h2 className="text-lg font-bold text-zinc-900">Friend Requests</h2>
+                  <Users className="h-5 w-5 text-slate-600" />
+                  <h2 className="text-lg font-bold text-slate-950">Friend Requests</h2>
                 </div>
                 {followRequests.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[#cab995] bg-[#fffaf0] p-10 text-center text-zinc-600">
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
                     No incoming friend requests.
                   </div>
                 ) : (
@@ -1272,7 +1332,7 @@ function ProfilePageInner() {
                     {followRequests.map((note) => (
                       <div
                         key={note.id}
-                        className="flex items-center justify-between rounded-2xl border border-[#dbc9a7] bg-white px-4 py-3"
+                        className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
                       >
                         <div className="flex items-center gap-3">
                           {note.fromUser.avatar_url ? (
@@ -1313,41 +1373,108 @@ function ProfilePageInner() {
                   </div>
                 )}
               </section>
+            ) : followModalType === "sent-requests" && isOwnProfile ? (
+              <section className="space-y-3">
+                {sentRequestUsers.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                    No pending requests sent.
+                  </div>
+                ) : (
+                  sentRequestUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                    >
+                      <Link href={`/profile/${user.username}`} className="flex min-w-0 flex-1 items-center gap-3">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt={user.name} className="h-10 w-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-sm font-semibold text-white">
+                            {user.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-950">{user.name}</p>
+                          <p className="truncate text-xs text-slate-500">@{user.username}</p>
+                        </div>
+                      </Link>
+
+                      <button
+                        onClick={() => handleCancelSentFollowRequest(user.id)}
+                        disabled={followActionLoading === user.id}
+                        className="ml-3 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+                      >
+                        {followActionLoading === user.id ? "Updating..." : "Cancel"}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </section>
             ) : (
               <div className="space-y-3">
                 {shownUsers.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/30 bg-white/10 p-8 text-center text-sm text-zinc-200">
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
                     No users found.
                   </div>
                 ) : (
                   shownUsers.map((listedUser) => {
                     const isMenuOpen = openFollowMenuUserId === listedUser.id;
+                    const myFollowToListedUser = getMyFollowRecordToUser(listedUser.id);
                     const canShowActionMenu =
                       isOwnProfile &&
-                      !!getMyAcceptedFollowRecordToUser(listedUser.id) &&
-                      (followModalType === "following" || followModalType === "followers");
+                      followModalType === "following" &&
+                      myFollowToListedUser?.status === "accepted";
+                    const canShowFollowBack =
+                      isOwnProfile &&
+                      followModalType === "followers" &&
+                      currentUser?.id !== listedUser.id;
 
                     return (
                       <div
                         key={listedUser.id}
-                        className="flex items-center justify-between rounded-2xl border border-white/20 bg-white/10 px-4 py-3 transition hover:bg-white/20"
+                        className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:bg-slate-50"
                       >
                         <Link href={`/profile/${listedUser.username}`} className="flex min-w-0 flex-1 items-center gap-3">
                           {listedUser.avatar_url ? (
                             <img src={listedUser.avatar_url} alt={listedUser.name} className="h-10 w-10 rounded-full object-cover" />
                           ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-sm font-semibold text-white">
                               {listedUser.name.charAt(0).toUpperCase()}
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-zinc-100">{listedUser.name}</p>
-                            <p className="truncate text-xs text-zinc-300">@{listedUser.username}</p>
+                            <p className="truncate text-sm font-semibold text-slate-950">{listedUser.name}</p>
+                            <p className="truncate text-xs text-slate-500">@{listedUser.username}</p>
                           </div>
                         </Link>
 
                         <div className="ml-3 flex items-center gap-2">
-                          <Users className="h-4 w-4 text-zinc-300" />
+                          {canShowFollowBack && (
+                            myFollowToListedUser?.status === "accepted" ? (
+                              <button
+                                onClick={() => handleRemoveAsFollowing(listedUser.id)}
+                                disabled={followActionLoading === listedUser.id}
+                                className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+                              >
+                                {followActionLoading === listedUser.id ? "Updating..." : "Following"}
+                              </button>
+                            ) : myFollowToListedUser?.status === "pending" ? (
+                              <button
+                                disabled
+                                className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800"
+                              >
+                                Request Sent
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleFollowBack(listedUser)}
+                                disabled={followActionLoading === listedUser.id}
+                                className="rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                              >
+                                {followActionLoading === listedUser.id ? "Sending..." : "Follow back"}
+                              </button>
+                            )
+                          )}
 
                           {canShowActionMenu && (
                             <div className="relative">
@@ -1355,7 +1482,7 @@ function ProfilePageInner() {
                                 onClick={() =>
                                   setOpenFollowMenuUserId((prev) => (prev === listedUser.id ? null : listedUser.id))
                                 }
-                                className="rounded-full p-1 text-zinc-300 hover:bg-white/15 hover:text-zinc-100"
+                                className="rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                                 aria-label="Open follow actions"
                               >
                                 <MoreHorizontal className="h-4 w-4" />
@@ -1368,7 +1495,7 @@ function ProfilePageInner() {
                                     disabled={followActionLoading === listedUser.id}
                                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
                                   >
-                                    {followActionLoading === listedUser.id ? "Updating..." : followMenuActionLabel}
+                                    {followActionLoading === listedUser.id ? "Updating..." : "Unfollow"}
                                   </button>
                                 </div>
                               )}
@@ -1381,6 +1508,7 @@ function ProfilePageInner() {
                 )}
               </div>
             )}
+          </div>
           </div>
         )}
         {activeTab === "stats" && (
@@ -1396,66 +1524,11 @@ function ProfilePageInner() {
           </div>
         )}
 
-        {activeTab === "watchlist" && (
-          <section className="rounded-[2rem] border border-[#d8c8a6]/70 bg-[#f8f4ec] p-6 shadow-[0_18px_45px_rgba(6,9,16,0.25)]">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Film className="h-5 w-5 text-zinc-700" />
-                <h2 className="text-lg font-bold text-zinc-900">Watchlist</h2>
-              </div>
-
-              {isOwnProfile && (
-                <button
-                  onClick={() => {
-                    setWatchlistModalError("");
-                    setIsWatchlistSearchOpen(true);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-full border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Movies
-                </button>
-              )}
-            </div>
-
-            {watchlist.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#cab995] bg-[#fffaf0] p-10 text-center text-zinc-600">
-                No titles in watchlist yet.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {watchlist.map((item, index) => (
-                  <Link
-                    key={`${item.content_type}-${item.content_id}-${item.watched_date || index}`}
-                    href={item.content_type === "movie" ? `/movie/${item.content_id}` : `/tv/${item.content_id}`}
-                    className="group rounded-2xl border border-[#ddcba8] bg-white p-2 transition hover:-translate-y-1 hover:shadow-lg"
-                  >
-                    {item.content.poster_url ? (
-                      <img
-                        src={item.content.poster_url}
-                        alt={item.content.title}
-                        className="aspect-[2/3] w-full rounded-xl object-cover"
-                      />
-                    ) : (
-                      <div className="flex aspect-[2/3] w-full items-center justify-center rounded-xl bg-gray-100 text-xs text-zinc-500">
-                        No poster
-                      </div>
-                    )}
-                    <p className="mt-2 line-clamp-2 text-sm font-semibold text-zinc-900 group-hover:text-zinc-700">
-                      {item.content.title}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
         {activeTab === "posts" && profileUser && (
           <ProfileCinePostsPanel mode="posts" profileUserId={profileUser.id} currentUser={currentUser} />
         )}
 
-        {activeTab === "saved-posts" && profileUser && (
+        {activeTab === "saved-posts" && profileUser && isOwnProfile && (
           <ProfileCinePostsPanel mode="saved" profileUserId={profileUser.id} currentUser={currentUser} />
         )}
 
@@ -1467,39 +1540,6 @@ function ProfilePageInner() {
       {/* Add extra whitespace at the bottom for visual comfort */}
       <div className="h-12 sm:h-20" />
 
-
-      {isWatchlistSearchOpen && isOwnProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-[#d8c8a6]/70 bg-[#f8f4ec] p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-zinc-900">Add movies to watchlist</h3>
-              <button
-                onClick={() => setIsWatchlistSearchOpen(false)}
-                className="rounded-full border border-zinc-300 px-3 py-1 text-sm text-zinc-700 hover:bg-zinc-100"
-              >
-                Close
-              </button>
-            </div>
-
-            <p className="mb-4 text-sm text-zinc-600">
-              Search for a movie and select it to add instantly.
-            </p>
-
-            <SearchBar
-              placeholder="Search movie titles..."
-              onSearch={handleWatchlistSearch}
-              onSelect={handleAddMovieToWatchlist}
-              disabled={watchlistModalLoading}
-            />
-
-            {watchlistModalError && (
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {watchlistModalError}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {isRatingsImportOpen && isOwnProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1568,6 +1608,7 @@ function ProfilePageInner() {
         </div>
       )}
     </div>
+    </PageLayout>
   );
 }
 
