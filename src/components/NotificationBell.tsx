@@ -14,7 +14,10 @@ type NotificationType =
   | "post_save"
   | "post_comment"
   | "comment_reply"
-  | "like";
+  | "like"
+  | "log_comment"
+  | "log_comment_reply"
+  | "log_comment_like";
 
 type NotificationItem = {
   id: string;
@@ -30,12 +33,16 @@ type NotificationItem = {
   listId?: string;
   listName?: string;
   logId?: string;
+  commentId?: string;
 };
 
 function notificationHref(note: NotificationItem): string {
   if (note.type === "collaboration_request" && note.listId) return `/lists/${note.listId}`;
   if ((note.type === "post_like" || note.type === "post_save" || note.type === "post_comment" || note.type === "comment_reply") && note.ref_id) {
     return `/posts/${note.ref_id}`;
+  }
+  if ((note.type === "log_comment" || note.type === "log_comment_reply" || note.type === "log_comment_like") && note.logId) {
+    return note.commentId ? `/logs/${note.logId}?comment=${note.commentId}` : `/logs/${note.logId}`;
   }
   if (note.type === "like" && note.logId) return `/logs/${note.logId}`;
   if (note.fromUser?.username) return `/profile/${note.fromUser.username}`;
@@ -58,6 +65,12 @@ function notificationText(note: NotificationItem): string {
       return "replied to your comment.";
     case "like":
       return "liked your log.";
+    case "log_comment":
+      return "commented on your log.";
+    case "log_comment_reply":
+      return "replied to your log comment.";
+    case "log_comment_like":
+      return "liked your log comment.";
     default:
       return "sent you a notification.";
   }
@@ -69,10 +82,17 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function NotificationBell({ user }: { user: User | null }) {
+export default function NotificationBell({
+  user,
+  theme = "default",
+}: {
+  user: User | null;
+  theme?: "default" | "brutalist";
+}) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const isBrutalist = theme === "brutalist";
 
   useEffect(() => {
     if (!user) {
@@ -95,6 +115,7 @@ export default function NotificationBell({ user }: { user: User | null }) {
         listId: raw.listId,
         listName: raw.listName,
         logId: raw.logId,
+        commentId: raw.commentId,
       })) as NotificationItem[];
 
       setNotifications(
@@ -169,26 +190,28 @@ export default function NotificationBell({ user }: { user: User | null }) {
       <button
         type="button"
         onClick={openNotifications}
-        className="relative flex h-10 w-10 items-center justify-center text-slate-900 transition hover:text-blue-600"
+        className={`relative flex h-10 w-10 items-center justify-center transition ${
+          isBrutalist ? "text-[#f5f0de] hover:text-[#ff7a1a]" : "text-slate-900 hover:text-blue-600"
+        }`}
         aria-label="Notifications"
       >
         <Bell className="h-6 w-6" />
         {hasUnread && (
-          <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+          <span className={`absolute right-2 top-2 h-2.5 w-2.5 rounded-full ${isBrutalist ? "bg-[#ff7a1a] ring-2 ring-[#0a0a0a]" : "bg-red-500 ring-2 ring-white"}`} />
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className={`absolute right-0 mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden border shadow-2xl ${isBrutalist ? "border-white/10 bg-[#0f0f0f] text-[#f5f0de]" : "rounded-[1.5rem] border-slate-200 bg-white"}`}>
+          <div className={`flex items-center justify-between px-4 py-3 ${isBrutalist ? "border-b border-white/10" : "border-b border-slate-100"}`}>
             <div>
-              <p className="font-black text-slate-950">Notifications</p>
-              <p className="text-xs text-slate-500">{notifications.length} update{notifications.length === 1 ? "" : "s"}</p>
+              <p className={`font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Notifications</p>
+              <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>{notifications.length} update{notifications.length === 1 ? "" : "s"}</p>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-full p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+              className={`rounded-full p-2 ${isBrutalist ? "text-white/55 hover:bg-white/5 hover:text-[#f5f0de]" : "text-slate-400 hover:bg-slate-50 hover:text-slate-700"}`}
               aria-label="Close notifications"
             >
               <X className="h-4 w-4" />
@@ -196,7 +219,7 @@ export default function NotificationBell({ user }: { user: User | null }) {
           </div>
 
           {notifications.length === 0 ? (
-            <div className="p-6 text-center text-sm text-slate-500">No notifications yet.</div>
+            <div className={`p-6 text-center text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>No notifications yet.</div>
           ) : (
             <>
               <div className="max-h-96 overflow-y-auto p-2">
@@ -217,18 +240,18 @@ export default function NotificationBell({ user }: { user: User | null }) {
                     <>
                       {avatar}
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm leading-5 text-slate-700">
-                          <span className="font-black text-slate-950">{note.fromUser?.name || "Someone"}</span>{" "}
+                        <p className={`text-sm leading-5 ${isBrutalist ? "text-[#f5f0de]/85" : "text-slate-700"}`}>
+                          <span className={`font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>{note.fromUser?.name || "Someone"}</span>{" "}
                           {notificationText(note)}
                         </p>
-                        <p className="mt-1 text-xs text-slate-400">{formatDate(note.createdAt)}</p>
+                        <p className={`mt-1 text-xs ${isBrutalist ? "text-white/40" : "text-slate-400"}`}>{formatDate(note.createdAt)}</p>
                       </div>
                     </>
                   );
 
                   if (note.type === "follow_request") {
                     return (
-                      <div key={note.id} className="rounded-2xl p-3 transition hover:bg-slate-50">
+                      <div key={note.id} className={`p-3 transition ${isBrutalist ? "hover:bg-white/5" : "rounded-2xl hover:bg-slate-50"}`}>
                         <Link
                           href={notificationHref(note)}
                           onClick={() => setOpen(false)}
@@ -240,14 +263,14 @@ export default function NotificationBell({ user }: { user: User | null }) {
                           <button
                             type="button"
                             onClick={() => acceptFollowRequest(note)}
-                            className="rounded-full bg-slate-950 px-3 py-2 text-xs font-black text-white transition hover:bg-slate-800"
+                            className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white" : "rounded-full bg-slate-950 text-white hover:bg-slate-800"}`}
                           >
                             Confirm
                           </button>
                           <button
                             type="button"
                             onClick={() => declineFollowRequest(note)}
-                            className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-200"
+                            className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-white/5 text-[#f5f0de] hover:bg-white/10" : "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
                           >
                             Decline
                           </button>
@@ -261,18 +284,20 @@ export default function NotificationBell({ user }: { user: User | null }) {
                       key={note.id}
                       href={notificationHref(note)}
                       onClick={() => setOpen(false)}
-                      className="flex gap-3 rounded-2xl p-3 transition hover:bg-slate-50"
+                      className={`flex gap-3 p-3 transition ${isBrutalist ? "hover:bg-white/5" : "rounded-2xl hover:bg-slate-50"}`}
                     >
                       {content}
                     </Link>
                   );
                 })}
               </div>
-              <div className="border-t border-slate-100 p-3">
+              <div className={`p-3 ${isBrutalist ? "border-t border-white/10" : "border-t border-slate-100"}`}>
                 <button
                   type="button"
                   onClick={clearNotifications}
-                  className="w-full rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                  className={`w-full px-4 py-2 text-sm font-bold transition ${
+                    isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white" : "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Clear notifications
                 </button>

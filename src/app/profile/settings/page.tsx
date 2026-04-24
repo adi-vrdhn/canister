@@ -1,114 +1,59 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
-import { get, ref } from "firebase/database";
-import { ArrowLeft, PenLine, Upload } from "lucide-react";
-import CinematicLoading from "@/components/CinematicLoading";
-import PageLayout from "@/components/PageLayout";
-import { auth, db } from "@/lib/firebase";
-import { signOut as authSignOut } from "@/lib/auth";
-import type { User } from "@/types";
+import { ChevronRight, UserRoundCog, Upload, Shield, Bell, Palette, Users, KeyRound, LifeBuoy } from "lucide-react";
+import SettingsPageFrame from "@/components/SettingsPageFrame";
+import { useSettingsUser } from "./settings-shared";
 
-export default function ProfileSettingsPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+const sections = [
+  { href: "/profile/settings/profile", icon: UserRoundCog, title: "Profile", desc: "Photo, name, username and bio." },
+  { href: "/profile/settings/import", icon: Upload, title: "Import", desc: "Letterboxd CSV and data export." },
+  { href: "/profile/settings/privacy", icon: Shield, title: "Privacy", desc: "Profile, list and log visibility." },
+  { href: "/profile/settings/notifications", icon: Bell, title: "Notifications", desc: "Follow, comment and email alerts." },
+  { href: "/profile/settings/appearance", icon: Palette, title: "Appearance", desc: "Theme, text size and motion." },
+  { href: "/profile/settings/social", icon: Users, title: "Social", desc: "Blocked users and collaborations." },
+  { href: "/profile/settings/account", icon: KeyRound, title: "Account", desc: "Password, deactivate and delete." },
+  { href: "mailto:support@cineparte.app", icon: LifeBuoy, title: "Support", desc: "Help, bug reports and contact." },
+];
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push("/auth/login");
-        return;
-      }
-
-      try {
-        const userRef = ref(db, `users/${firebaseUser.uid}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.val();
-
-        setUser({
-          id: userData?.id || firebaseUser.uid,
-          username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
-          name: userData?.name || firebaseUser.displayName || "User",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.createdAt || new Date().toISOString(),
-          bio: userData?.bio || "",
-        });
-      } catch (error) {
-        console.error("Error loading settings:", error);
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  const handleSignOut = async () => {
-    try {
-      await authSignOut();
-      router.push("/auth/login");
-    } catch (error) {
-      console.error("Sign out error:", error);
-    }
-  };
-
-  if (loading || !user) {
-    return <CinematicLoading message="Profile settings are loading" />;
-  }
+export default function ProfileSettingsIndexPage() {
+  const { user, loading, handleSignOut } = useSettingsUser();
 
   return (
-    <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <button
-            onClick={() => router.push(`/profile/${user.username}`)}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Profile
-          </button>
-        </div>
-
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-7">
-          <div className="mb-6">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Settings</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Profile settings</h1>
-            <p className="mt-2 text-sm text-slate-500">Manage how your profile looks and bring your Letterboxd history into Cineparte.</p>
-          </div>
-
-          <div className="space-y-3">
-            <Link
-              href="/profile/edit"
-              className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300 hover:bg-white"
-            >
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
-                <PenLine className="h-5 w-5" />
+    <SettingsPageFrame
+      user={user}
+      loading={loading}
+      onSignOut={handleSignOut}
+      title="Settings"
+      description="Pick a section. Each one opens on its own page so the controls stay small and easy to scan."
+    >
+      <div className="divide-y divide-slate-200">
+        {sections.map((section) =>
+          section.href.startsWith("mailto:") ? (
+            <a key={section.title} href={section.href} className="flex items-center gap-3 py-3 transition hover:translate-x-0.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700">
+                <section.icon className="h-4 w-4" />
               </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-slate-950">Edit profile</span>
-                <span className="mt-0.5 block text-sm text-slate-500">Update your photo, name, username, email, and bio.</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-950">{section.title}</span>
+                <span className="block text-xs text-slate-500">{section.desc}</span>
               </span>
+              <ChevronRight className="h-4 w-4 text-slate-300" />
+            </a>
+          ) : (
+            <Link key={section.href} href={section.href} className="flex items-center gap-3 py-3 transition hover:translate-x-0.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700">
+                <section.icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-950">{section.title}</span>
+                <span className="block text-xs text-slate-500">{section.desc}</span>
+              </span>
+              <ChevronRight className="h-4 w-4 text-slate-300" />
             </Link>
-
-            <Link
-              href={`/profile/${user.username}?importRatings=1`}
-              className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300 hover:bg-white"
-            >
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
-                <Upload className="h-5 w-5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-slate-950">Import Letterboxd ratings CSV</span>
-                <span className="mt-0.5 block text-sm text-slate-500">Upload your Letterboxd ratings export and auto-build your diary.</span>
-              </span>
-            </Link>
-          </div>
-        </section>
+          )
+        )}
       </div>
-    </PageLayout>
+    </SettingsPageFrame>
   );
 }

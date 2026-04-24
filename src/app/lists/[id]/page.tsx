@@ -1,80 +1,135 @@
 "use client";
 import { useState, useEffect } from "react";
-import { getLogsForContent, createMovieLog } from "@/lib/logs";
-import { format } from "date-fns";
+import { getLogsForContent } from "@/lib/logs";
+import { getUserWatchedMovies, upsertWatchedMovie, type WatchedMovie } from "@/lib/watched-movies";
 
-function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onToggleWatchedStatus, watchedStatusEnabled }: {
+function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, cloneLoading, onToggleWatchedStatus, watchedStatusEnabled, viewType, onSetViewType, onToggleReorder, reorderMode }: {
   onEdit: () => void;
   onAddItems: () => void;
   canEdit: boolean;
   isOwner: boolean;
   onDelete?: () => void;
+  onClone: () => void;
+  cloneLoading?: boolean;
   onToggleWatchedStatus?: () => void;
   watchedStatusEnabled?: boolean;
-}) {
+  viewType: "grid" | "list";
+  onSetViewType: (viewType: "grid" | "list") => void;
+  onToggleReorder?: () => void;
+  reorderMode?: boolean;
+  }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative z-50">
       <button
         type="button"
         aria-label="Open menu"
-        className="relative z-50 rounded-full bg-white p-2.5 shadow-sm ring-1 ring-gray-200 transition hover:bg-gray-50 hover:shadow"
+        className="relative z-50 flex items-center justify-center p-1 text-[#ff7a1a] transition hover:text-[#ffb36b]"
         onClick={() => setOpen((v) => !v)}
       >
-        <MoreVertical className="w-6 h-6" />
+        <MoreVertical className="h-6 w-6" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl z-50">
-          {canEdit && (
-            <div className="p-2">
-              {canEdit && (
+        <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden border border-white/10 bg-[#111111] shadow-xl">
+          <div className="p-2">
+            <div className="px-3 pb-2 pt-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Layout</p>
+            </div>
+            <button
+              className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+              onClick={() => { setOpen(false); onSetViewType("grid"); }}
+            >
+              <Grid3x3 className={`mt-0.5 h-4 w-4 ${viewType === "grid" ? "text-[#ff7a1a]" : "text-white/60"}`} />
+              <div>
+                <p className="text-sm font-semibold text-[#f5f0de]">Grid</p>
+                <p className="text-xs text-white/55">Posters in a tight grid</p>
+              </div>
+            </button>
+            <button
+              className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+              onClick={() => { setOpen(false); onSetViewType("list"); }}
+            >
+              <ListIcon className={`mt-0.5 h-4 w-4 ${viewType === "list" ? "text-[#ff7a1a]" : "text-white/60"}`} />
+              <div>
+                <p className="text-sm font-semibold text-[#f5f0de]">List</p>
+                <p className="text-xs text-white/55">One row per item</p>
+              </div>
+            </button>
+            <button
+              className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+              onClick={() => { setOpen(false); onClone(); }}
+            >
+              <Copy className="mt-0.5 h-4 w-4 text-[#ff7a1a]" />
+              <div>
+                <p className="text-sm font-semibold text-[#f5f0de]">{cloneLoading ? "Cloning..." : "Clone list"}</p>
+                <p className="text-xs text-white/55">Save a private copy to Your lists</p>
+              </div>
+            </button>
+            <button
+              className={`mt-1 flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5 ${
+                watchedStatusEnabled ? "text-[#ffb36b]" : ""
+              }`}
+              onClick={() => { setOpen(false); onToggleWatchedStatus && onToggleWatchedStatus(); }}
+            >
+              <Eye className={`mt-0.5 h-4 w-4 ${watchedStatusEnabled ? "text-[#ff7a1a]" : "text-white/60"}`} />
+              <div>
+                <p className="text-sm font-medium text-[#f5f0de]">Watched status</p>
+                <p className="text-xs text-white/55">See who watched what</p>
+              </div>
+            </button>
+
+            {canEdit && viewType === "list" && onToggleReorder && (
+              <button
+                className={`mt-1 flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5 ${
+                  reorderMode ? "text-[#ffb36b]" : ""
+                }`}
+                onClick={() => { setOpen(false); onToggleReorder(); }}
+              >
+                <GripVertical className={`mt-0.5 h-4 w-4 ${reorderMode ? "text-[#ff7a1a]" : "text-white/60"}`} />
+                <div>
+                  <p className="text-sm font-semibold text-[#f5f0de]">Reorder items</p>
+                  <p className="text-xs text-white/55">Drag rows to change order</p>
+                </div>
+              </button>
+            )}
+
+            {canEdit && (
+              <div className="mt-2 border-t border-white/10 pt-2">
                 <button
-                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-gray-50"
+                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
                   onClick={() => { setOpen(false); onEdit(); }}
                 >
-                  <Edit2 className="mt-0.5 h-4 w-4 text-blue-600" />
+                  <Edit2 className="mt-0.5 h-4 w-4 text-[#ff7a1a]" />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Edit details</p>
-                    <p className="text-xs text-gray-500">Title, privacy, description</p>
+                    <p className="text-sm font-semibold text-[#f5f0de]">Edit details</p>
+                    <p className="text-xs text-white/55">Title, privacy, description</p>
                   </div>
                 </button>
-              )}
-              <button
-                className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-gray-50"
-                onClick={() => { setOpen(false); onAddItems(); }}
-              >
-                <Plus className="mt-0.5 h-4 w-4 text-gray-700" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Add movies</p>
-                  <p className="text-xs text-gray-500">Add items to the list</p>
-                </div>
-              </button>
-              <button
-                className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-gray-50 ${
-                  watchedStatusEnabled ? "text-green-700" : ""
-                }`}
-                onClick={() => { setOpen(false); onToggleWatchedStatus && onToggleWatchedStatus(); }}
-              >
-                <Eye className={`mt-0.5 h-4 w-4 ${watchedStatusEnabled ? "text-green-600" : "text-gray-700"}`} />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Watched status</p>
-                  <p className="text-xs text-gray-500">See who watched what</p>
-                </div>
-              </button>
-              {isOwner && onDelete && (
                 <button
-                  className="mt-1 flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left text-red-600 hover:bg-red-50"
-                  onClick={() => { setOpen(false); onDelete(); }}
+                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+                  onClick={() => { setOpen(false); onAddItems(); }}
                 >
-                  <Trash2 className="mt-0.5 h-4 w-4" />
+                  <Plus className="mt-0.5 h-4 w-4 text-white/60" />
                   <div>
-                    <p className="text-sm font-medium">Delete list</p>
-                    <p className="text-xs text-red-500">Permanently remove this list</p>
+                    <p className="text-sm font-medium text-[#f5f0de]">Add movies</p>
+                    <p className="text-xs text-white/55">Add items to the list</p>
                   </div>
                 </button>
-              )}
-            </div>
-          )}
+                {isOwner && onDelete && (
+                  <button
+                    className="mt-1 flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left text-[#ff7a1a] hover:bg-white/5"
+                    onClick={() => { setOpen(false); onDelete(); }}
+                  >
+                    <Trash2 className="mt-0.5 h-4 w-4" />
+                    <div>
+                      <p className="text-sm font-medium">Delete list</p>
+                      <p className="text-xs text-white/55">Permanently remove this list</p>
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -88,8 +143,8 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
-import { getListWithDetails, removeItemFromList, addCollaborator, removeCollaborator, updateList, deleteList, isUserCollaborator, markItemAsWatched, unmarkItemAsWatched, updateListViewPreferences, reorderListItems } from "@/lib/lists";
-import { ArrowLeft, Lock, Globe, Plus, Trash2, UserPlus, UserX, Loader2, Edit2, Grid3x3, List as ListIcon, Eye, MoreVertical } from "lucide-react";
+import { getListWithDetails, removeItemFromList, addCollaborator, removeCollaborator, updateList, deleteList, isUserCollaborator, updateListViewPreferences, reorderListItems, createList, addItemToList } from "@/lib/lists";
+import { ArrowLeft, Lock, Globe, Plus, Trash2, UserPlus, UserX, Loader2, Edit2, Grid3x3, List as ListIcon, Eye, MoreVertical, GripVertical, MoveRight, Copy } from "lucide-react";
 // ...existing imports above...
 import Link from "next/link";
 
@@ -114,28 +169,34 @@ export default function ListDetailPage() {
     return () => { cancelled = true; };
   }, [list]);
 
+  useEffect(() => {
+    if (!user || !list) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const records = await getUserWatchedMovies(user.id);
+        if (cancelled) return;
+
+        const map: Record<string, WatchedMovie> = {};
+        for (const record of records) {
+          map[`${record.content_type}-${record.content_id}`] = record;
+        }
+        setWatchedMovies(map);
+      } catch (error) {
+        console.error("Error loading watched movies:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, list]);
+
   // Watched status state (must be after user/list)
   const [watchedStatusEnabled, setWatchedStatusEnabled] = useState(false);
-  const [watchedMap, setWatchedMap] = useState<Record<string, { user: any }[]>>({});
-  const [userWatchedIds, setUserWatchedIds] = useState<Set<string>>(new Set());
   const [markingWatched, setMarkingWatched] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!watchedStatusEnabled || !list || !user) return;
-    const fetchWatched = async () => {
-      const map: Record<string, { user: any }[]> = {};
-      const userWatched = new Set<string>();
-      for (const item of list.items) {
-        const id = String(item.content.id);
-        const logs = await getLogsForContent(Number(item.content.id), "movie");
-        map[id] = logs.map(l => ({ user: l.user, log: l }));
-        if (logs.some(l => l.user.id === user.id)) userWatched.add(id);
-      }
-      setWatchedMap(map);
-      setUserWatchedIds(userWatched);
-    };
-    fetchWatched();
-  }, [watchedStatusEnabled, list, user]);
+  const [watchedMovies, setWatchedMovies] = useState<Record<string, WatchedMovie>>({});
   const router = useRouter();
   const params = useParams();
   const listId = params.id as string;
@@ -156,12 +217,13 @@ export default function ListDetailPage() {
   const [selectedFriends, setSelectedFriends] = useState<User[]>([]);
   const [addingCollaborators, setAddingCollaborators] = useState(false);
   // (moved above)
-  const [viewType, setViewType] = useState<"grid" | "list">("grid");
+  const [viewType, setViewType] = useState<"grid" | "list">("list");
+  const [reorderMode, setReorderMode] = useState(false);
   const [showUnwatchedFirst, setShowUnwatchedFirst] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [cloningList, setCloningList] = useState(false);
   const [showDeleteItem, setShowDeleteItem] = useState<{ id: string; name: string } | null>(null);
   const [showCollaboratorsModal, setShowCollaboratorsModal] = useState(false);
-  const [openItemMenuId, setOpenItemMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -198,7 +260,7 @@ export default function ListDetailPage() {
           setEditDescription(listData.description || "");
           setEditPrivacy(listData.privacy);
           setSelectedCoverImageUrl(listData.cover_image_url || null);
-          setViewType(listData.view_type || "grid");
+          setViewType("list");
           setShowUnwatchedFirst(listData.show_unwatched_first || false);
 
           // Check if user is collaborator
@@ -222,6 +284,9 @@ export default function ListDetailPage() {
     try {
       setSavingPreferences(true);
       setViewType(newViewType);
+      if (newViewType !== "list") {
+        setReorderMode(false);
+      }
       await updateListViewPreferences(listId, newViewType, showUnwatchedFirst);
       if (list) {
         setList({ ...list, view_type: newViewType });
@@ -248,6 +313,28 @@ export default function ListDetailPage() {
       setShowUnwatchedFirst(list?.show_unwatched_first || false);
     } finally {
       setSavingPreferences(false);
+    }
+  };
+
+  const handleReorderItems = async (fromIdx: number, toIdx: number) => {
+    if (!list || fromIdx === toIdx) return;
+
+    const previousItems = list.items;
+    const nextItems = [...list.items];
+    const [moved] = nextItems.splice(fromIdx, 1);
+    nextItems.splice(toIdx, 0, moved);
+
+    const normalizedItems = nextItems.map((item, position) => ({ ...item, position }));
+    setList({ ...list, items: normalizedItems });
+
+    try {
+      await reorderListItems(
+        listId,
+        normalizedItems.map((item) => ({ id: item.id, position: item.position }))
+      );
+    } catch (error) {
+      console.error("Error reordering items:", error);
+      setList({ ...list, items: previousItems });
     }
   };
 
@@ -326,6 +413,42 @@ export default function ListDetailPage() {
     } catch (error) {
       console.error("Error deleting list:", error);
       alert("Failed to delete list");
+    }
+  };
+
+  const handleCloneList = async () => {
+    if (!user || !list) return;
+
+    try {
+      setCloningList(true);
+      const clonedName = `Copy of ${list.name}`;
+      const clonedList = await createList(
+        user.id,
+        clonedName,
+        list.description || null,
+        "private",
+        list.is_ranked
+      );
+
+      await updateList(clonedList.id, {
+        view_type: list.view_type,
+        show_unwatched_first: list.show_unwatched_first || false,
+        cover_type: list.cover_type,
+        cover_image_url: list.cover_image_url,
+        privacy: "private",
+      });
+
+      const itemsInOrder = [...list.items].sort((a, b) => a.position - b.position);
+      for (const item of itemsInOrder) {
+        await addItemToList(clonedList.id, item.content_id, item.content_type, user.id);
+      }
+
+      router.push(`/lists/${clonedList.id}`);
+    } catch (error) {
+      console.error("Error cloning list:", error);
+      alert("Failed to clone list");
+    } finally {
+      setCloningList(false);
     }
   };
 
@@ -455,37 +578,6 @@ export default function ListDetailPage() {
     }
   };
 
-  const handleMarkWatched = async (itemId: string, currentWatchedBy: string[]) => {
-    if (!user) return;
-
-    try {
-      setMarkingWatched(itemId);
-
-      if (currentWatchedBy.includes(user.id)) {
-        // Unmark as watched
-        await unmarkItemAsWatched(itemId, user.id);
-      } else {
-        // Mark as watched
-        await markItemAsWatched(itemId, user.id);
-      }
-
-      // Reload list
-      const usersRef = ref(db, "users");
-      const usersSnapshot = await get(usersRef);
-      const usersData = usersSnapshot.val() || {};
-
-      const updatedList = await getListWithDetails(listId, usersData);
-      if (updatedList) {
-        setList(updatedList);
-      }
-    } catch (error) {
-      console.error("Error updating watched status:", error);
-      alert("Failed to update watched status");
-    } finally {
-      setMarkingWatched(null);
-    }
-  };
-
   if (loading) {
     return <CinematicLoading message="Your list is loading" />;
   }
@@ -505,31 +597,30 @@ export default function ListDetailPage() {
 
 
   return (
-    <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="px-1 py-4 sm:p-8">
+    <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+      <div className="px-2 py-4 sm:p-8">
         {/* Header with Back and Title */}
-        <div className="mb-6 rounded-[2rem] border border-gray-200 bg-white p-4 shadow-sm sm:mb-8 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="mb-5 sm:mb-8">
           <Link
             href="/lists"
-            className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 sm:mb-4 sm:text-base"
+            className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-[#ffb36b] hover:text-[#ff7a1a] sm:mb-4 sm:text-base"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             Back to Lists
           </Link>
 
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h1 className="break-words text-4xl font-extrabold leading-tight tracking-tight text-gray-950 sm:text-3xl sm:font-bold">
+              <h1 className="break-words text-3xl font-extrabold leading-tight tracking-tight text-[#f5f0de] sm:text-3xl sm:font-bold">
                 {list.name}
               </h1>
               {list.description && !editMode && (
-                <p className="mt-3 text-base leading-relaxed text-gray-600 sm:mt-2">{list.description}</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/55 sm:mt-2 sm:text-base">{list.description}</p>
               )}
             </div>
 
             <MenuButton
               onEdit={() => {
-                setOpenItemMenuId(null);
                 setEditMode(true);
                 setSelectedCoverImageUrl(list.cover_image_url || null);
               }}
@@ -537,35 +628,41 @@ export default function ListDetailPage() {
               canEdit={isOwner || isCollaborator}
               isOwner={isOwner}
               onDelete={isOwner ? handleDeleteList : undefined}
+              onClone={handleCloneList}
+              cloneLoading={cloningList}
               onToggleWatchedStatus={() => setWatchedStatusEnabled(v => !v)}
               watchedStatusEnabled={watchedStatusEnabled}
+              viewType={viewType}
+              onSetViewType={(nextViewType) => void handleViewTypeChange(nextViewType)}
+              onToggleReorder={canEdit && viewType === "list" ? () => setReorderMode((v) => !v) : undefined}
+              reorderMode={reorderMode}
             />
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
               {isRankedList && (
-                <span className="rounded-full bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-[#f5f0de]">
                   Ranked List
                 </span>
               )}
               {/* Collaborators: show profile pictures, open modal on click */}
               <button
-                className="flex items-center gap-1 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-1.5"
+                className="flex items-center gap-1 border border-white/10 bg-white/5 px-3 py-1.5 text-[#f5f0de]"
                 onClick={() => setShowCollaboratorsModal(true)}
                 aria-label="Show collaborators"
               >
                 {list.collaborators && list.collaborators.length > 0 && list.collaborators.slice(0, 5).map((collab) => (
-                  <span key={collab.user_id} className="inline-block -ml-2 h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-gray-200 first:ml-0">
+                <span key={collab.user_id} className="inline-block -ml-2 h-7 w-7 overflow-hidden rounded-full border-2 border-[#111111] bg-[#1a1a1a] first:ml-0 sm:h-8 sm:w-8">
                     {collab.user?.avatar_url ? (
                       <img src={collab.user.avatar_url} alt={collab.user.name || collab.user.username || "User"} className="w-full h-full object-cover rounded-full" />
                     ) : (
-                      <span className="flex items-center justify-center w-full h-full text-base font-bold text-gray-700 bg-gray-300 rounded-full">
+                      <span className="flex h-full w-full items-center justify-center rounded-full bg-[#2a2a2a] text-base font-bold text-[#f5f0de]">
                         {collab.user?.name?.[0]?.toUpperCase() || collab.user?.username?.[0]?.toUpperCase() || "U"}
                       </span>
                     )}
                   </span>
                 ))}
-                <span className="ml-1 inline-block text-sm font-bold text-blue-600">
+                <span className="ml-1 inline-block text-xs font-bold text-[#ffb36b] sm:text-sm">
                   {list.collaborators.length > 1 ? `+${list.collaborators.length}` : "1"}
                 </span>
               </button>
@@ -573,43 +670,43 @@ export default function ListDetailPage() {
 
           {/* Edit mode UI remains unchanged */}
           {editMode && canEdit && (
-            <div className="mt-6 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="mt-5 border border-white/10 bg-[#111111] p-4 sm:mt-6 sm:p-6">
               <div className="mb-5">
-                <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Edit list</p>
-                <h3 className="text-2xl font-bold text-gray-900">Refine the details</h3>
-                <p className="mt-1 text-sm text-gray-500">Update the title, description, privacy, and display cover.</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#ffb36b] sm:text-sm">Edit list</p>
+                <h3 className="text-xl font-bold text-[#f5f0de] sm:text-2xl">Refine the details</h3>
+                <p className="mt-1 text-xs text-white/55 sm:text-sm">Update the title, description, privacy, and display cover.</p>
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">Title</label>
+                  <label className="mb-2 block text-xs font-medium text-white/65 sm:text-sm">Title</label>
                   <input
                     aria-label="List name"
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="List name"
-                    className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-lg font-semibold text-gray-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    className="field w-full px-4 py-2.5 text-base font-semibold sm:py-3 sm:text-lg"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">Description</label>
+                  <label className="mb-2 block text-xs font-medium text-white/65 sm:text-sm">Description</label>
                   <textarea
                     aria-label="List description"
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     placeholder="Add a short description for this list"
-                    className="w-full resize-none rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    className="field w-full resize-none px-4 py-2.5 text-xs sm:py-3 sm:text-sm"
                     rows={3}
                   />
                 </div>
 
                 {/* Display cover picker */}
-                <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="space-y-3 border border-white/10 bg-white/[0.03] p-3 sm:p-4">
                   <div>
-                    <p className="font-medium text-gray-700">Display cover</p>
-                    <p className="text-xs text-gray-500">Pick one poster from this list or keep the auto grid cover.</p>
+                    <p className="text-sm font-medium text-[#f5f0de]">Display cover</p>
+                    <p className="text-[11px] text-white/55 sm:text-xs">Pick one poster from this list or keep the auto grid cover.</p>
                   </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -617,8 +714,8 @@ export default function ListDetailPage() {
                     onClick={() => setSelectedCoverImageUrl(null)}
                     className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                       selectedCoverImageUrl === null
-                        ? "bg-blue-600 text-white"
-                        : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                        ? "bg-[#ff7a1a] text-[#0a0a0a]"
+                        : "border border-white/10 bg-[#0d0d0d] text-[#f5f0de] hover:bg-white/5"
                     }`}
                   >
                     Auto grid
@@ -628,10 +725,10 @@ export default function ListDetailPage() {
                       key={`${posterUrl}-${idx}`}
                       type="button"
                       onClick={() => setSelectedCoverImageUrl(posterUrl)}
-                      className={`h-16 w-12 overflow-hidden rounded-md border-2 transition-all ${
+                      className={`h-14 w-10 overflow-hidden rounded-md border-2 transition-all sm:h-16 sm:w-12 ${
                         selectedCoverImageUrl === posterUrl
-                          ? "border-blue-600 ring-2 ring-blue-200"
-                          : "border-transparent hover:border-gray-300"
+                          ? "border-[#ff7a1a] ring-2 ring-[#ff7a1a]/20"
+                          : "border-transparent hover:border-white/20"
                       }`}
                       aria-label={`Select poster ${idx + 1} as cover`}
                     >
@@ -640,15 +737,15 @@ export default function ListDetailPage() {
                   ))}
                 </div>
                 {selectedCoverImageUrl && (
-                  <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3">
+                  <div className="flex items-center gap-3 border border-white/10 bg-[#0d0d0d] p-3">
                     <img
                       src={selectedCoverImageUrl}
                       alt="Selected cover"
-                      className="h-20 w-14 rounded-md object-cover shadow-sm"
+                      className="h-16 w-11 rounded-md object-cover shadow-sm sm:h-20 sm:w-14"
                     />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900">Selected cover</p>
-                      <p className="text-xs text-gray-500">This poster will be used as the list cover image.</p>
+                      <p className="text-sm font-medium text-[#f5f0de]">Selected cover</p>
+                      <p className="text-[11px] text-white/55 sm:text-xs">This poster will be used as the list cover image.</p>
                     </div>
                   </div>
                 )}
@@ -657,8 +754,8 @@ export default function ListDetailPage() {
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
                     editPrivacy === "private"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      ? "border-[#ff7a1a] bg-white/[0.04]"
+                      : "border-white/10 bg-[#0d0d0d] hover:border-white/20"
                   }`}>
                     <input
                       type="radio"
@@ -670,16 +767,16 @@ export default function ListDetailPage() {
                     />
                     <div>
                       <div className="flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-gray-600" />
-                        <span className="font-semibold text-gray-900">Private</span>
+                        <Lock className="h-4 w-4 text-white/65" />
+                        <span className="font-semibold text-[#f5f0de]">Private</span>
                       </div>
-                      <p className="mt-1 text-xs text-gray-500">Only you and collaborators can see it.</p>
+                      <p className="mt-1 text-[11px] text-white/55 sm:text-xs">Only you and collaborators can see it.</p>
                     </div>
                   </label>
                   <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
                     editPrivacy === "public"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      ? "border-[#ff7a1a] bg-white/[0.04]"
+                      : "border-white/10 bg-[#0d0d0d] hover:border-white/20"
                   }`}>
                     <input
                       type="radio"
@@ -691,23 +788,23 @@ export default function ListDetailPage() {
                     />
                     <div>
                       <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-gray-600" />
-                        <span className="font-semibold text-gray-900">Public</span>
+                        <Globe className="h-4 w-4 text-white/65" />
+                        <span className="font-semibold text-[#f5f0de]">Public</span>
                       </div>
-                      <p className="mt-1 text-xs text-gray-500">Anyone can discover this list.</p>
+                      <p className="mt-1 text-[11px] text-white/55 sm:text-xs">Anyone can discover this list.</p>
                     </div>
                   </label>
                 </div>
 
                 <div className="flex flex-wrap gap-3 pt-2">
-                  <button
-                    onClick={handleSaveChanges}
-                    disabled={savingChanges}
-                    className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:bg-gray-400"
-                  >
-                    {savingChanges ? "Saving..." : "Save changes"}
-                  </button>
-                  <button
+              <button
+                onClick={handleSaveChanges}
+                disabled={savingChanges}
+                className="rounded-xl bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-[#0a0a0a] transition hover:bg-[#ff8d3b] disabled:bg-white/10 disabled:text-white/35"
+              >
+                {savingChanges ? "Saving..." : "Save changes"}
+              </button>
+              <button
                     onClick={() => {
                       setEditMode(false);
                       setEditName(list.name);
@@ -715,7 +812,7 @@ export default function ListDetailPage() {
                       setEditPrivacy(list.privacy);
                       setSelectedCoverImageUrl(list.cover_image_url || null);
                     }}
-                    className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                    className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-[#f5f0de] transition hover:bg-white/5"
                   >
                     Cancel
                   </button>
@@ -726,144 +823,56 @@ export default function ListDetailPage() {
         </div>
 
         {/* Movie Items Section */}
-        <div className="mt-6 sm:mt-8">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:font-bold">
-              {isRankedList ? "Ranked Items" : "Items"} ({list.item_count})
-            </h2>
-            <div className="grid w-full grid-cols-2 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm sm:inline-flex sm:w-auto sm:rounded-xl sm:shadow-none">
-              <button
-                onClick={() => handleViewTypeChange("grid")}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold sm:rounded-lg sm:py-2 sm:font-medium ${
-                  viewType === "grid" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <Grid3x3 className="h-4 w-4" />
-                Grid
-              </button>
-              <button
-                onClick={() => handleViewTypeChange("list")}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold sm:rounded-lg sm:py-2 sm:font-medium ${
-                  viewType === "list" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <ListIcon className="h-4 w-4" />
-                List
-              </button>
+        <div className="mt-4 sm:mt-6">
+          {reorderMode && viewType === "list" && canEdit && (
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40">
+              <MoveRight className="h-3.5 w-3.5" />
+              Drag rows to reorder
             </div>
-          </div>
+          )}
           {sortedItems.length > 0 ? (
             <div
               className={
                 viewType === "list"
-                  ? "space-y-4"
-                  : "grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5"
+                  ? "space-y-2.5 sm:space-y-3"
+                  : "grid grid-cols-3 gap-2.5 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5"
               }
             >
               {sortedItems.map((item, idx) => {
                 const rank = item.position + 1;
-                const watchedArr = watchedMap[String(item.content.id)] || [];
-                const userWatched = watchedArr.find(w => w.user.id === user.id);
-                const collabWatched = watchedArr.find(w => w.user.id !== user.id);
                 // Get logs for this movie, most recent first
                 const logs = logsMap[item.content.id] || [];
                 const posterSrc = logs[0]?.content?.poster_url || item.content.poster_url || null;
-                let watchedDateDisplay: string | null = null;
-                if (logs[0]?.watched_date) {
-                  try {
-                    watchedDateDisplay = format(new Date(logs[0].watched_date), "d MMM yyyy");
-                  } catch {
-                    watchedDateDisplay = logs[0].watched_date;
-                  }
-                }
+                const watchedKey = `${item.content.type || "movie"}-${item.content.id}`;
+                const watchedRecord = watchedMovies[watchedKey] || null;
+                const userWatched = Boolean(watchedRecord);
+                const canReorder = reorderMode && canEdit && viewType === "list";
                 return (
                   <div
                     key={item.id}
                     className={
                       viewType === "list"
-                        ? `relative flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm ${editMode && isOwner ? "cursor-move" : ""}`
-                        : `relative flex flex-col rounded-[1.5rem] border border-gray-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${editMode && isOwner ? "cursor-move" : ""}`
+                        ? `group relative flex items-start gap-3 py-1 ${canReorder ? "cursor-grab active:cursor-grabbing" : ""}`
+                        : `relative flex flex-col ${editMode && isOwner ? "cursor-move" : ""}`
                     }
-                    draggable={editMode && isOwner}
-                    onDragStart={editMode && isOwner ? e => {
-                      console.log('[DnD] Drag Start', { fromIdx: idx, item: list.items[idx] });
+                    draggable={canReorder}
+                    onDragStart={canReorder ? e => {
                       e.dataTransfer.setData("text/plain", idx.toString());
                       e.currentTarget.classList.add("opacity-50");
                     } : undefined}
-                    onDragEnd={editMode && isOwner ? e => {
-                      console.log('[DnD] Drag End');
+                    onDragEnd={canReorder ? e => {
                       e.currentTarget.classList.remove("opacity-50");
                     } : undefined}
-                    onDragOver={editMode && isOwner ? e => {
+                    onDragOver={canReorder ? e => {
                       e.preventDefault();
-                      // Optional: highlight drop target
                     } : undefined}
-                    onDrop={editMode && isOwner ? async e => {
+                    onDrop={canReorder ? async e => {
                       e.preventDefault();
                       const fromIdx = Number(e.dataTransfer.getData("text/plain"));
-                      console.log('[DnD] Drop', { fromIdx, toIdx: idx });
                       if (fromIdx === idx) return;
-                      const newItems = [...list.items];
-                      const [moved] = newItems.splice(fromIdx, 1);
-                      newItems.splice(idx, 0, moved);
-                      console.log('[DnD] New order', newItems.map(i => i.id));
-                      setList({ ...list, items: newItems });
-                      try {
-                        await reorderListItems(listId, newItems.map((i, pos) => ({ id: i.id, position: pos })));
-                        console.log('[DnD] reorderListItems success');
-                      } catch (err) {
-                        console.error('[DnD] reorderListItems error', err);
-                      }
+                      await handleReorderItems(fromIdx, idx);
                     } : undefined}
                     >
-                    <button
-                      type="button"
-                      aria-label="Item actions"
-                      draggable={false}
-                      onPointerDown={(e) => {
-                        e.stopPropagation();
-                      }}
-                      className="absolute right-3 top-3 z-40 rounded-full bg-white/95 p-1.5 text-gray-700 shadow-md ring-1 ring-gray-100 hover:bg-gray-100"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setOpenItemMenuId((current) => (current === item.id ? null : item.id));
-                      }}
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
-                    {openItemMenuId === item.id && (
-                      <div className="absolute right-2 top-10 z-50 w-44 rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
-                        <button
-                          type="button"
-                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setWatchedStatusEnabled((v) => !v);
-                            setOpenItemMenuId(null);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                          Show watched status
-                        </button>
-                        {editMode && isOwner && (
-                          <button
-                            type="button"
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleRemoveItem(item.id, item.content.title);
-                              setOpenItemMenuId(null);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Remove item
-                          </button>
-                        )}
-                      </div>
-                    )}
                     {/* Poster */}
                     <Link
                       href={item.content.type === "tv"
@@ -871,8 +880,10 @@ export default function ListDetailPage() {
                         : `/movie/${item.content.id}`}
                       className={
                         viewType === "list"
-                          ? "relative h-24 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-gray-200 poster-stack-container"
-                          : "relative mb-3 aspect-[2/3] w-full overflow-hidden rounded-2xl bg-gray-200 poster-stack-container"
+                          ? `relative h-20 w-14 flex-shrink-0 overflow-hidden bg-[#1a1a1a] poster-stack-container sm:h-24 sm:w-16 ${
+                              canReorder ? "pointer-events-none" : ""
+                            }`
+                          : "relative aspect-[3/4] w-full overflow-hidden bg-[#1a1a1a] poster-stack-container sm:aspect-[2/3]"
                       }
                       tabIndex={0}
                     >
@@ -883,70 +894,83 @@ export default function ListDetailPage() {
                           className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
-                          <Plus className="h-8 w-8 text-white/70" />
+                        <div className="flex h-full w-full items-center justify-center bg-[#1a1a1a]">
+                          <Plus className="h-8 w-8 text-white/35" />
                         </div>
                       )}
                       {isRankedList && (
-                        <span className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-1 text-[11px] font-bold text-white shadow">
+                        <span className="absolute left-2 top-2 rounded-full bg-[#ff7a1a] px-2 py-1 text-[11px] font-bold text-[#0a0a0a] shadow">
                           {rank}
                         </span>
                       )}
                     </Link>
-                    <div className={viewType === "list" ? "min-w-0 flex-1" : "min-w-0 px-0.5 pb-1"}>
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="line-clamp-2 text-base font-bold leading-snug text-gray-950 sm:text-sm sm:font-semibold">{item.content.title}</p>
+                      <div className={viewType === "list" ? "min-w-0 flex-1 pt-0.5" : "min-w-0 pt-1"}>
+                        {canReorder && (
+                          <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+                            <GripVertical className="h-3.5 w-3.5" />
+                            Drag to reorder
+                          </div>
+                        )}
+                        <p className="line-clamp-2 text-xs font-semibold leading-snug text-[#f5f0de] sm:text-sm">
+                          {item.content.title}
+                        </p>
+                        {viewType === "list" && (
+                          <p className="mt-0.5 truncate text-[10px] font-medium text-white/55 sm:text-xs">
+                            Added by <span className="font-medium">{item.added_by_user.name}</span>
+                          </p>
+                        )}
+                        {watchedStatusEnabled && (
+                          <div className="mt-1">
+                            {userWatched ? (
+                              <span className="inline-flex rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-200">
+                                Watched
+                              </span>
+                            ) : (
+                              <button
+                                className="text-[10px] font-semibold text-[#ffb36b] hover:text-[#ff7a1a]"
+                                disabled={markingWatched === String(item.content.id)}
+                                onClick={async () => {
+                                  setMarkingWatched(String(item.content.id));
+                                  await upsertWatchedMovie(
+                                    user.id,
+                                    Number(item.content.id),
+                                    item.content.type === "tv" ? "tv" : "movie",
+                                    "list"
+                                  );
+                                  const refreshed = await getUserWatchedMovies(user.id);
+                                  const refreshedMap: Record<string, WatchedMovie> = {};
+                                  for (const record of refreshed) {
+                                    refreshedMap[`${record.content_type}-${record.content_id}`] = record;
+                                  }
+                                  setWatchedMovies(refreshedMap);
+                                  setMarkingWatched(null);
+                                }}
+                              >
+                                {markingWatched === String(item.content.id) ? "Marking..." : "Mark watched"}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <p className="mt-1 truncate text-xs font-medium text-gray-500">
-                        Added by <span className="font-medium">{item.added_by_user.name}</span>
-                      </p>
-                      {watchedStatusEnabled && (
-                        <div className="mt-1 flex items-center gap-2">
-                          {userWatched && (
-                            <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">Watched</span>
-                          )}
-                          {!userWatched && collabWatched && (
-                            <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">Watched by {collabWatched.user.name}</span>
-                          )}
-                          {!userWatched && !collabWatched && (
-                            <button
-                              className="ml-1 text-xs px-2 py-0.5 rounded-full border border-green-400 text-green-700 hover:bg-green-50"
-                              disabled={markingWatched === String(item.content.id)}
-                              onClick={async () => {
-                                setMarkingWatched(String(item.content.id));
-                                await createMovieLog(user.id, item.content.id, "movie", new Date().toISOString(), 1, "");
-                                setMarkingWatched(null);
-                                setWatchedStatusEnabled(false); setTimeout(() => setWatchedStatusEnabled(true), 100); // Refresh
-                              }}
-                            >
-                              {markingWatched === String(item.content.id) ? "Marking..." : "Mark as Watched"}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {watchedStatusEnabled && watchedDateDisplay && (
-                        <p className="mt-1 text-xs text-gray-500">Watched on {watchedDateDisplay}</p>
-                      )}
-                    </div>
                     {editMode && isOwner && (
                       <button
                         aria-label="Delete movie"
-                        className="absolute top-1 right-1 p-1 rounded-full bg-white bg-opacity-80 hover:bg-red-100 text-red-600 shadow z-20"
+                        className="absolute right-0 top-0 rounded-full bg-white/90 p-1 text-red-600 shadow-sm ring-1 ring-gray-100"
                         onClick={() => handleRemoveItem(item.id, item.content.title)}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>
                 );
               })}
             </div>
-          ) : (
-            <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <p className="text-gray-600 mb-4">This list is empty</p>
+        ) : (
+            <div className="py-12 text-center">
+              <p className="mb-4 text-white/55">This list is empty</p>
               {(isOwner || isCollaborator) && (
                 <button
-                  className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow"
+                  className="mt-4 rounded-lg bg-[#ff7a1a] px-6 py-2 font-medium text-[#0a0a0a] shadow hover:bg-[#ff8d3b]"
                   onClick={() => window.location.href = `/lists/${listId}/add-items`}
                 >
                   <Plus className="inline w-4 h-4 mr-2 -mt-1" /> Add Movies
@@ -963,11 +987,11 @@ export default function ListDetailPage() {
         {/* Collaborators Modal */}
         {showCollaboratorsModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-96 flex flex-col">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Collaborators</h3>
+            <div className="flex max-h-96 w-full max-w-md flex-col border border-white/10 bg-[#111111] p-6 text-[#f5f0de] mx-4">
+              <h3 className="mb-4 text-xl font-bold text-[#f5f0de]">Collaborators</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
                 {(Array.isArray(list.collaborators) ? list.collaborators : []).map((collaborator, idx) => (
-                  <div key={`collab-${idx}`} className="bg-gray-50 rounded-lg p-3 flex items-center gap-2">
+                  <div key={`collab-${idx}`} className="flex items-center gap-2 border border-white/10 bg-white/[0.03] p-3">
                     {collaborator.user.avatar_url && (
                       <img
                         src={collaborator.user.avatar_url}
@@ -976,24 +1000,24 @@ export default function ListDetailPage() {
                       />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 truncate">
+                      <p className="truncate text-sm font-semibold text-[#f5f0de]">
                         {collaborator.user.name}
                       </p>
-                      <p className="text-xs text-gray-500 capitalize">{collaborator.role}</p>
+                      <p className="capitalize text-xs text-white/55">{collaborator.role}</p>
                     </div>
                   </div>
                 ))}
               </div>
               <button
                 onClick={handleOpenAddCollaborator}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors mb-2"
+                className="mb-2 flex items-center gap-2 rounded-lg bg-[#ff7a1a] px-4 py-2 font-medium text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b]"
               >
                 <UserPlus className="w-4 h-4" />
                 Add Collaborator
               </button>
               <button
                 onClick={() => setShowCollaboratorsModal(false)}
-                className="w-full py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                className="w-full rounded-lg border border-white/10 px-4 py-2 font-medium text-[#f5f0de] transition-colors hover:bg-white/5"
               >
                 Close
               </button>
@@ -1004,8 +1028,8 @@ export default function ListDetailPage() {
         {/* Add Collaborator Modal (existing) */}
         {showAddCollaborator && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-96 flex flex-col">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Add Friends as Collaborators</h3>
+            <div className="mx-4 flex max-h-96 w-full max-w-md flex-col border border-white/10 bg-[#111111] p-6 text-[#f5f0de]">
+              <h3 className="mb-4 text-xl font-bold text-[#f5f0de]">Add Friends as Collaborators</h3>
 
               {availableFriends.length > 0 ? (
                 <>
@@ -1015,7 +1039,7 @@ export default function ListDetailPage() {
                     value={collaboratorInput}
                     onChange={(e) => handleFilterFriends(e.target.value)}
                     placeholder="Search friends..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                    className="field mb-4 w-full px-4 py-2"
                   />
 
                   {/* Friends list */}
@@ -1024,36 +1048,36 @@ export default function ListDetailPage() {
                       filteredFriends.map((friend) => (
                         <label
                           key={friend.id}
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                          className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-white/5"
                         >
                           <input
                             type="checkbox"
                             checked={selectedFriends.some((f) => f.id === friend.id)}
                             onChange={() => handleSelectFriend(friend)}
-                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-white/20 text-[#ff7a1a] focus:ring-[#ff7a1a]"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm text-gray-900 truncate">
+                            <p className="truncate text-sm font-medium text-[#f5f0de]">
                               {friend.name}
                             </p>
-                            <p className="text-xs text-gray-500">@{friend.username}</p>
+                            <p className="text-xs text-white/55">@{friend.username}</p>
                           </div>
                         </label>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-500 py-2">No matching friends found</p>
+                      <p className="py-2 text-sm text-white/55">No matching friends found</p>
                     )}
                   </div>
 
                   {/* Selected count */}
                   {selectedFriends.length > 0 && (
-                    <p className="text-sm text-gray-600 mb-4">
+                    <p className="mb-4 text-sm text-white/55">
                       {selectedFriends.length} friend{selectedFriends.length !== 1 ? "s" : ""} selected
                     </p>
                   )}
                 </>
               ) : (
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="mb-4 text-sm text-white/55">
                   You don't have any friends to add. Make some friends first!
                 </p>
               )}
@@ -1062,14 +1086,14 @@ export default function ListDetailPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowAddCollaborator(false)}
-                  className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  className="flex-1 rounded-lg border border-white/10 px-4 py-2 font-medium text-[#f5f0de] transition-colors hover:bg-white/5"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddCollaborators}
                   disabled={selectedFriends.length === 0 || addingCollaborators}
-                  className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
+                  className="flex-1 rounded-lg bg-[#ff7a1a] px-4 py-2 font-medium text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b] disabled:bg-white/10 disabled:text-white/35"
                 >
                   {addingCollaborators ? "Adding..." : `Add (${selectedFriends.length})`}
                 </button>
@@ -1083,21 +1107,21 @@ export default function ListDetailPage() {
         {/* Delete Item Confirmation Modal (existing) */}
         {showDeleteItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Remove from list?</h3>
-              <p className="text-gray-600 mb-6">
+            <div className="mx-4 w-full max-w-sm border border-white/10 bg-[#111111] p-6 text-[#f5f0de]">
+              <h3 className="mb-2 text-lg font-bold text-[#f5f0de]">Remove from list?</h3>
+              <p className="mb-6 text-white/55">
                 Are you sure you want to remove <span className="font-semibold">{showDeleteItem.name}</span> from this list?
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteItem(null)}
-                  className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  className="flex-1 rounded-lg border border-white/10 px-4 py-2 font-medium text-[#f5f0de] transition-colors hover:bg-white/5"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmDeleteItem}
-                  className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                  className="flex-1 rounded-lg bg-[#ff7a1a] px-4 py-2 font-medium text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b]"
                 >
                   Remove
                 </button>

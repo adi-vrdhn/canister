@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { AlertCircle } from "lucide-react";
+import AuthMobileCard from "@/components/AuthMobileCard";
 
 
 export default function LoginPage() {
@@ -37,12 +38,74 @@ export default function LoginPage() {
 
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left: Form */}
-      <div className="flex flex-col justify-center flex-1 px-8 sm:px-16 md:px-24 lg:px-32 bg-white">
+    <div className="min-h-screen">
+      <div className="px-4 py-6 sm:px-6 md:hidden">
+        <AuthMobileCard
+          mode="login"
+          title="Login"
+          subtitle="Welcome back. Pick up your watchlist and posts right where you left them."
+          footer={
+            <>
+              Don&apos;t have an account?{" "}
+              <Link href="/auth/signup" className="font-semibold text-blue-600">
+                Sign up
+              </Link>
+            </>
+          }
+        >
+          {error && (
+            <div className="mb-4 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Email or Username</label>
+              <input
+                type="text"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                placeholder="Enter your email or username"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                placeholder="Enter your password"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" className="rounded border-slate-300" />
+                Remember for 30 days
+              </label>
+              <Link href="/auth/forgot-password" className="font-medium text-blue-600">
+                Forgot?
+              </Link>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-2xl bg-slate-950 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:opacity-60"
+            >
+              {loading ? "Signing in..." : "Login"}
+            </button>
+          </form>
+        </AuthMobileCard>
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden min-h-screen md:flex">
+        <div className="flex flex-1 flex-col justify-center bg-white px-8 sm:px-16 md:px-24 lg:px-32">
         <div className="max-w-md w-full mx-auto">
           <div className="flex items-center justify-center mt-12 mb-10">
-            <h1 className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-900">CANISTER</h1>
+            <h1 className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-900">Canisterr</h1>
           </div>
           <h2 className="text-xl font-semibold mb-6 text-gray-800">Welcome back</h2>
           {error && (
@@ -77,7 +140,7 @@ export default function LoginPage() {
         </div>
       </div>
       {/* Right: Image/Quote */}
-      <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50 relative">
+      <div className="flex flex-1 items-center justify-center bg-gray-50 relative">
         <div className="absolute inset-0 flex items-center justify-center">
           <img
             src="https://image.tmdb.org/t/p/original/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg"
@@ -88,6 +151,7 @@ export default function LoginPage() {
         <div className="absolute bottom-8 left-8 right-8 text-white text-xl font-semibold drop-shadow-lg">
           <span className="bg-black bg-opacity-40 px-4 py-2 rounded-lg">La la land</span>
         </div>
+      </div>
       </div>
     </div>
   );

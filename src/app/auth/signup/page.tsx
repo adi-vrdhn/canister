@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signUp, checkUsernameAvailability } from "@/lib/auth";
 import { Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react";
+import AuthMobileCard from "@/components/AuthMobileCard";
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("");
@@ -77,11 +78,148 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-[#eef1f6]">
+      <div className="px-4 py-6 sm:px-6 md:hidden">
+        <AuthMobileCard
+          mode="signup"
+          title="Sign up"
+          subtitle="Create your account and start building your movie trail."
+          footer={
+            <>
+              Already have an account?{" "}
+              <Link href="/auth/login" className="font-semibold text-blue-600">
+                Log in
+              </Link>
+            </>
+          }
+        >
+          {verificationSent ? (
+            <div className="text-center">
+              <h2 className="text-xl font-black text-slate-950">Verify your email</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                A verification link has been sent to <span className="font-semibold text-slate-950">{email}</span>.
+                {" "}You can use the app now, but please verify within 7 days.
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-4 text-sm font-semibold">
+                <Link href="/dashboard" className="text-blue-600">
+                  Continue
+                </Link>
+                <Link href="/auth/login" className="text-blue-600">
+                  Log in
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              {error && (
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Username</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="@username"
+                      minLength={3}
+                      required
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-sm outline-none transition focus:border-slate-400"
+                    />
+                    {username.length >= 3 && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {checkingUsername ? (
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-950" />
+                        ) : usernameAvailable ? (
+                          <CheckCircle className="h-5 w-5 text-emerald-600" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 text-red-600" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {username.length > 0 && username.length < 3 && (
+                    <p className="mt-1 text-xs text-slate-500">At least 3 characters</p>
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Full Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name"
+                    required
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      minLength={6}
+                      required
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Confirm Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      minLength={6}
+                      required
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || !usernameAvailable}
+                  className="w-full rounded-2xl bg-slate-950 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {loading ? "Creating account..." : "Sign up"}
+                </button>
+              </form>
+            </>
+          )}
+        </AuthMobileCard>
+      </div>
+
+      <div className="hidden min-h-screen items-center justify-center p-4 md:flex">
+        <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mt-12 mb-10">
-            <h1 className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-900">CANISTER</h1>
+            <h1 className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-900">Canisterr</h1>
           </div>
           <p className="text-gray-600">Join the movie community</p>
         </div>
@@ -210,6 +348,7 @@ export default function SignUpPage() {
             </Link>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

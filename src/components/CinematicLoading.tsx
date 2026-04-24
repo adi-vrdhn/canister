@@ -101,7 +101,7 @@ export default function CinematicLoading({
 
         <div className="mx-auto max-w-md rounded-[2rem] border border-white/10 bg-white/10 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur-md">
           <p className="brand-wordmark text-4xl font-bold tracking-tight text-[#f8e9c8] sm:text-5xl">
-            CANISTER
+            Canisterr
           </p>
           <p className="mt-4 text-base font-semibold text-white">{message}</p>
           <p className="mt-2 text-sm text-zinc-300">

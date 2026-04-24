@@ -339,16 +339,19 @@ export async function searchMovies(query: string, page: number = 1) {
       .filter((token) => token && !STOP_WORDS.has(token)).length;
     const people = meaningfulTokenCount >= 3 ? await findPeopleInQuery(trimmedQuery) : [];
     const titleQuery = removePersonChunksFromQuery(trimmedQuery, people) || removeYear(trimmedQuery);
+    const searchPages = trimmedQuery.length <= 2 ? [1, 2, 3, 4, 5] : [1];
     const baseSearchQueries = Array.from(
-      new Set([trimmedQuery, removeYear(trimmedQuery), titleQuery].filter((entry) => entry.trim().length >= 2))
+      new Set([trimmedQuery, removeYear(trimmedQuery), titleQuery].filter((entry) => entry.trim().length >= 1))
     );
     const yearSearchQueries = requestedYear
-      ? Array.from(new Set([titleQuery, removeYear(trimmedQuery)].filter((entry) => entry.trim().length >= 2)))
+      ? Array.from(new Set([titleQuery, removeYear(trimmedQuery)].filter((entry) => entry.trim().length >= 1)))
       : [];
 
     const [movieResultGroups, personMovieIds] = await Promise.all([
       Promise.all([
-        ...baseSearchQueries.map((searchQuery) => fetchMovieSearch(searchQuery, 1).catch(() => [])),
+        ...baseSearchQueries.flatMap((searchQuery) =>
+          searchPages.map((searchPage) => fetchMovieSearch(searchQuery, searchPage).catch(() => []))
+        ),
         ...yearSearchQueries.map((searchQuery) =>
           requestedYear ? fetchMovieSearchForYear(searchQuery, requestedYear).catch(() => []) : Promise.resolve([])
         ),

@@ -19,6 +19,7 @@ interface SearchBarProps {
   debounceMs?: number;
   disabled?: boolean;
   minChars?: number;
+  theme?: "default" | "brutalist";
 }
 
 export default function SearchBar({
@@ -27,7 +28,8 @@ export default function SearchBar({
   onSelect,
   debounceMs = 300,
   disabled = false,
-  minChars = 2,
+  minChars = 1,
+  theme = "default",
 }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchData[]>([]);
@@ -35,6 +37,26 @@ export default function SearchBar({
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isBrutalist = theme === "brutalist";
+
+  const rankResults = (items: SearchData[], rawQuery: string) => {
+    const normalizedQuery = rawQuery.trim().toLowerCase();
+    if (!normalizedQuery) return items;
+
+    return [...items].sort((a, b) => {
+      const aTitle = a.title.toLowerCase();
+      const bTitle = b.title.toLowerCase();
+      const aStarts = aTitle.startsWith(normalizedQuery) ? 1 : 0;
+      const bStarts = bTitle.startsWith(normalizedQuery) ? 1 : 0;
+      if (aStarts !== bStarts) return bStarts - aStarts;
+
+      const aIncludes = aTitle.includes(normalizedQuery) ? 1 : 0;
+      const bIncludes = bTitle.includes(normalizedQuery) ? 1 : 0;
+      if (aIncludes !== bIncludes) return bIncludes - aIncludes;
+
+      return aTitle.localeCompare(bTitle);
+    });
+  };
 
   useEffect(() => {
     if (debounceTimer.current) {
@@ -51,7 +73,7 @@ export default function SearchBar({
     debounceTimer.current = setTimeout(async () => {
       try {
         const data = await onSearch(query);
-        setResults(data);
+        setResults(rankResults(data, query));
         setIsOpen(true);
       } catch (error) {
         // Silently ignore search errors
@@ -110,7 +132,11 @@ export default function SearchBar({
               setResults([]);
               setIsOpen(false);
             }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+            className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-xs font-medium transition ${
+              isBrutalist
+                ? "border border-white/10 bg-[#111111] text-[#f5f0de] hover:bg-white/5"
+                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
           >
             Clear
           </button>
@@ -126,7 +152,11 @@ export default function SearchBar({
                 <li key={item.id}>
                   <button
                     onClick={() => handleSelect(item)}
-                    className="flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left transition-colors hover:bg-slate-50 last:border-b-0 sm:gap-4 sm:px-4 sm:py-4"
+                    className={`flex w-full items-center gap-3 border-b px-3 py-3 text-left transition-colors last:border-b-0 sm:gap-4 sm:px-4 sm:py-4 ${
+                      isBrutalist
+                        ? "border-white/10 hover:bg-white/5"
+                        : "border-slate-100 hover:bg-slate-50"
+                    }`}
                   >
                     {item.image && (
                       <img
@@ -136,11 +166,11 @@ export default function SearchBar({
                       />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-base font-semibold text-slate-900">
+                      <p className={`truncate text-base font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
                         {item.title}
                       </p>
                       {item.subtitle && (
-                        <p className="mt-1 text-sm text-slate-500">{item.subtitle}</p>
+                        <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>{item.subtitle}</p>
                       )}
                     </div>
                   </button>
@@ -149,8 +179,8 @@ export default function SearchBar({
             </ul>
           ) : !isLoading ? (
             <div className="p-8 text-center">
-              <p className="font-medium text-slate-700">No results found</p>
-              <p className="mt-2 text-sm text-slate-500">Try a different search term</p>
+              <p className={`font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-700"}`}>No results found</p>
+              <p className={`mt-2 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Try a different search term</p>
             </div>
           ) : null}
         </div>

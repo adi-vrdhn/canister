@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, X } from "lucide-react";
 import { CinePostWithDetails, User } from "@/types";
 import { deleteCinePost, updateCinePost } from "@/lib/cineposts";
 
@@ -74,11 +74,11 @@ export default function CinePostOwnerMenu({
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+          className="flex items-center justify-center p-1 text-[#ff7a1a] transition hover:text-[#ffb36b]"
           aria-label="Post options"
           aria-expanded={menuOpen}
         >
-          <MoreHorizontal className="h-5 w-5" />
+          <MoreVertical className="h-6 w-6" />
         </button>
 
         {menuOpen && (

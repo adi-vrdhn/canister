@@ -24,6 +24,7 @@ interface CinePostModalProps {
   onClose: () => void;
   user: User | null;
   onCreated?: () => void;
+  theme?: "default" | "brutalist";
 }
 
 function movieToContent(movie: TMDBMovie): Content {
@@ -45,7 +46,8 @@ function movieToContent(movie: TMDBMovie): Content {
   };
 }
 
-export default function CinePostModal({ isOpen, onClose, user, onCreated }: CinePostModalProps) {
+export default function CinePostModal({ isOpen, onClose, user, onCreated, theme = "default" }: CinePostModalProps) {
+  const isBrutalist = theme === "brutalist";
   const [anchorType, setAnchorType] = useState<CinePostAnchorType>("movie");
   const [postType, setPostType] = useState<CinePostType>("opinion");
   const [anchorQuery, setAnchorQuery] = useState("");
@@ -61,7 +63,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated }: Cine
     if (!isOpen) return;
 
     const query = anchorQuery.trim();
-    if (query.length < 2 || selectedContent) {
+    if (query.length < 1 || selectedContent) {
       setAnchorResults([]);
       setSearching(false);
       return;
@@ -161,19 +163,25 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated }: Cine
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-2 backdrop-blur-sm sm:items-center sm:p-6">
-      <div className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 p-4 backdrop-blur sm:p-6">
+      <div className={`max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border shadow-2xl ${
+        isBrutalist ? "border-white/10 bg-[#111111] text-[#f5f0de]" : "border-slate-200 bg-white"
+      }`}>
+        <div className={`sticky top-0 z-10 flex items-start justify-between gap-4 border-b p-4 backdrop-blur sm:p-6 ${
+          isBrutalist ? "border-white/10 bg-[#111111]/95" : "border-slate-200 bg-white/95"
+        }`}>
           <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
+            <div className={`mb-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] ${
+              isBrutalist ? "border-white/10 text-white/60" : "border-slate-200 text-slate-500"
+            }`}>
               <Sparkles className="h-3.5 w-3.5" />
               Post
             </div>
-            <h2 className="text-2xl font-black tracking-tight text-slate-950">Start a cinema thread</h2>
-            <p className="mt-1 text-sm text-slate-500">Pick a movie or TV show first, then write the take.</p>
+            <h2 className={`text-2xl font-black tracking-tight ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Start a cinema thread</h2>
+            <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Pick a movie or TV show first, then write the take.</p>
           </div>
           <button
             type="button"
-            className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
+            className={`rounded-full border p-2 transition ${isBrutalist ? "border-white/10 text-white/60 hover:bg-white/5 hover:text-[#f5f0de]" : "border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-950"}`}
             onClick={onClose}
             title="Close"
           >
@@ -293,27 +301,43 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated }: Cine
                 onClick={() => setPostType(type.value)}
                 className={`rounded-2xl border px-3 py-3 text-left transition ${
                   postType === type.value
-                    ? "border-slate-950 bg-slate-950 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    ? isBrutalist
+                      ? "border-white/10 bg-[#ff7a1a] text-[#0a0a0a]"
+                      : "border-slate-950 bg-slate-950 text-white"
+                    : isBrutalist
+                      ? "border-white/10 bg-[#0d0d0d] text-[#f5f0de] hover:border-white/20"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                 }`}
               >
                 <span className="block text-sm font-bold">{type.label}</span>
-                <span className={`mt-1 block text-[11px] ${postType === type.value ? "text-white/65" : "text-slate-400"}`}>
+                <span className={`mt-1 block text-[11px] ${
+                  postType === type.value
+                    ? isBrutalist
+                      ? "text-[#0a0a0a]/70"
+                      : "text-white/65"
+                    : isBrutalist
+                      ? "text-white/45"
+                      : "text-slate-400"
+                }`}>
                   {type.hint}
                 </span>
               </button>
             ))}
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <div className={`rounded-3xl border p-4 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <label className="text-sm font-semibold text-slate-900">Post details</label>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500">
+              <label className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Post details</label>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${isBrutalist ? "bg-white/5 text-white/55" : "bg-white text-slate-500"}`}>
                 {selectedType?.label}
               </span>
             </div>
             <textarea
-              className="min-h-36 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-100"
+              className={`min-h-36 w-full resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-4 ${
+                isBrutalist
+                  ? "border-white/10 bg-[#0d0d0d] text-[#f5f0de] focus:border-white/20 focus:ring-white/10"
+                  : "border-slate-200 bg-white text-slate-900 focus:border-slate-400 focus:ring-slate-100"
+              }`}
               placeholder="Write the take. Links are supported, and people can reply in threads."
               value={content}
               onChange={(event) => setContent(event.target.value)}
@@ -321,14 +345,14 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated }: Cine
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-900">Tags</label>
+            <label className={`mb-1 block text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Tags</label>
             <input
               className="field py-3"
               placeholder="cinematography, ending explained, comfort watch"
               value={tags}
               onChange={(event) => setTags(event.target.value)}
             />
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+            <p className={`mt-1 flex items-center gap-1.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
               <Clapperboard className="h-3.5 w-3.5" />
               Movie or TV tags are added automatically from your selected anchor.
             </p>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, onValue, ref } from "firebase/database";
-import { ArrowLeft, Grid3x3, List, Search } from "lucide-react";
+import { ArrowLeft, Grid3x3, List, MoreVertical, Search } from "lucide-react";
 import CinematicLoading from "@/components/CinematicLoading";
 import PageLayout from "@/components/PageLayout";
 import ShareModal from "@/components/ShareModal";
@@ -59,6 +59,7 @@ export default function AllMoviesPage() {
   const [shareFilter, setShareFilter] = useState<ShareFilter>("recent");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedShare, setSelectedShare] = useState<ShareWithDetails | null>(null);
+  const [showViewMenu, setShowViewMenu] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -210,23 +211,64 @@ export default function AllMoviesPage() {
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
       <div className="mx-auto max-w-6xl px-3 py-4 sm:p-8">
-        <div className="mb-5 flex items-center gap-3 sm:mb-8 sm:gap-4">
-          <Link
-            href="/dashboard"
-            className="flex shrink-0 items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 sm:gap-2 sm:text-base"
-          >
-            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-            Back
-          </Link>
+        <div className="mb-4 flex items-start justify-between gap-3 sm:mb-6">
           <div className="min-w-0">
+            <Link
+              href="/dashboard"
+              className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 sm:gap-2 sm:text-base"
+            >
+              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              Back
+            </Link>
             <h1 className="truncate text-xl font-bold text-gray-900 sm:text-3xl">
               Friends Activity
             </h1>
             <p className="text-xs text-gray-500 sm:text-sm">Shared titles and friends&apos; logs combined.</p>
           </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="View options"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100"
+              onClick={() => setShowViewMenu((current) => !current)}
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+            {showViewMenu && (
+              <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("grid");
+                    setShowViewMenu(false);
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium ${
+                    viewMode === "grid" ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                  Grid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("list");
+                    setShowViewMenu(false);
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium ${
+                    viewMode === "list" ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <List className="h-4 w-4" />
+                  List
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="mb-5 space-y-3 rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm sm:mb-8 sm:p-4">
+        <div className="mb-4 space-y-4 sm:mb-6">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {([
               ["all", "All"],
@@ -285,26 +327,6 @@ export default function AllMoviesPage() {
                 onChange={(event) => setSearchQuery(event.target.value)}
                 className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  viewMode === "grid" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                <Grid3x3 className="h-4 w-4" />
-                Grid
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  viewMode === "list" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                <List className="h-4 w-4" />
-                List
-              </button>
             </div>
           </div>
         </div>

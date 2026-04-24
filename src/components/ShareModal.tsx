@@ -13,6 +13,7 @@ interface ShareModalProps {
   currentUserId: string;
   onClose: () => void;
   user: any;
+  theme?: "default" | "brutalist";
 }
 
 interface ContextMenuPosition {
@@ -25,7 +26,9 @@ export default function ShareModal({
   currentUserId,
   onClose,
   user,
+  theme = "default",
 }: ShareModalProps) {
+  const isBrutalist = theme === "brutalist";
   const router = useRouter();
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState<ContextMenuPosition>({ x: 0, y: 0 });
@@ -56,11 +59,15 @@ export default function ShareModal({
       <>
         <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
-            <p className="text-gray-600">Movie data not available</p>
+          <div
+            className={`rounded-2xl border p-8 text-center shadow-2xl ${
+              isBrutalist ? "border-white/10 bg-[#111111] text-[#f5f0de]" : "bg-white"
+            }`}
+          >
+            <p className={isBrutalist ? "text-white/65" : "text-gray-600"}>Movie data not available</p>
             <button
               onClick={onClose}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className={isBrutalist ? "action-primary mt-4" : "mt-4 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"}
             >
               Close
             </button>
@@ -88,7 +95,7 @@ export default function ShareModal({
 
   const handleNavigateToProfile = () => {
     if (share.sender?.username) {
-      router.push(`/user/${share.sender.username}`);
+      router.push(`/profile/${share.sender.username}`);
     }
   };
 
@@ -209,15 +216,15 @@ export default function ShareModal({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="surface-strong max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-b-none rounded-t-3xl sm:max-h-[90vh] sm:rounded-3xl">
+        <div className={`surface-strong max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-b-none rounded-t-3xl sm:max-h-[90vh] sm:rounded-3xl ${isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : ""}`}>
           {/* Header with Close Button */}
-          <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:p-6">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
+          <div className={`sticky top-0 z-10 border-b px-4 py-3 backdrop-blur sm:p-6 ${isBrutalist ? "border-white/10 bg-[#111111]/95" : "border-slate-200 bg-white/95"}`}>
+            <div className={`mx-auto mb-3 h-1 w-10 rounded-full sm:hidden ${isBrutalist ? "bg-white/20" : "bg-slate-300"}`} />
             <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-slate-900 sm:text-xl">Shared with you</h3>
+              <h3 className={`text-base font-semibold sm:text-xl ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Shared with you</h3>
               {isWatched && (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
+                <span className={`rounded-full px-2 py-1 text-xs ${isBrutalist ? "border border-white/10 bg-white/5 text-white/70" : "border border-slate-200 bg-slate-50 text-slate-600"}`}>
                   Watched
                 </span>
               )}
@@ -225,14 +232,22 @@ export default function ShareModal({
             <div className="flex items-center gap-2">
               <button
                 onClick={handleMenuButtonClick}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:px-4 sm:py-2 sm:text-sm"
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm ${
+                  isBrutalist
+                    ? "border border-white/10 bg-[#0d0d0d] text-white/75 hover:bg-white/5"
+                    : "border border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
                 title="More options"
               >
                 More
               </button>
               <button
                 onClick={onClose}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:px-4 sm:py-2 sm:text-sm"
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm ${
+                  isBrutalist
+                    ? "border border-white/10 bg-[#0d0d0d] text-white/75 hover:bg-white/5"
+                    : "border border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
               >
                 Close
               </button>
@@ -248,7 +263,9 @@ export default function ShareModal({
                 onClick={handleNavigateToMovie}
                 className="cursor-pointer border-0 bg-none p-0 transition-opacity hover:opacity-80"
               >
-                <div className="h-36 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm sm:h-60 sm:w-40 sm:rounded-3xl">
+                <div className={`h-36 w-24 overflow-hidden rounded-2xl shadow-sm sm:h-60 sm:w-40 sm:rounded-3xl ${
+                  isBrutalist ? "border border-white/10 bg-[#0d0d0d]" : "border border-slate-200 bg-slate-100"
+                }`}>
                   {posterUrl ? (
                     <img
                       src={posterUrl}
@@ -256,7 +273,7 @@ export default function ShareModal({
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-slate-200 text-sm text-slate-500">
+                    <div className={`flex h-full w-full items-center justify-center text-sm ${isBrutalist ? "bg-white/5 text-white/45" : "bg-slate-200 text-slate-500"}`}>
                       No Image
                     </div>
                   )}
@@ -267,11 +284,11 @@ export default function ShareModal({
               <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
                 {/* Title */}
                 <div>
-                  <h2 className="line-clamp-3 text-xl font-semibold leading-tight text-slate-900 sm:text-3xl">
+                  <h2 className={`line-clamp-3 text-xl font-semibold leading-tight sm:text-3xl ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
                     {movie?.title || movie?.name}
                   </h2>
                   {(movie?.release_date || movie?.premiered) && (
-                    <p className="mt-1 text-xs text-slate-500 sm:mt-2 sm:text-sm">
+                    <p className={`mt-1 text-xs sm:mt-2 sm:text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
                       {new Date(
                         movie?.release_date || movie?.premiered
                       ).getFullYear()}
@@ -280,11 +297,13 @@ export default function ShareModal({
                 </div>
 
                 {/* Sharer Info */}
-                <div className="border-l-4 border-slate-900 pl-3 sm:pl-4">
-                  <p className="mb-1 text-xs text-slate-500 sm:mb-2 sm:text-sm">Shared by</p>
+                <div className={`pl-3 sm:pl-4 ${isBrutalist ? "border-l-4 border-[#ff7a1a]" : "border-l-4 border-slate-900"}`}>
+                  <p className={`mb-1 text-xs sm:mb-2 sm:text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Shared by</p>
                   <button
                     onClick={handleNavigateToProfile}
-                    className="line-clamp-1 cursor-pointer border-0 bg-none p-0 text-base font-semibold text-slate-900 transition-colors hover:text-slate-600 sm:text-xl"
+                    className={`line-clamp-1 cursor-pointer border-0 bg-none p-0 text-base font-semibold transition-colors sm:text-xl ${
+                      isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-900 hover:text-blue-600"
+                    }`}
                   >
                     {share.sender?.name || share.sender?.username || 'Unknown'}
                   </button>
@@ -294,8 +313,10 @@ export default function ShareModal({
 
             {/* Message Bubble (if exists) */}
             {share.note && (
-              <div className="rounded-r-2xl border-l-4 border-slate-900 bg-slate-50 p-4 sm:rounded-r-3xl sm:p-5">
-                <p className="text-sm italic text-slate-700 sm:text-base">"{share.note}"</p>
+              <div className={`rounded-r-2xl border-l-4 p-4 sm:rounded-r-3xl sm:p-5 ${
+                isBrutalist ? "border-[#ff7a1a] bg-white/[0.03]" : "border-slate-900 bg-slate-50"
+              }`}>
+                <p className={`text-sm italic sm:text-base ${isBrutalist ? "text-white/70" : "text-slate-700"}`}>"{share.note}"</p>
               </div>
             )}
 
@@ -322,13 +343,13 @@ export default function ShareModal({
         >
           <button
             onClick={handleMarkWatched}
-            className="w-full px-4 py-2 text-left text-slate-700 transition-colors hover:bg-slate-50"
+            className="w-full px-4 py-2 text-left text-white/80 transition-colors hover:bg-white/5"
           >
             Mark watched
           </button>
           <button
             onClick={handleDelete}
-            className="w-full px-4 py-2 text-left text-slate-700 transition-colors hover:bg-slate-50"
+            className="w-full px-4 py-2 text-left text-white/80 transition-colors hover:bg-white/5"
           >
             Delete from list
           </button>
@@ -343,6 +364,7 @@ export default function ShareModal({
           content={movie as Content}
           user={user}
           onLogCreated={handleLogCreated}
+          theme={isBrutalist ? "brutalist" : "default"}
         />
       )}
     </>

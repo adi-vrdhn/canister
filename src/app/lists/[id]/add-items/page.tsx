@@ -158,7 +158,7 @@ export default function AddItemsToListPage() {
 
   if (!list) {
     return (
-      <PageLayout user={user} onSignOut={handleSignOut}>
+      <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
         <div className="p-8 text-center">
           <p className="text-gray-600">List not found</p>
         </div>
@@ -167,31 +167,31 @@ export default function AddItemsToListPage() {
   }
 
   return (
-    <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="p-8 max-w-6xl mx-auto">
+    <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+      <div className="mx-auto max-w-6xl px-4 py-4 sm:p-8">
         {/* Header */}
         <Link
           href={`/lists/${listId}`}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6 font-medium"
+          className="mb-4 flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 sm:mb-6 sm:text-base"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           Back to {list.name}
         </Link>
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Add Items to List</h1>
-        <p className="text-gray-600 mb-8">Search and add movies or shows to your list</p>
+        <h1 className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Add Items to List</h1>
+        <p className="mb-6 text-sm text-gray-600 sm:mb-8 sm:text-base">Search and add movies or shows to your list</p>
 
         {/* Search Section */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           {/* Tab Selection */}
-          <div className="flex gap-2 mb-6">
+          <div className="mb-5 flex gap-2 sm:mb-6">
             <button
               onClick={() => {
                 setSelectedTab("movie");
                 setSearchResults([]);
                 setSearchQuery("");
               }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
                 selectedTab === "movie"
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -205,7 +205,7 @@ export default function AddItemsToListPage() {
                 setSearchResults([]);
                 setSearchQuery("");
               }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
                 selectedTab === "tv"
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -216,8 +216,8 @@ export default function AddItemsToListPage() {
           </div>
 
           {/* Search Input */}
-          <div className="relative mb-6">
-            <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+          <div className="relative mb-5 sm:mb-6">
+            <Search className="absolute left-4 top-3 h-4 w-4 text-gray-400 sm:top-3.5 sm:h-5 sm:w-5" />
             <input
               type="text"
               value={searchQuery}
@@ -226,14 +226,14 @@ export default function AddItemsToListPage() {
                 handleSearch(e.target.value);
               }}
               placeholder={`Search ${selectedTab === "movie" ? "movies" : "shows"}...`}
-              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-base"
             />
           </div>
         </div>
 
         {/* Results Grid */}
         {searchResults.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
             {searchResults.map((content) => {
               const key = `${content.id}-${content.type || "movie"}`;
               const isAdded = addedItems.has(key);
@@ -241,10 +241,10 @@ export default function AddItemsToListPage() {
               return (
                 <div
                   key={key}
-                  className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow"
+                  className="overflow-hidden rounded-lg bg-white shadow-md transition-shadow hover:shadow-lg"
                 >
                   {/* Poster */}
-                  <div className="relative aspect-video bg-gray-200 overflow-hidden">
+                  <div className="relative aspect-[3/4] overflow-hidden bg-gray-200">
                     {content.poster_url ? (
                       <img
                         src={content.poster_url}
@@ -264,11 +264,11 @@ export default function AddItemsToListPage() {
                   </div>
 
                   {/* Content Info */}
-                  <div className="p-3">
-                    <h3 className="font-semibold text-sm text-gray-900 line-clamp-2 mb-2">
+                  <div className="p-2.5 sm:p-3">
+                    <h3 className="mb-1.5 line-clamp-2 text-[11px] font-semibold text-gray-900 sm:mb-2 sm:text-sm">
                       {content.title}
                     </h3>
-                    <p className="text-xs text-gray-500 mb-3">
+                    <p className="mb-2 text-[10px] text-gray-500 sm:mb-3 sm:text-xs">
                       {content.release_date
                         ? new Date(content.release_date).getFullYear()
                         : "N/A"}
@@ -278,7 +278,7 @@ export default function AddItemsToListPage() {
                     <button
                       onClick={() => handleAddItem(content)}
                       disabled={isAdded}
-                      className={`w-full py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-1 transition-colors ${
+                      className={`flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium transition-colors sm:py-2 sm:text-sm ${
                         isAdded
                           ? "bg-green-100 text-green-700 cursor-not-allowed"
                           : "bg-blue-600 hover:bg-blue-700 text-white active:bg-blue-800"
@@ -302,25 +302,25 @@ export default function AddItemsToListPage() {
             })}
           </div>
         ) : searchQuery ? (
-          <div className="text-center py-12">
+          <div className="py-10 text-center sm:py-12">
             {searching ? (
               <>
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
-                <p className="text-gray-600">Searching...</p>
+                <Loader2 className="mx-auto mb-3 h-7 w-7 animate-spin text-blue-600 sm:h-8 sm:w-8" />
+                <p className="text-sm text-gray-600 sm:text-base">Searching...</p>
               </>
             ) : (
               <>
-                <Search className="w-8 h-8 mx-auto mb-3 text-gray-400" />
-                <p className="text-gray-600">
+                <Search className="mx-auto mb-3 h-7 w-7 text-gray-400 sm:h-8 sm:w-8" />
+                <p className="text-sm text-gray-600 sm:text-base">
                   No {selectedTab === "movie" ? "movies" : "shows"} found matching "{searchQuery}"
                 </p>
               </>
             )}
           </div>
         ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-            <Search className="w-8 h-8 mx-auto mb-3 text-gray-400" />
-            <p className="text-gray-600">
+          <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 py-10 text-center sm:py-12">
+            <Search className="mx-auto mb-3 h-7 w-7 text-gray-400 sm:h-8 sm:w-8" />
+            <p className="text-sm text-gray-600 sm:text-base">
               Start typing to search for {selectedTab === "movie" ? "movies" : "shows"}
             </p>
           </div>

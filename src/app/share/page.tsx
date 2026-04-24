@@ -12,6 +12,7 @@ import { get, onValue, ref, set } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getMovieDetails, searchMovies } from "@/lib/tmdb";
 import { getShowDetails, searchShows, ShowDetails } from "@/lib/tvmaze";
+import { hasUserWatchedContent } from "@/lib/watched-movies";
 import { ChevronLeft, ChevronRight, SendHorizontal, Trash2 } from "lucide-react";
 
 type SearchResultItem = {
@@ -60,6 +61,7 @@ function SharePageContent() {
   const [sharedSearchQuery, setSharedSearchQuery] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activePanel, setActivePanel] = useState<"share" | "history">("share");
 
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
@@ -71,6 +73,9 @@ function SharePageContent() {
   const [yearFilter, setYearFilter] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [sentShares, setSentShares] = useState<ShareWithDetails[]>([]);
+  const [showWatchConflictModal, setShowWatchConflictModal] = useState(false);
+  const [pendingShareRecipients, setPendingShareRecipients] = useState<User[]>([]);
+  const [watchConflictRecipients, setWatchConflictRecipients] = useState<User[]>([]);
   const hasInitializedFromParams = useRef(false);
 
   useEffect(() => {
@@ -395,6 +400,41 @@ function SharePageContent() {
     setSelectedRecipients((prev) => prev.filter((recipient) => recipient.id !== recipientId));
   };
 
+  const resetShareFlow = () => {
+    setCurrentStep(1);
+    setSelectedContent(null);
+    setSelectedRecipients([]);
+    setShareNote("");
+    setFollowersSearchQuery("");
+    setContentTypeFilter("all");
+    setYearFilter("");
+    setSearchResults([]);
+    setWatchConflictRecipients([]);
+    setPendingShareRecipients([]);
+    setShowWatchConflictModal(false);
+  };
+
+  const sendSharesToRecipients = async (recipients: User[]) => {
+    if (!selectedContent || recipients.length === 0 || !user) return;
+
+    const contentType = selectedContent.type === "tv" ? "tv" : "movie";
+    for (const recipient of recipients) {
+      const shareId = `share-${user.id}-${recipient.id}-${contentType}-${selectedContent.id}-${Date.now()}`;
+
+      await set(ref(db, `shares/${shareId}`), {
+        id: shareId,
+        sender_id: user.id,
+        receiver_id: recipient.id,
+        content_id: selectedContent.id,
+        content_type: contentType,
+        movie: selectedContent,
+        content: selectedContent,
+        note: shareNote || null,
+        created_at: new Date().toISOString(),
+      });
+    }
+  };
+
   const handleShare = async () => {
     if (!selectedContent || selectedRecipients.length === 0 || !user) {
       return;
@@ -402,31 +442,47 @@ function SharePageContent() {
 
     try {
       const contentType = selectedContent.type === "tv" ? "tv" : "movie";
+      const watchResults = await Promise.all(
+        selectedRecipients.map(async (recipient) => {
+          const watched = await hasUserWatchedContent(recipient.id, selectedContent.id, contentType);
+          return { recipient, watched: Boolean(watched) };
+        })
+      );
 
-      for (const recipient of selectedRecipients) {
-        const shareId = `share-${user.id}-${recipient.id}-${contentType}-${selectedContent.id}-${Date.now()}`;
-
-        await set(ref(db, `shares/${shareId}`), {
-          id: shareId,
-          sender_id: user.id,
-          receiver_id: recipient.id,
-          content_id: selectedContent.id,
-          content_type: contentType,
-          movie: selectedContent,
-          content: selectedContent,
-          note: shareNote || null,
-          created_at: new Date().toISOString(),
-        });
+      const watchedRecipients = watchResults.filter((result) => result.watched).map((result) => result.recipient);
+      if (watchedRecipients.length > 0) {
+        setPendingShareRecipients(selectedRecipients);
+        setWatchConflictRecipients(watchedRecipients);
+        setShowWatchConflictModal(true);
+        return;
       }
 
-      setCurrentStep(1);
-      setSelectedContent(null);
-      setSelectedRecipients([]);
-      setShareNote("");
-      setFollowersSearchQuery("");
-      setContentTypeFilter("all");
-      setYearFilter("");
-      setSearchResults([]);
+      await sendSharesToRecipients(selectedRecipients);
+      resetShareFlow();
+    } catch (error) {
+      console.error("Error sharing content:", error);
+    }
+  };
+
+  const handleSendAnyway = async () => {
+    try {
+      await sendSharesToRecipients(pendingShareRecipients);
+      resetShareFlow();
+    } catch (error) {
+      console.error("Error sharing content:", error);
+    }
+  };
+
+  const handleSendOnlyUnwatched = async () => {
+    try {
+      const unwatchedRecipients = pendingShareRecipients.filter(
+        (recipient) => !watchConflictRecipients.some((watched) => watched.id === recipient.id)
+      );
+
+      if (unwatchedRecipients.length > 0) {
+        await sendSharesToRecipients(unwatchedRecipients);
+      }
+      resetShareFlow();
     } catch (error) {
       console.error("Error sharing content:", error);
     }
@@ -459,50 +515,72 @@ function SharePageContent() {
   }
 
   return (
-    <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="relative min-h-screen overflow-hidden px-1 pb-12 pt-3 sm:px-8 sm:pt-8">
-        <div className="share-orb share-float-slow absolute -left-28 top-20 h-80 w-80 rounded-full" />
-        <div className="share-orb share-float-slow share-float-delay absolute -right-20 top-56 h-72 w-72 rounded-full" />
-
+    <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+      <div className="min-h-screen px-4 pb-8 pt-4 sm:px-8 sm:pt-6">
         <div className="mx-auto w-full max-w-6xl">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] xl:gap-8">
-            <section className="share-card overflow-hidden">
-              <div className="border-b border-zinc-200/70 px-4 py-5 sm:px-8">
+          <div className="mb-5 flex items-center gap-2 border-b border-white/10 pb-4">
+            <button
+              type="button"
+              onClick={() => setActivePanel("share")}
+              className={`inline-flex items-center gap-2 border px-4 py-2 text-sm font-semibold transition ${
+                activePanel === "share"
+                  ? "border-[#ff7a1a] bg-[#ff7a1a] text-[#0a0a0a]"
+                  : "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/[0.08]"
+              }`}
+            >
+              Share
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePanel("history")}
+              className={`inline-flex items-center gap-2 border px-4 py-2 text-sm font-semibold transition ${
+                activePanel === "history"
+                  ? "border-[#ff7a1a] bg-[#ff7a1a] text-[#0a0a0a]"
+                  : "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/[0.08]"
+              }`}
+            >
+              History
+            </button>
+          </div>
+
+          {activePanel === "share" ? (
+            <section>
+              <div className="px-0 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Share Flow</p>
-                    <h2 className="mt-1 text-xl font-semibold text-zinc-900 sm:text-2xl">Send a recommendation</h2>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Share Flow</p>
+                    <h2 className="mt-1 text-xl font-semibold text-[#f5f0de] sm:text-2xl">Send a recommendation</h2>
                   </div>
-                  <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      currentStep === 1 ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"
+                  <div className="flex max-w-full gap-3 overflow-x-auto pb-1">
+                    <span className={`text-xs font-semibold ${
+                      currentStep === 1 ? "text-[#f5f0de]" : "text-white/35"
                     }`}>
                       1. Pick title
                     </span>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      currentStep === 2 ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"
+                    <span className={`text-xs font-semibold ${
+                      currentStep === 2 ? "text-[#f5f0de]" : "text-white/35"
                     }`}>
                       2. Pick friends
                     </span>
                   </div>
                 </div>
 
-                <div className="share-progress mt-4 h-2 rounded-full bg-zinc-200/70">
+                <div className="mt-4 h-1.5 overflow-hidden bg-white/10">
                   <div
-                    className="h-full rounded-full bg-zinc-900 transition-all duration-500"
+                    className="h-full bg-[#ff7a1a] transition-all duration-500"
                     style={{ width: `${progressPercentage}%` }}
                   />
                 </div>
               </div>
 
-              <div className="min-h-[28rem] p-4 sm:min-h-[31rem] sm:p-8">
+              <div className="min-h-[24rem] py-4 sm:min-h-[28rem] sm:py-6">
                 <div
                   className={`transition-all duration-500 ${
                     currentStep === 1 ? "opacity-100 translate-x-0" : "opacity-0 translate-x-6"
                   } ${currentStep !== 1 ? "hidden" : ""}`}
                 >
-                  <h3 className="text-xl font-semibold text-zinc-900 sm:text-2xl">Select a Movie or Show</h3>
-                  <p className="mt-1 text-sm text-zinc-600">Find the right title first, then continue.</p>
+                  <h3 className="text-xl font-semibold text-[#f5f0de] sm:text-2xl">Select a Movie or Show</h3>
+                  <p className="mt-1 text-sm text-white/65">Find the right title first, then continue.</p>
 
                   <div className="mt-6 flex flex-wrap gap-2">
                     <button
@@ -512,7 +590,9 @@ function SharePageContent() {
                         setSearchResults([]);
                         setYearFilter("");
                       }}
-                      className={`share-pill ${contentTypeFilter === "all" ? "share-pill-active" : ""}`}
+                      className={`text-sm font-medium ${
+                        contentTypeFilter === "all" ? "text-[#f5f0de]" : "text-white/45 hover:text-[#f5f0de]"
+                      }`}
                     >
                       All
                     </button>
@@ -524,7 +604,9 @@ function SharePageContent() {
                         setSearchResults([]);
                         setYearFilter("");
                       }}
-                      className={`share-pill ${contentTypeFilter === "movies" ? "share-pill-active" : ""}`}
+                      className={`text-sm font-medium ${
+                        contentTypeFilter === "movies" ? "text-[#f5f0de]" : "text-white/45 hover:text-[#f5f0de]"
+                      }`}
                     >
                       Movies
                     </button>
@@ -536,7 +618,9 @@ function SharePageContent() {
                         setSearchResults([]);
                         setYearFilter("");
                       }}
-                      className={`share-pill ${contentTypeFilter === "tv" ? "share-pill-active" : ""}`}
+                      className={`text-sm font-medium ${
+                        contentTypeFilter === "tv" ? "text-[#f5f0de]" : "text-white/45 hover:text-[#f5f0de]"
+                      }`}
                     >
                       TV Shows
                     </button>
@@ -552,7 +636,8 @@ function SharePageContent() {
                         }
                         handleSelectContent(item as SearchResultItem);
                       }}
-                      minChars={2}
+                      minChars={1}
+                      theme="brutalist"
                     />
                   </div>
 
@@ -578,29 +663,29 @@ function SharePageContent() {
                   )}
 
                   {yearFilter && filteredResults.length > 0 && (
-                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4">
-                      <p className="mb-3 text-sm font-semibold text-zinc-900">
-                        Results for {yearFilter} ({filteredResults.length})
-                      </p>
+                      <div className="mt-4">
+                        <p className="mb-3 text-sm font-semibold text-[#f5f0de]">
+                          Results for {yearFilter} ({filteredResults.length})
+                        </p>
 
-                      <div className="share-soft-scroll max-h-64 space-y-2 overflow-y-auto pr-1">
+                      <div className="max-h-64 space-y-3 overflow-y-auto pr-1">
                         {filteredResults.map((item) => (
                           <button
                             key={item.id}
                             onClick={() => handleSelectContent(item)}
-                            className="group flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md"
+                            className="group flex w-full items-center gap-3 border-b border-white/10 px-0 py-2 text-left transition-colors hover:border-white/20"
                           >
                             {item.image && (
                               <img
                                 src={item.image}
                                 alt={item.title}
-                                className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
-                              />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold text-zinc-900">{item.title}</p>
-                              <p className="truncate text-xs text-zinc-500">{item.subtitle}</p>
-                            </div>
+                              className="h-16 w-12 flex-shrink-0 rounded object-cover"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-[#f5f0de]">{item.title}</p>
+                              <p className="truncate text-xs text-white/55">{item.subtitle}</p>
+                          </div>
                           </button>
                         ))}
                       </div>
@@ -608,33 +693,33 @@ function SharePageContent() {
                   )}
 
                   {selectedContent && (
-                    <div className="mt-6 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
-                      <div className="flex flex-col gap-4 sm:flex-row">
+                  <div className="mt-5 sm:mt-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                         {selectedContent.poster_url && (
                           <img
                             src={selectedContent.poster_url}
                             alt={selectedContent.title}
-                            className="h-44 w-28 rounded-2xl object-cover shadow-sm sm:h-48 sm:w-32"
+                            className="h-40 w-24 rounded-lg object-cover sm:h-44 sm:w-28"
                           />
                         )}
 
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-lg font-semibold text-zinc-900">✓ {selectedContent.title}</p>
-                            <span className="rounded-full bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white">
+                            <p className="text-lg font-semibold text-[#f5f0de]">✓ {selectedContent.title}</p>
+                            <span className="rounded-full bg-[#ff7a1a] px-2.5 py-1 text-xs font-semibold text-[#0a0a0a]">
                               {selectedContent.type === "tv" ? "TV Show" : "Movie"}
                             </span>
                           </div>
 
-                          <p className="mt-2 text-sm text-zinc-600">
+                          <p className="mt-2 text-sm text-white/65">
                             {selectedContent.release_date?.split("-")[0]} • {selectedContent.runtime} min
                           </p>
 
-                          <p className="mt-3 line-clamp-3 text-sm text-zinc-600">{selectedContent.overview}</p>
+                          <p className="mt-3 line-clamp-3 text-sm text-white/65">{selectedContent.overview}</p>
 
                           <button
                             onClick={() => setSelectedContent(null)}
-                            className="mt-4 text-sm font-semibold text-zinc-700 underline underline-offset-2 hover:text-zinc-900"
+                            className="mt-4 text-sm font-semibold text-[#ffb36b] underline underline-offset-2 hover:text-[#f5f0de]"
                           >
                             Choose something else
                           </button>
@@ -649,28 +734,28 @@ function SharePageContent() {
                     currentStep === 2 ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-6"
                   } ${currentStep !== 2 ? "hidden" : ""}`}
                 >
-                  <h3 className="text-xl font-semibold text-zinc-900 sm:text-2xl">Send to Friends</h3>
-                  <p className="mt-1 text-sm text-zinc-600">Pick recipients and attach a short note.</p>
+                  <h3 className="text-xl font-semibold text-[#f5f0de] sm:text-2xl">Send to Friends</h3>
+                  <p className="mt-1 text-sm text-white/65">Pick recipients and attach a short note.</p>
 
                   {selectedContent && (
-                    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 sm:px-4">
+                    <div className="mt-5 flex items-center gap-3 border-b border-zinc-200 py-3">
                       {selectedContent.poster_url && (
                         <img
                           src={selectedContent.poster_url}
                           alt={selectedContent.title}
-                          className="h-20 w-14 rounded-lg object-cover"
+                          className="h-16 w-12 rounded object-cover"
                         />
                       )}
                       <div>
-                        <p className="text-sm font-semibold text-zinc-900">{selectedContent.title}</p>
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-sm font-semibold text-[#f5f0de]">{selectedContent.title}</p>
+                        <p className="text-xs text-white/55">
                           {selectedContent.type === "tv" ? "TV Show" : "Movie"} • ready to share
                         </p>
                       </div>
                     </div>
                   )}
 
-                  <div className="mt-5">
+                  <div className="mt-4">
                     <input
                       type="text"
                       placeholder="Search friends..."
@@ -680,24 +765,24 @@ function SharePageContent() {
                     />
                   </div>
 
-                  <div className="share-soft-scroll mb-4 mt-4 max-h-56 space-y-2 overflow-y-auto pr-1">
+                  <div className="mb-3 mt-4 max-h-56 space-y-1 overflow-y-auto pr-1">
                     {filteredFollowers.length > 0 ? (
                       filteredFollowers.map((friend) => (
                         <button
                           key={friend.id}
-                          className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-sm sm:px-4"
+                          className="flex w-full items-center justify-between gap-3 border-b border-white/10 px-0 py-3 text-left transition-colors hover:border-white/20"
                           onClick={() => handleAddRecipient(friend.id)}
                         >
                           <div>
-                            <p className="text-sm font-semibold text-zinc-900">@{friend.username}</p>
-                            <p className="text-xs text-zinc-500">{friend.name}</p>
+                            <p className="text-sm font-semibold text-[#f5f0de]">@{friend.username}</p>
+                            <p className="text-xs text-white/55">{friend.name}</p>
                           </div>
 
                           <div
                             className={`flex h-5 w-5 items-center justify-center rounded-full border ${
                               selectedRecipients.find((recipient) => recipient.id === friend.id)
-                                ? "border-zinc-900 bg-zinc-900 text-white"
-                                : "border-zinc-300 text-transparent"
+                                ? "border-[#ff7a1a] bg-[#ff7a1a] text-[#0a0a0a]"
+                                : "border-white/20 text-transparent"
                             }`}
                           >
                             ✓
@@ -710,31 +795,29 @@ function SharePageContent() {
                   </div>
 
                   {selectedRecipients.length > 0 && (
-                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                      <p className="mb-2 text-sm font-semibold text-zinc-800">
+                    <div className="py-2">
+                      <p className="mb-2 text-sm font-semibold text-[#f5f0de]">
                         Selected: {selectedRecipients.length} friend{selectedRecipients.length !== 1 ? "s" : ""}
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedRecipients.map((recipient) => (
-                          <div
-                            key={recipient.id}
-                            className="inline-flex items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1 text-sm"
-                          >
-                            <span className="text-zinc-900">@{recipient.username}</span>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/65">
+                        {selectedRecipients.map((recipient, index) => (
+                          <span key={recipient.id} className="inline-flex items-center gap-2">
+                            <span className="text-[#f5f0de]">@{recipient.username}</span>
                             <button
                               onClick={() => handleRemoveRecipient(recipient.id)}
-                              className="text-zinc-400 hover:text-red-600"
+                              className="text-white/45 hover:text-[#ff7a1a]"
                             >
                               ×
                             </button>
-                          </div>
+                            {index < selectedRecipients.length - 1 && <span className="text-white/25">•</span>}
+                          </span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <div className="mt-4">
-                    <label className="mb-2 block text-sm font-medium text-zinc-700">Add a Note (Optional)</label>
+                  <div className="mt-3">
+                    <label className="mb-2 block text-sm font-medium text-[#f5f0de]">Add a Note (Optional)</label>
                     <textarea
                       value={shareNote}
                       onChange={(e) => setShareNote(e.target.value.slice(0, 300))}
@@ -743,12 +826,12 @@ function SharePageContent() {
                       rows={3}
                       maxLength={300}
                     />
-                    <p className="mt-1 text-right text-xs text-zinc-500">{shareNote.length}/300</p>
+                    <p className="mt-1 text-right text-xs text-white/45">{shareNote.length}/300</p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-zinc-200/70 bg-white/70 px-4 py-4 sm:px-8">
+              <div className="flex items-center justify-between gap-3 border-t border-white/10 px-0 py-4">
                 <button
                   onClick={() => {
                     if (currentStep > 1) {
@@ -789,14 +872,14 @@ function SharePageContent() {
                 </div>
               </div>
             </section>
-
-            <aside className="share-card h-fit overflow-hidden xl:sticky xl:top-8">
-              <div className="border-b border-zinc-200/70 px-4 py-5 sm:px-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Sent Log</p>
-                <h2 className="mt-1 text-xl font-semibold text-zinc-900 sm:text-2xl">Movies You Shared</h2>
+          ) : (
+            <section>
+              <div className="px-0 py-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Share History</p>
+                <h2 className="mt-1 text-xl font-semibold text-[#f5f0de] sm:text-2xl">Movies You Shared</h2>
               </div>
 
-              <div className="p-4 sm:p-6">
+              <div className="py-3">
                 <input
                   type="text"
                   placeholder="Search shared movies..."
@@ -806,47 +889,47 @@ function SharePageContent() {
                 />
 
                 {filteredSentShares.length > 0 ? (
-                  <div className="share-soft-scroll max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+                  <div className="max-h-[50rem] divide-y divide-white/10 overflow-y-auto pr-1">
                     {filteredSentShares.map((share) => {
                       const item = share.movie || share.content;
 
                       return (
                         <div
                           key={share.id}
-                          className="group flex items-start gap-3 rounded-2xl border border-zinc-200 bg-white p-3 transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-sm"
+                          className="group flex items-start gap-3 py-3"
                         >
                           {item?.poster_url && (
                             <img
                               src={item.poster_url}
                               alt={item.title}
-                              className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
+                              className="h-16 w-12 flex-shrink-0 object-cover"
                             />
                           )}
 
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-zinc-900">{item?.title || "Unknown"}</p>
-                            <p className="mt-1 text-xs text-zinc-500">To @{share.receiver?.username}</p>
+                            <p className="truncate text-sm font-semibold text-[#f5f0de]">{item?.title || "Unknown"}</p>
+                            <p className="mt-1 text-xs text-white/55">To @{share.receiver?.username}</p>
 
                             {share.content_type && (
-                              <p className="mt-1 text-xs font-medium text-zinc-600">
+                              <p className="mt-1 text-xs font-medium text-white/55">
                                 {share.content_type === "tv" ? "TV Show" : "Movie"}
                               </p>
                             )}
 
                             {share.note && (
-                              <p className="mt-2 border-l-2 border-zinc-300 pl-2 text-xs italic text-zinc-600">
+                              <p className="mt-2 pl-2 text-xs italic text-white/65">
                                 &quot;{share.note}&quot;
                               </p>
                             )}
 
-                            <p className="mt-1 text-xs text-zinc-400">
+                            <p className="mt-1 text-xs text-white/40">
                               {new Date(share.created_at).toLocaleDateString()}
                             </p>
                           </div>
 
                           <button
                             onClick={() => handleRemoveShare(share.id)}
-                            className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            className="rounded-md p-1 text-white/45 transition-colors hover:bg-white/5 hover:text-[#ff7a1a]"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -855,17 +938,75 @@ function SharePageContent() {
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 py-12 text-center">
-                    <p className="text-zinc-500">No shares yet</p>
-                    <p className="mt-1 text-sm text-zinc-400">Share your first movie!</p>
+                  <div className="py-12 text-center">
+                    <p className="text-[#f5f0de]">No shares yet</p>
+                    <p className="mt-1 text-sm text-white/45">Share your first movie!</p>
                   </div>
                 )}
               </div>
-            </aside>
-          </div>
+            </section>
+          )}
         </div>
       </div>
-    </PageLayout>
+
+      {showWatchConflictModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center">
+          <div className="w-full max-w-lg rounded-t-[2rem] border border-white/10 bg-[#111111] p-4 text-[#f5f0de] shadow-2xl sm:rounded-[2rem] sm:p-6">
+            <h3 className="text-lg font-semibold text-[#f5f0de] sm:text-xl">They already watched this</h3>
+            <p className="mt-2 text-sm text-white/65">
+              {watchConflictRecipients.length === 1
+                ? `${watchConflictRecipients[0].name} has already watched this title. Do you still want to send it?`
+                : `${watchConflictRecipients.map((recipient) => recipient.name).join(", ")} have already watched this title. Do you still want to send it to everyone?`}
+            </p>
+
+            <div className="mt-4 rounded-2xl bg-white/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                Watched recipients
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {watchConflictRecipients.map((recipient) => (
+                  <span
+                    key={recipient.id}
+                    className="rounded-full bg-black px-3 py-1 text-sm font-medium text-[#f5f0de] shadow-sm ring-1 ring-white/10"
+                  >
+                    @{recipient.username}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWatchConflictModal(false);
+                  setPendingShareRecipients([]);
+                  setWatchConflictRecipients([]);
+                }}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-[#f5f0de] hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendOnlyUnwatched}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-[#f5f0de] hover:bg-white/5"
+              >
+                Send only unwatched
+              </button>
+              <button
+                type="button"
+                onClick={handleSendAnyway}
+                className="rounded-xl bg-[#ff7a1a] px-4 py-2.5 text-sm font-semibold text-[#0a0a0a] hover:bg-[#ff8d3b]"
+              >
+                Send anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </PageLayout>
   );
 }
 

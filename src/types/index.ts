@@ -245,6 +245,35 @@ export interface MovieLogWithContent extends MovieLog {
   tagged_users?: User[]; // Populated user objects for tagged_people
 }
 
+export interface LogComment {
+  id: string;
+  log_id: string;
+  user_id: string;
+  parent_id: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LogCommentWithUser extends LogComment {
+  user: User;
+  replies: LogCommentWithUser[];
+  insightScore: number;
+  likes_count: number;
+  liked_by_current_user: boolean;
+}
+
+export interface WatchedMovie {
+  id: string;
+  user_id: string;
+  content_id: number;
+  content_type: "movie" | "tv";
+  logged: boolean;
+  list_marked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // CinePost Types
 export type CinePostType = "trivia" | "theory" | "analysis" | "opinion" | "log";
 export type CinePostAnchorType = "movie" | "tv";

@@ -6,10 +6,9 @@ import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
 import { User } from "@/types";
-import { auth, db, storage } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, verifyBeforeUpdateEmail, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { ref, get } from "firebase/database";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { signOut as authSignOut } from "@/lib/auth";
 import { updateUserProfile } from "@/lib/profile";
 import { Loader2, ArrowLeft, Save, Upload, Camera, X } from "lucide-react";
@@ -270,21 +269,23 @@ export default function EditProfilePage() {
     try {
       setUploadError("");
       setUploadingAvatar(true);
-
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const filePath = `avatars/${user.id}/${Date.now()}.${extension}`;
-      const avatarRef = storageRef(storage, filePath);
-
-      await uploadBytes(avatarRef, file, {
-        contentType: file.type,
-        cacheControl: "public,max-age=3600",
-      });
-      const downloadUrl = await getDownloadURL(avatarRef);
+      const downloadUrl = await compressImageToDataUrl(file);
 
       setFormData((prev) => ({
         ...prev,
         avatar_url: downloadUrl,
       }));
+
+      try {
+        await updateUserProfile(user.id, {
+          avatar_url: downloadUrl,
+        });
+
+        setUser((prev) => (prev ? { ...prev, avatar_url: downloadUrl } : prev));
+      } catch (saveAvatarError) {
+        console.error("Error saving avatar preview to profile:", saveAvatarError);
+        setUploadError("Profile photo preview is ready, but saving it failed. Try saving your profile changes once more.");
+      }
     } catch (error: any) {
       console.error("Error uploading avatar:", error);
 
@@ -294,16 +295,20 @@ export default function EditProfilePage() {
           ...prev,
           avatar_url: fallbackDataUrl,
         }));
-        setUploadError(
-          "Storage upload failed, so a local compressed profile image was used instead. Save changes to apply it."
-        );
+        try {
+          await updateUserProfile(user.id, {
+            avatar_url: fallbackDataUrl,
+          });
+
+          setUser((prev) => (prev ? { ...prev, avatar_url: fallbackDataUrl } : prev));
+          setUploadError("Profile photo saved locally.");
+        } catch (saveAvatarError) {
+          console.error("Error saving fallback avatar to profile:", saveAvatarError);
+          setUploadError("Could not save the profile photo. Please try again.");
+        }
       } catch {
         const errorMessage = typeof error?.message === "string" ? error.message : "";
-        if (errorMessage.includes("storage") || errorMessage.includes("CORS") || errorMessage.includes("404")) {
-          setUploadError("Storage is not configured for this Firebase project yet. Enable Firebase Storage, then try again.");
-        } else {
-          setUploadError("Failed to upload image. Please try again.");
-        }
+        setUploadError(errorMessage || "Failed to upload image. Please try again.");
       }
     } finally {
       setUploadingAvatar(false);

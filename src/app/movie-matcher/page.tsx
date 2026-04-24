@@ -222,7 +222,7 @@ export default function MovieMatcherPage() {
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
 
-    if (query.trim().length < 2) {
+    if (query.trim().length < 1) {
       setSearchResults([]);
       return;
     }

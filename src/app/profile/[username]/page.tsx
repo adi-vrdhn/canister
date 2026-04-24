@@ -22,8 +22,6 @@ import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { getListWithDetails, getUserLists } from "@/lib/lists";
 import { searchMovies } from "@/lib/tmdb";
 import {
-  getFollowerCount,
-  getFollowingCount,
   getMostWatchedGenres,
   getUserByUsername,
   getUserProfile,
@@ -31,7 +29,7 @@ import {
   updateUserProfile,
 } from "@/lib/profile";
 import { signOut as authSignOut } from "@/lib/auth";
-import type { ListWithItems, MovieLogWithContent, User } from "@/types";
+import type { List, ListWithItems, MovieLogWithContent, User } from "@/types";
 
 type FollowModalType = "followers" | "following" | "requests" | "sent-requests";
 
@@ -109,6 +107,8 @@ function ProfilePageInner() {
   const [followingCount, setFollowingCount] = useState(0);
   const [mostWatchedGenres, setMostWatchedGenres] = useState<any[]>([]);
   const [recentMoodGenres, setRecentMoodGenres] = useState<string[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [listsLoading, setListsLoading] = useState(false);
   const [notifications, setNotifications] = useState<SocialNotification[]>([]);
   const [allFollows, setAllFollows] = useState<FollowRecord[]>([]);
   const [usersById, setUsersById] = useState<Record<string, User>>({});
@@ -116,6 +116,8 @@ function ProfilePageInner() {
   const [following, setFollowing] = useState<User[]>([]);
   const [displayList, setDisplayList] = useState<ListWithItems | null>(null);
   const [ownerPublicLists, setOwnerPublicLists] = useState<any[]>([]);
+  const [ownerPublicListsLoading, setOwnerPublicListsLoading] = useState(false);
+  const [profileLists, setProfileLists] = useState<List[]>([]);
   const [selectedDisplayListId, setSelectedDisplayListId] = useState("");
   const [updatingDisplayList, setUpdatingDisplayList] = useState(false);
 
@@ -209,6 +211,32 @@ function ProfilePageInner() {
           console.log('[PROFILE] Final fallback getUserProfile by ID result:', profileUserObj);
         }
         if (!profileUserObj) {
+          const allUsersSnapshot = await get(ref(db, "users"));
+          if (allUsersSnapshot.exists()) {
+            const allUsersRaw = allUsersSnapshot.val() as Record<string, any>;
+            const normalizedSlug = String(username || "").trim().replace(/^@/, "").toLowerCase();
+            const legacyNameMatch = Object.values(allUsersRaw).find((user: any) => {
+              const storedName = String(user?.name || "").trim().toLowerCase();
+              return storedName === normalizedSlug;
+            });
+
+            if (legacyNameMatch) {
+              profileUserObj = {
+                id: legacyNameMatch.id || legacyNameMatch.user_id,
+                username: legacyNameMatch.username || "",
+                name: legacyNameMatch.name || "",
+                avatar_url: legacyNameMatch.avatar_url || null,
+                created_at: legacyNameMatch.createdAt,
+                bio: legacyNameMatch.bio || "",
+                display_list_id: legacyNameMatch.display_list_id || undefined,
+                mood_tags: legacyNameMatch.mood_tags || [],
+                mood_tags_updated_at: legacyNameMatch.mood_tags_updated_at,
+              } as User;
+              console.log('[PROFILE] Legacy name fallback result:', profileUserObj);
+            }
+          }
+        }
+        if (!profileUserObj) {
           console.log('[PROFILE] User not found after all attempts.');
           setProfilePageError("User not found.");
           setLoading(false);
@@ -218,25 +246,13 @@ function ProfilePageInner() {
         console.log('[PROFILE] Profile user set:', profileUserObj);
 
         const [
-          statsObj,
-          followerCountVal,
-          followingCountVal,
           followersSnap,
           usersSnap,
-          genres,
-          recentLogs,
-          lists,
           notificationsSnap,
           connectedDisplayList,
         ] = await Promise.all([
-          getUserStats(profileUserObj.id),
-          getFollowerCount(profileUserObj.id),
-          getFollowingCount(profileUserObj.id),
           get(ref(db, `follows`)),
           get(ref(db, `users`)),
-          getMostWatchedGenres(profileUserObj.id),
-          getUserMovieLogs(profileUserObj.id, 5),
-          getUserLists(profileUserObj.id),
           isOwnProfile
             ? get(ref(db, `notifications/${profileUserObj.id}`))
             : Promise.resolve(null),
@@ -244,15 +260,6 @@ function ProfilePageInner() {
             ? getListWithDetails(profileUserObj.display_list_id).catch(() => null)
             : Promise.resolve(null),
         ]);
-
-        setStats(statsObj);
-        setFollowerCount(followerCountVal);
-        setFollowingCount(followingCountVal);
-        setMostWatchedGenres(genres);
-        setRecentMoodGenres(getRecentMoodGenres(recentLogs));
-        console.log('[PROFILE] Stats:', statsObj);
-        console.log('[PROFILE] Follower count:', followerCountVal, 'Following count:', followingCountVal);
-        console.log('[PROFILE] Most watched genres:', genres);
 
         const allFollowsRaw: FollowRecord[] = followersSnap.exists()
           ? Object.entries(
@@ -270,6 +277,10 @@ function ProfilePageInner() {
         const followingUserIds = allFollowsRaw
           .filter((f) => f.follower_id === profileUserObj.id && f.status === 'accepted')
           .map((f) => f.following_id);
+
+        setFollowerCount(followerUserIds.length);
+        setFollowingCount(followingUserIds.length);
+        console.log('[PROFILE] Follower count:', followerUserIds.length, 'Following count:', followingUserIds.length);
 
         const allUsersRaw = usersSnap.exists() ? usersSnap.val() : {};
         const followersArr = followerUserIds.map((uid: string) => allUsersRaw[uid]).filter(Boolean);
@@ -306,9 +317,6 @@ function ProfilePageInner() {
           setNotifications([]);
         }
 
-        setOwnerPublicLists(lists.filter((l: any) => l.privacy === "public"));
-        console.log('[PROFILE] Public lists:', lists.filter((l: any) => l.privacy === "public"));
-
         if (profileUserObj.display_list_id) {
           setDisplayList(connectedDisplayList && connectedDisplayList.privacy === "public" ? connectedDisplayList : null);
           setSelectedDisplayListId(profileUserObj.display_list_id);
@@ -328,6 +336,95 @@ function ProfilePageInner() {
   }, [username, router]);
 
   const isOwnProfile = !!currentUser && !!profileUser && currentUser.id === profileUser.id;
+
+  useEffect(() => {
+    if (!profileUser || activeTab !== "stats") return;
+
+    let cancelled = false;
+
+    const loadStats = async () => {
+      try {
+        setStatsLoading(true);
+        const [statsObj, genres, recentLogs] = await Promise.all([
+          getUserStats(profileUser.id),
+          getMostWatchedGenres(profileUser.id),
+          getUserMovieLogs(profileUser.id, 5),
+        ]);
+
+        if (cancelled) return;
+        setStats(statsObj);
+        setMostWatchedGenres(genres);
+        setRecentMoodGenres(getRecentMoodGenres(recentLogs));
+      } catch (error) {
+        console.error("[PROFILE] Error loading stats:", error);
+      } finally {
+        if (!cancelled) {
+          setStatsLoading(false);
+        }
+      }
+    };
+
+    loadStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, profileUser]);
+
+  useEffect(() => {
+    if (!profileUser || activeTab !== "lists") return;
+
+    let cancelled = false;
+
+    const loadLists = async () => {
+      try {
+        setListsLoading(true);
+        const lists = await getUserLists(profileUser.id);
+        if (cancelled) return;
+
+        setProfileLists(isOwnProfile ? lists : lists.filter((list: List) => list.privacy === "public"));
+      } catch (error) {
+        console.error("[PROFILE] Error loading lists:", error);
+      } finally {
+        if (!cancelled) {
+          setListsLoading(false);
+        }
+      }
+    };
+
+    loadLists();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isOwnProfile, profileUser]);
+
+  useEffect(() => {
+    if (!profileUser || !isOwnProfile || profileUser.display_list_id || activeTab === "lists") return;
+
+    let cancelled = false;
+
+    const loadOwnerPublicLists = async () => {
+      try {
+        setOwnerPublicListsLoading(true);
+        const lists = await getUserLists(profileUser.id);
+        if (cancelled) return;
+        setOwnerPublicLists(lists.filter((list: List) => list.privacy === "public"));
+      } catch (error) {
+        console.error("[PROFILE] Error loading owner public lists:", error);
+      } finally {
+        if (!cancelled) {
+          setOwnerPublicListsLoading(false);
+        }
+      }
+    };
+
+    loadOwnerPublicLists();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, profileUser]);
 
   useEffect(() => {
     setOpenFollowMenuUserId(null);
@@ -866,7 +963,7 @@ function ProfilePageInner() {
     }
   };
 
-  if (loading || !profileUser || !stats) {
+  if (loading || !profileUser) {
     return <CinematicLoading message="This cinematic profile is loading" />;
   }
 
@@ -926,17 +1023,47 @@ function ProfilePageInner() {
               )}
 
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <h1
-                    className="min-w-0 text-3xl font-semibold tracking-tight text-slate-950 sm:text-5xl"
-                    style={{ fontFamily: '"Bodoni Moda", "Playfair Display", "Times New Roman", serif' }}
-                  >
-                    {DOMPurify.sanitize(profileUser.name)}
-                  </h1>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h1
+                      className="min-w-0 text-3xl font-semibold tracking-tight text-slate-950 sm:text-5xl"
+                      style={{ fontFamily: '"Bodoni Moda", "Playfair Display", "Times New Roman", serif' }}
+                    >
+                      {DOMPurify.sanitize(profileUser.name)}
+                    </h1>
+
+                    <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-base font-semibold tracking-wide text-slate-600 sm:text-lg">
+                      @{DOMPurify.sanitize(profileUser.username)}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-600 sm:text-base">
+                      <button
+                        onClick={() => {
+                          setFollowModalType("followers");
+                          setFollowSearch("");
+                          setIsFollowModalOpen(true);
+                        }}
+                        className="font-medium transition hover:text-slate-950"
+                      >
+                        <span className="font-bold text-slate-950">{formatCompactCount(followerCount)}</span> followers
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFollowModalType("following");
+                          setFollowSearch("");
+                          setIsFollowModalOpen(true);
+                        }}
+                        className="font-medium transition hover:text-slate-950"
+                      >
+                        <span className="font-bold text-slate-950">{formatCompactCount(followingCount)}</span> following
+                      </button>
+                    </div>
+                  </div>
+
                   {!isOwnProfile && currentUser && (
-                    <div className="flex items-center gap-2">
+                    <div className="shrink-0 pt-1 sm:pt-2">
                       {hasIncomingFollowRequestFromProfile ? (
-                        <>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() =>
                               profileToViewerPendingFollow &&
@@ -965,7 +1092,7 @@ function ProfilePageInner() {
                           >
                             Decline
                           </button>
-                        </>
+                        </div>
                       ) : (
                         <button
                           onClick={isFollowingProfile ? handleUnfollowProfile : handleSendFollowRequest}
@@ -983,33 +1110,6 @@ function ProfilePageInner() {
                       )}
                     </div>
                   )}
-                </div>
-
-                <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-base font-semibold tracking-wide text-slate-600 sm:text-lg">
-                  @{DOMPurify.sanitize(profileUser.username)}
-                </p>
-
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-600 sm:text-base">
-                  <button
-                    onClick={() => {
-                      setFollowModalType("followers");
-                      setFollowSearch("");
-                      setIsFollowModalOpen(true);
-                    }}
-                    className="font-medium transition hover:text-slate-950"
-                  >
-                    <span className="font-bold text-slate-950">{formatCompactCount(followerCount)}</span> followers
-                  </button>
-                  <button
-                    onClick={() => {
-                      setFollowModalType("following");
-                      setFollowSearch("");
-                      setIsFollowModalOpen(true);
-                    }}
-                    className="font-medium transition hover:text-slate-950"
-                  >
-                    <span className="font-bold text-slate-950">{formatCompactCount(followingCount)}</span> following
-                  </button>
                 </div>
               </div>
             </div>
@@ -1143,7 +1243,9 @@ function ProfilePageInner() {
                   Connect one of your public lists to feature it on your profile.
                 </p>
 
-                {ownerPublicLists.length > 0 ? (
+                {ownerPublicListsLoading ? (
+                  <p className="text-sm text-slate-500">Loading your public lists...</p>
+                ) : ownerPublicLists.length > 0 ? (
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <select
                       title="Select an option"
@@ -1219,14 +1321,14 @@ function ProfilePageInner() {
             >
               Liked
             </button>
-            {isOwnProfile && (
-              <Link
-                href="/lists"
-                className="flex-1 rounded-xl px-4 py-3 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Lists
-              </Link>
-            )}
+            <button
+              onClick={() => setActiveTab("lists")}
+              className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                activeTab === "lists" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Lists
+            </button>
           </div>
         </section>
 
@@ -1513,14 +1615,20 @@ function ProfilePageInner() {
         )}
         {activeTab === "stats" && (
           <div className="space-y-6">
-            <StatsInsights
-              genres={mostWatchedGenres}
-              masterpieceCount={stats.masterpieceCount}
-              goodCount={stats.goodCount}
-              badCount={stats.badCount}
-              totalWatched={stats.totalLogged}
-              onStatClick={handleStatDrillDown}
-            />
+            {statsLoading || !stats ? (
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                Loading stats...
+              </div>
+            ) : (
+              <StatsInsights
+                genres={mostWatchedGenres}
+                masterpieceCount={stats.masterpieceCount}
+                goodCount={stats.goodCount}
+                badCount={stats.badCount}
+                totalWatched={stats.totalLogged}
+                onStatClick={handleStatDrillDown}
+              />
+            )}
           </div>
         )}
 
@@ -1534,6 +1642,68 @@ function ProfilePageInner() {
 
         {activeTab === "liked-posts" && profileUser && (
           <ProfileCinePostsPanel mode="liked" profileUserId={profileUser.id} currentUser={currentUser} />
+        )}
+
+        {activeTab === "lists" && profileUser && (
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-6">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">Lists</h2>
+                <p className="text-sm text-slate-500">
+                  {profileUser.name}'s lists
+                </p>
+              </div>
+              <Link
+                href="/lists"
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Open lists page
+              </Link>
+            </div>
+
+            {listsLoading ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                Loading lists...
+              </div>
+            ) : profileLists.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                No lists yet.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {profileLists.map((list) => (
+                  <Link
+                    key={list.id}
+                    href={`/lists/${list.id}`}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-base font-black text-slate-950">{list.name}</h3>
+                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
+                          {list.description || "No description yet."}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                        {list.privacy}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        {list.owner_id === profileUser.id ? "Owned" : "Collaborative"}
+                      </span>
+                      {list.is_ranked && (
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                          Ranked
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
         )}
 
       </div>

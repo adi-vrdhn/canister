@@ -3,7 +3,7 @@ import "./globals.css";
 import HydrationFix from "@/components/HydrationFix";
 
 export const metadata: Metadata = {
-  title: "CANISTER",
+  title: "Canisterr",
   description: "Share movies with people who matter",
 };
 

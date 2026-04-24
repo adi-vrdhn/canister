@@ -283,7 +283,7 @@ export default function UserLogPage() {
   const handleSearch = async (queryText: string) => {
     setSearchQuery(queryText);
 
-    if (queryText.trim().length < 2) {
+    if (queryText.trim().length < 1) {
       setSearchResults([]);
       return;
     }

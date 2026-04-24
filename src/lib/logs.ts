@@ -3,6 +3,7 @@ import { ref, set, get, push, remove, query, orderByChild, equalTo, onValue } fr
 import { MovieLog, MovieLogWithContent, User, Content, Movie } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
+import { removeWatchedMovieSource, upsertWatchedMovie } from "./watched-movies";
 
 function createFallbackMovieContent(movieId: number): Movie {
   return {
@@ -161,6 +162,7 @@ export async function createMovieLog(
   }
 
   await set(logRef, newLog);
+  await upsertWatchedMovie(userId, contentId, contentType, "log");
   return newLog;
 }
 
@@ -179,11 +181,22 @@ export async function updateMovieLog(
   }
 
   const currentLog = snapshot.val();
-  await set(logRef, {
+  const mergedLog = {
     ...currentLog,
     ...updates,
     updated_at: new Date().toISOString(),
-  });
+  };
+
+  await set(logRef, mergedLog);
+
+  if (mergedLog.watched_date && !mergedLog.watch_later) {
+    await upsertWatchedMovie(
+      mergedLog.user_id,
+      mergedLog.content_id,
+      mergedLog.content_type,
+      "log"
+    );
+  }
 }
 
 /**
@@ -191,6 +204,13 @@ export async function updateMovieLog(
  */
 export async function deleteMovieLog(logId: string): Promise<void> {
   const logRef = ref(db, `movie_logs/${logId}`);
+  const snapshot = await get(logRef);
+  if (snapshot.exists()) {
+    const log = snapshot.val() as MovieLog;
+    if (!log.watch_later) {
+      await removeWatchedMovieSource(log.user_id, log.content_id, log.content_type, "log");
+    }
+  }
   await remove(logRef);
 }
 

@@ -144,7 +144,7 @@ export default function UserProfilePage() {
               <p className="text-sm text-gray-600">Following</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-gray-900">{stats.averageRating.toFixed(1)}</p>
+              <p className="text-2xl font-bold text-gray-900">{Number(stats?.averageRating || 0).toFixed(1)}</p>
               <p className="text-sm text-gray-600">Avg Rating</p>
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function UserProfilePage() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-sm text-yellow-600 font-medium">Average Rating</p>
-                  <p className="text-3xl font-bold text-yellow-900 mt-1">{stats.averageRating.toFixed(1)}/5</p>
+                  <p className="text-3xl font-bold text-yellow-900 mt-1">{Number(stats?.averageRating || 0).toFixed(1)}/5</p>
                 </div>
                 <Star className="w-8 h-8 text-yellow-400 fill-yellow-400" />
               </div>
@@ -245,7 +245,7 @@ export default function UserProfilePage() {
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
                   <span className="text-gray-700">Average Rating</span>
-                  <span className="font-bold text-gray-900">{stats.averageRating.toFixed(1)} out of 5</span>
+                  <span className="font-bold text-gray-900">{Number(stats?.averageRating || 0).toFixed(1)} out of 5</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
                   <span className="text-gray-700">Most Common Mood</span>

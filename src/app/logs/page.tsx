@@ -40,9 +40,9 @@ function getReactionLabel(log: MovieLogWithContent): string {
 }
 
 function getReactionClasses(log: MovieLogWithContent): string {
-  if (log.reaction === 2) return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  if (log.reaction === 1) return "bg-sky-50 text-sky-700 border border-sky-200";
-  return "bg-rose-50 text-rose-700 border border-rose-200";
+  if (log.reaction === 2) return "border border-orange-500/35 bg-orange-500/12 text-orange-200";
+  if (log.reaction === 1) return "border border-white/10 bg-white/5 text-[#f5f0de]";
+  return "border border-white/10 bg-white/5 text-white/65";
 }
 
 function isUnavailableContent(log: MovieLogWithContent): boolean {
@@ -69,6 +69,23 @@ function formatMonthName(date: Date): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
   }).format(date);
+}
+
+function formatShortLogDate(dateStr: string): string {
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  }).formatToParts(date);
+
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+
+  return `${day} ${month} '${year}`;
 }
 
 function formatWatchedDate(dateStr: string): string {
@@ -147,18 +164,18 @@ function LogCard({
       onClick={() => onOpen(log)}
       className="group grid w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-2.5 text-left sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-4"
     >
-      <div className="relative flex flex-col items-center justify-center text-slate-900">
+      <div className="relative flex flex-col items-center justify-center text-[#ff7a1a]">
         <span className="text-2xl font-black leading-none tracking-tight sm:text-3xl">
           {getDayDD(log.watched_date)}
         </span>
-        <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:text-xs">
+        <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#ffb36b]/75 sm:text-xs">
           {new Date(`${log.watched_date}T00:00:00`).toLocaleDateString("en-US", { month: "short" })}
         </span>
       </div>
 
-      <div className="rounded-[1.35rem] bg-white p-2.5 shadow-[0_16px_35px_rgba(15,23,42,0.16)] transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_20px_45px_rgba(15,23,42,0.24)] sm:rounded-[1.5rem] sm:p-3">
+      <div className="rounded-[1.35rem] border border-white/10 bg-[#111111] p-2.5 shadow-[0_16px_35px_rgba(0,0,0,0.22)] transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_20px_45px_rgba(0,0,0,0.28)] sm:rounded-[1.5rem] sm:p-3">
         <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto]">
-          <div className="relative overflow-hidden rounded-lg border border-gray-200 bg-gray-100 shadow-sm">
+          <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white/5 shadow-sm">
             {log.content.poster_url ? (
               <img
                 src={log.content.poster_url}
@@ -166,21 +183,21 @@ function LogCard({
                 className="h-[4.3rem] w-full object-cover sm:h-[5rem]"
               />
             ) : (
-              <div className="flex h-[4.3rem] w-full items-center justify-center px-1 text-center text-[9px] text-gray-500 sm:h-[5rem]">
+              <div className="flex h-[4.3rem] w-full items-center justify-center px-1 text-center text-[9px] text-white/45 sm:h-[5rem]">
                 No image
               </div>
             )}
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold leading-tight text-gray-950 sm:text-sm">
+            <p className="truncate text-sm font-bold leading-tight text-[#f5f0de] sm:text-sm">
               {log.content.title}
             </p>
-            <p className="mt-0.5 truncate text-[10px] font-medium text-gray-500 sm:text-xs">
+            <p className="mt-0.5 truncate text-[10px] font-medium text-white/60 sm:text-xs">
               Watched {formatWatchedDate(log.watched_date)}
             </p>
             {isUnavailableContent(log) && (
-              <span className="mt-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+              <span className="mt-2 inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-200">
                 Details unavailable
               </span>
             )}
@@ -189,14 +206,14 @@ function LogCard({
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${getReactionClasses(log)}`}>
                 {getReactionLabel(log)}
               </span>
-              <span className="text-[10px] font-semibold text-gray-400 transition group-hover:text-blue-600 sm:hidden">
+              <span className="text-[10px] font-semibold text-white/45 transition group-hover:text-[#ffb36b] sm:hidden">
                 Details
               </span>
             </div>
           </div>
 
           <div className="hidden justify-end sm:flex">
-            <span className="rounded-full border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-500 transition group-hover:border-blue-200 group-hover:text-blue-700">
+            <span className="rounded-full border border-white/10 px-2 py-1 text-xs font-semibold text-white/45 transition group-hover:border-orange-500/30 group-hover:text-[#ffb36b]">
               Details
             </span>
           </div>
@@ -220,6 +237,7 @@ export default function LogsPage() {
   const [searchResults, setSearchResults] = useState<Content[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchFilter, setSearchFilter] = useState<"all" | "movie" | "tv">("all");
+  const [logSearchQuery, setLogSearchQuery] = useState("");
 
   const [currentMonth, setCurrentMonth] = useState<Date>(monthStart(new Date()));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -308,6 +326,18 @@ export default function LogsPage() {
     return monthLogs.slice().sort(compareLogsDesc);
   }, [listMode, logs, monthLogs, selectedDay, dayLogs]);
 
+  const visibleLogs = useMemo(() => {
+    const normalized = logSearchQuery.trim().toLowerCase();
+    if (!normalized) return displayLogs;
+
+    return displayLogs.filter((log) => {
+      const title = log.content.title.toLowerCase();
+      const notes = (log.notes || "").toLowerCase();
+      const type = log.content_type === "tv" ? "tv show" : "movie";
+      return title.includes(normalized) || notes.includes(normalized) || type.includes(normalized);
+    });
+  }, [displayLogs, logSearchQuery]);
+
   const calendarCells = useMemo(() => {
     const { start, end } = getMonthRange(currentMonth);
     const firstWeekdayIndex = (start.getDay() + 6) % 7;
@@ -345,7 +375,7 @@ export default function LogsPage() {
   const handleSearch = async (queryText: string) => {
     setSearchQuery(queryText);
 
-    if (queryText.trim().length < 2) {
+    if (queryText.trim().length < 1) {
       setSearchResults([]);
       return;
     }
@@ -460,62 +490,73 @@ export default function LogsPage() {
   }
 
   return (
-    <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="mx-auto max-w-6xl space-y-5 px-1 pb-8 sm:space-y-6 sm:p-8">
-        <div className="rounded-[2rem] border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur sm:bg-transparent sm:p-0 sm:shadow-none sm:border-0">
+    <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+      <div className="brutalist mx-auto max-w-6xl space-y-5 px-1 pb-8 sm:space-y-6 sm:p-8">
+        <div className="flex flex-row items-center gap-3">
           <button
             onClick={() => {
               setSearchQuery("");
               setSearchResults([]);
               setShowSearchModal(true);
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 sm:w-auto sm:rounded-lg sm:py-2 sm:font-medium"
+            className="action-primary flex basis-[30%] min-w-0 items-center justify-center gap-2 rounded-full px-3 py-3 text-sm font-semibold sm:px-4"
           >
             <Plus className="w-5 h-5" />
             Log Movie
           </button>
+
+          <div className="relative basis-[70%] min-w-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+            <input
+              type="text"
+              value={logSearchQuery}
+              onChange={(e) => setLogSearchQuery(e.target.value)}
+              placeholder="Search logged movies & TV shows"
+              className="field w-full rounded-full py-3 pl-10 pr-4 text-sm"
+            />
+          </div>
         </div>
 
-        <div className="overflow-hidden bg-[#fbfcff]">
-          <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 sm:px-5 sm:py-3">
+        <div className="space-y-0">
+          <div className="flex items-center justify-between px-3 py-2.5 sm:px-5 sm:py-3">
             <button
               onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              className="rounded-full border border-slate-200 bg-white p-1.5 text-slate-700 shadow-sm transition hover:bg-slate-50 sm:p-2"
+              className="rounded-full border border-white/10 bg-white/5 p-1.5 text-[#f5f0de] shadow-sm transition hover:bg-white/10 sm:p-2"
               aria-label="Previous month"
             >
               <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
 
             <div className="min-w-0 text-center">
-              <h2 className="text-2xl font-black uppercase leading-none tracking-normal text-blue-900/70 sm:text-4xl">
+              <h2 className="text-2xl font-black uppercase leading-none tracking-normal text-[#f5f0de] sm:text-4xl">
                 {formatMonthName(currentMonth)}
               </h2>
-              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.24em] text-slate-500 sm:text-[10px]">
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.24em] text-[#ffb36b] sm:text-[10px]">
                 {currentMonth.getFullYear()}
               </p>
             </div>
 
             <button
               onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              className="rounded-full border border-slate-200 bg-white p-1.5 text-slate-700 shadow-sm transition hover:bg-slate-50 sm:p-2"
+              className="rounded-full border border-white/10 bg-white/5 p-1.5 text-[#f5f0de] shadow-sm transition hover:bg-white/10 sm:p-2"
               aria-label="Next month"
             >
               <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-white/70">
+          <div className="grid grid-cols-7 border-y border-white/10 bg-white/[0.02]">
             {WEEKDAYS.map((day) => (
-              <div key={day} className="border-r border-slate-200 py-2 text-center text-[9px] font-black uppercase tracking-[0.16em] text-slate-600 last:border-r-0 sm:text-xs">
+              <div key={day} className="border-r border-white/10 py-2 text-center text-[9px] font-black uppercase tracking-[0.16em] text-[#ffb36b]/80 last:border-r-0 sm:text-xs">
                 {day}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 bg-white">
+          <div className="grid grid-cols-7 bg-[#111111]">
             {calendarCells.map((cell) => {
               if (!cell.inMonth || !cell.date) {
-                return <div key={cell.key} className="min-h-[5.5rem] border-b border-r border-slate-200 bg-slate-50/75 sm:min-h-[8.5rem]" />;
+                return <div key={cell.key} className="min-h-[6.25rem] border-b border-r border-white/10 bg-white/[0.02] sm:min-h-[9rem]" />;
               }
 
               const day = cell.date.getDate();
@@ -534,12 +575,12 @@ export default function LogsPage() {
                     setSelectedDay((prev) => (prev === dayKey ? null : dayKey));
                     scrollToListSection();
                   }}
-                  className={`group relative min-h-[5.5rem] overflow-hidden border-b border-r border-slate-200 text-left transition sm:min-h-[8.5rem] ${
+                  className={`group relative min-h-[6.25rem] overflow-hidden border-b border-r border-white/10 text-left transition sm:min-h-[9rem] ${
                     isSelected
-                      ? "bg-blue-50 shadow-[inset_0_0_0_2px_rgba(37,99,235,0.55)]"
+                      ? "bg-orange-500/10 shadow-[inset_0_0_0_2px_rgba(255,122,26,0.55)]"
                       : dayLogsInCell.length > 0
-                      ? "bg-white hover:bg-sky-50/70"
-                      : "bg-[#fbfcff] hover:bg-white"
+                      ? "bg-[#101010] hover:bg-white/[0.03]"
+                      : "bg-[#0f0f0f] hover:bg-white/[0.03]"
                   }`}
                 >
                   {dayLogsInCell.length > 0 ? (
@@ -578,17 +619,17 @@ export default function LogsPage() {
                         ))}
                       </div>
                       {dayLogsInCell.length > 1 && (
-                        <span className="absolute bottom-1 right-1 z-40 rounded-sm bg-slate-950 px-1.5 py-0.5 text-[10px] font-black leading-none text-white shadow-sm sm:bottom-1.5 sm:right-1.5 sm:text-xs">
+                        <span className="absolute bottom-1 right-1 z-40 rounded-sm bg-[#ff7a1a] px-1.5 py-0.5 text-[10px] font-black leading-none text-black shadow-sm sm:bottom-1.5 sm:right-1.5 sm:text-xs">
                           {dayLogsInCell.length}
                         </span>
                       )}
                     </div>
                   ) : (
                     <>
-                      <span className={`absolute left-1.5 top-1.5 z-20 text-[11px] font-black sm:left-2.5 sm:top-2.5 sm:text-sm ${isSelected ? "text-blue-700" : "text-slate-600"}`}>
+                      <span className={`absolute left-1.5 top-1.5 z-20 text-[11px] font-black sm:left-2.5 sm:top-2.5 sm:text-sm ${isSelected ? "text-[#ffb36b]" : "text-[#ff7a1a]"}`}>
                         {day}
                       </span>
-                      <div className="pointer-events-none absolute inset-x-3 bottom-3 hidden h-px bg-slate-200/70 sm:block" />
+                      <div className="pointer-events-none absolute inset-x-3 bottom-3 hidden h-px bg-white/10 sm:block" />
                     </>
                   )}
                 </button>
@@ -599,28 +640,28 @@ export default function LogsPage() {
 
         <div
           ref={listSectionRef}
-          className="relative -mx-1 scroll-mt-24 overflow-hidden rounded-[2.25rem] border border-blue-100 bg-gradient-to-b from-blue-100/90 via-sky-50/95 to-white p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_24px_70px_rgba(37,99,235,0.12)] sm:-mx-2 sm:p-5"
+          className="relative -mx-1 scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-[#2a2a2a]/95 via-[#1f1f1f]/95 to-[#141414]/95 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_20px_50px_rgba(0,0,0,0.24)] sm:-mx-2 sm:p-4"
         >
-          <div className="pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-blue-300/25 blur-3xl" />
-          <div className="pointer-events-none absolute -right-20 top-64 h-72 w-72 rounded-full bg-cyan-200/35 blur-3xl" />
-          <div className="relative mb-5 flex flex-col items-center gap-3 text-center">
+          <div className="pointer-events-none absolute -left-12 top-8 h-40 w-40 rounded-full bg-white/5 blur-3xl" />
+          <div className="pointer-events-none absolute -right-16 top-56 h-48 w-48 rounded-full bg-white/4 blur-3xl" />
+          <div className="relative mb-3 flex flex-col items-center gap-2.5 text-center">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-500/70">
+              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb36b]/75">
                 Watch Diary
               </p>
-              <h3 className="mt-1 text-2xl font-black leading-tight text-slate-950 sm:text-3xl">
+              <h3 className="mt-0.5 text-xl font-black leading-tight text-[#f5f0de] sm:text-2xl">
                 {listMode === "all"
                   ? "All Months"
                   : selectedDay
-                  ? `Logs for ${selectedDay}`
+                ? `Logs for ${formatShortLogDate(selectedDay)}`
                   : `Logs for ${formatMonthTitle(currentMonth)}`}
               </h3>
             </div>
 
-            <div className="grid w-full max-w-xs grid-cols-2 rounded-full border border-white/70 bg-white/75 p-1 shadow-sm backdrop-blur sm:inline-grid">
+            <div className="grid w-full max-w-[16rem] grid-cols-2 border border-white/10 bg-white/[0.04] p-1 shadow-sm backdrop-blur">
               <button
                 onClick={() => setListMode("month")}
-                className={`rounded-full px-3 py-2 text-sm font-black transition ${
+                className={`rounded-full px-2.5 py-1.5 text-xs font-black transition sm:text-sm ${
                   listMode === "month" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-white"
                 }`}
               >
@@ -631,22 +672,23 @@ export default function LogsPage() {
                   setListMode("all");
                   setSelectedDay(null);
                 }}
-                className={`rounded-full px-3 py-2 text-sm font-black transition ${
+                className={`rounded-full px-2.5 py-1.5 text-xs font-black transition sm:text-sm ${
                   listMode === "all" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-white"
                 }`}
               >
                 All
               </button>
             </div>
+
           </div>
 
-          {displayLogs.length > 0 ? (
+          {visibleLogs.length > 0 ? (
             listMode === "all" ? (
               // Grouped by month for "All" mode
               <div className="relative space-y-7">
-                {groupLogsByMonth(displayLogs).map((group) => (
+                {groupLogsByMonth(visibleLogs).map((group) => (
                   <div key={group.month}>
-                    <h4 className="mb-3 text-center text-sm font-black uppercase tracking-[0.18em] text-slate-700">
+                    <h4 className="mb-3 text-center text-sm font-black uppercase tracking-[0.18em] text-[#ffb36b]/70">
                       {group.month}
                     </h4>
                     <div className="space-y-3">
@@ -664,7 +706,7 @@ export default function LogsPage() {
             ) : (
               // Regular list for "Month" mode
               <div className="relative space-y-3">
-                {displayLogs.map((log) => (
+                {visibleLogs.map((log) => (
                   <LogCard
                     key={log.id}
                     log={log}
@@ -674,8 +716,10 @@ export default function LogsPage() {
               </div>
             )
           ) : (
-            <div className="relative py-10 text-center text-slate-500">
-              No logs for this selection.
+            <div className="relative py-10 text-center text-white/55">
+              {logSearchQuery.trim()
+                ? "No logged movies or TV shows match your search."
+                : "No logs for this selection."}
             </div>
           )}
         </div>
@@ -683,12 +727,12 @@ export default function LogsPage() {
 
       {showSearchModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-4">
-          <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-lg">
-            <div className="flex items-center justify-between border-b border-gray-200 p-4 sm:p-6">
-              <h2 className="text-lg font-bold text-gray-900 sm:text-xl">Search & Log Movie</h2>
+          <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#111111] text-[#f5f0de] shadow-2xl sm:max-h-[90vh] sm:rounded-lg">
+            <div className="flex items-center justify-between border-b border-white/10 p-4 sm:p-6">
+              <h2 className="text-lg font-bold text-[#f5f0de] sm:text-xl">Search & Log Movie</h2>
               <button
                 onClick={() => setShowSearchModal(false)}
-                className="rounded-full border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                className="rounded-full border border-white/10 p-2 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]"
                 aria-label="Close search modal"
                 title="Close search modal"
               >
@@ -696,29 +740,29 @@ export default function LogsPage() {
               </button>
             </div>
 
-            <div className="border-b border-gray-200 p-4 sm:p-6">
+            <div className="border-b border-white/10 p-4 sm:p-6">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                 <input
                   type="text"
                   placeholder="Search movies & shows..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   autoFocus
-                  className="w-full rounded-2xl border border-gray-300 py-3 pl-10 pr-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 sm:rounded-lg"
+                  className="field py-3 pl-10 pr-4 text-base"
                 />
               </div>
             </div>
 
             {searchResults.length > 0 && (
               <>
-                <div className="sticky top-0 flex gap-2 overflow-x-auto border-b border-gray-200 bg-white p-4">
+                <div className="sticky top-0 flex gap-2 overflow-x-auto border-b border-white/10 bg-[#111111] p-4">
                   <button
                     onClick={() => setSearchFilter("all")}
                     className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "all"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        ? "bg-[#ff7a1a] text-black"
+                        : "bg-white/5 text-[#f5f0de] hover:bg-white/10"
                     }`}
                   >
                     All
@@ -727,8 +771,8 @@ export default function LogsPage() {
                     onClick={() => setSearchFilter("movie")}
                     className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "movie"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        ? "bg-[#ff7a1a] text-black"
+                        : "bg-white/5 text-[#f5f0de] hover:bg-white/10"
                     }`}
                   >
                     Movies
@@ -737,8 +781,8 @@ export default function LogsPage() {
                     onClick={() => setSearchFilter("tv")}
                     className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                       searchFilter === "tv"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        ? "bg-[#ff7a1a] text-black"
+                        : "bg-white/5 text-[#f5f0de] hover:bg-white/10"
                     }`}
                   >
                     TV Shows
@@ -750,24 +794,24 @@ export default function LogsPage() {
                       <div
                         key={`${result.type}-${result.id}`}
                         onClick={() => handleSelectContent(result)}
-                        className="flex cursor-pointer items-center gap-3 border-b border-gray-100 p-4 transition-colors last:border-b-0 hover:bg-gray-100"
+                        className="flex cursor-pointer items-center gap-3 border-b border-white/10 p-4 transition-colors last:border-b-0 hover:bg-white/5"
                       >
                         {result.poster_url ? (
                           <img src={result.poster_url} alt={result.title} className="h-20 w-14 rounded-xl object-cover sm:h-16 sm:w-12 sm:rounded" />
                         ) : (
-                          <div className="flex h-20 w-14 items-center justify-center rounded-xl bg-gray-200 text-xs text-gray-500 sm:h-16 sm:w-12 sm:rounded">
+                          <div className="flex h-20 w-14 items-center justify-center rounded-xl bg-white/5 text-xs text-white/45 sm:h-16 sm:w-12 sm:rounded">
                             No Image
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <h3 className="line-clamp-2 font-semibold text-gray-900">{result.title}</h3>
-                          <p className="text-sm text-gray-600">{result.type === "tv" ? "TV Show" : "Movie"}</p>
+                          <h3 className="line-clamp-2 font-semibold text-[#f5f0de]">{result.title}</h3>
+                          <p className="text-sm text-white/60">{result.type === "tv" ? "TV Show" : "Movie"}</p>
                         </div>
                       </div>
                     ))}
 
                   {filteredSearchResults.length === 0 && searchQuery.length >= 2 && !searching && (
-                    <div className="p-10 text-center text-gray-500">
+                    <div className="p-10 text-center text-white/55">
                       No {searchFilter === "tv" ? "TV shows" : searchFilter === "movie" ? "movies" : "results"} found.
                     </div>
                   )}
@@ -777,14 +821,14 @@ export default function LogsPage() {
 
             {searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
               <div className="p-12 text-center">
-                <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-600">No results found</p>
+                <Calendar className="mx-auto mb-3 h-12 w-12 text-white/25" />
+                <p className="text-white/60">No results found</p>
               </div>
             )}
 
             {searching && (
               <div className="p-12 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#ff7a1a]" />
               </div>
             )}
           </div>
@@ -800,6 +844,7 @@ export default function LogsPage() {
           }}
           content={selectedContent}
           user={user}
+          theme="brutalist"
           onLogCreated={() => {
             setShowLogModal(false);
             setSelectedContent(null);
@@ -809,16 +854,16 @@ export default function LogsPage() {
       )}
 
       {showDetailsModal && activeLog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 sticky top-0 bg-white">
-              <h3 className="text-xl font-bold text-gray-900">Log Details</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-white/10 bg-[#111111] shadow-xl">
+            <div className="sticky top-0 flex items-center justify-between border-b border-white/10 bg-[#111111] p-5">
+              <h3 className="text-xl font-bold text-[#f5f0de]">Log Details</h3>
               <button
                 onClick={() => {
                   setShowDetailsModal(false);
                   setActiveLog(null);
                 }}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-white/55 hover:text-[#f5f0de]"
                 aria-label="Close log details"
                 title="Close log details"
               >
@@ -834,14 +879,14 @@ export default function LogsPage() {
                   className="w-24 h-36 rounded object-cover"
                 />
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{activeLog.content.title}</p>
+                  <p className="text-2xl font-bold text-[#f5f0de]">{activeLog.content.title}</p>
                   {isUnavailableContent(activeLog) && (
-                    <span className="mt-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                    <span className="mt-2 inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-200">
                       Details unavailable
                     </span>
                   )}
-                  <p className="text-sm text-gray-600 mt-1">Watched on {formatWatchedDate(activeLog.watched_date)}</p>
-                  <span className={`inline-block mt-2 text-xs px-2 py-1 rounded-full font-medium ${getReactionClasses(activeLog)}`}>
+                  <p className="mt-1 text-sm text-white/65">Watched on {formatWatchedDate(activeLog.watched_date)}</p>
+                  <span className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium ${getReactionClasses(activeLog)}`}>
                     {getReactionLabel(activeLog)}
                   </span>
                 </div>
@@ -849,8 +894,8 @@ export default function LogsPage() {
 
               {activeLog.notes && (
                 <div>
-                  <p className="text-sm font-semibold text-gray-700 mb-1">Review</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap">
+                  <p className="mb-1 text-sm font-semibold text-[#f5f0de]">Review</p>
+                  <p className="whitespace-pre-wrap rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm text-[#f5f0de]">
                     {activeLog.notes}
                   </p>
                 </div>
@@ -858,39 +903,39 @@ export default function LogsPage() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 {activeLog.mood && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Mood</p>
-                    <p className="text-sm font-medium text-gray-900">{activeLog.mood}</p>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                    <p className="mb-1 text-xs text-white/50">Mood</p>
+                    <p className="text-sm font-medium text-[#f5f0de]">{activeLog.mood}</p>
                   </div>
                 )}
 
                 {activeLog.context_log?.location && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Location</p>
-                    <p className="text-sm font-medium text-gray-900">{activeLog.context_log.location}</p>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                    <p className="mb-1 text-xs text-white/50">Location</p>
+                    <p className="text-sm font-medium text-[#f5f0de]">{activeLog.context_log.location}</p>
                   </div>
                 )}
 
                 {activeLog.context_log?.watched_with && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Watched With</p>
-                    <p className="text-sm font-medium text-gray-900">{activeLog.context_log.watched_with}</p>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                    <p className="mb-1 text-xs text-white/50">Watched With</p>
+                    <p className="text-sm font-medium text-[#f5f0de]">{activeLog.context_log.watched_with}</p>
                   </div>
                 )}
 
                 {activeLog.context_log?.mood && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Context Mood</p>
-                    <p className="text-sm font-medium text-gray-900">{activeLog.context_log.mood}</p>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                    <p className="mb-1 text-xs text-white/50">Context Mood</p>
+                    <p className="text-sm font-medium text-[#f5f0de]">{activeLog.context_log.mood}</p>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="border-t border-gray-200 p-5 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+            <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-white/10 bg-[#111111] p-5">
               <button
                 onClick={() => router.push(`/logs/${activeLog.id}`)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-[#f5f0de] hover:bg-white/[0.04]"
               >
                 <Pencil className="w-4 h-4" />
                 Edit
@@ -898,7 +943,7 @@ export default function LogsPage() {
               <button
                 onClick={handleDeleteLog}
                 disabled={deleting}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#ff7a1a] px-4 py-2 text-black hover:bg-[#ff8d3b] disabled:opacity-60"
               >
                 {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 Delete

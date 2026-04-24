@@ -36,13 +36,19 @@ export async function getUserProfile(userId: string): Promise<User | null> {
  */
 export async function getUserByUsername(username: string): Promise<User | null> {
   try {
+    const normalizedUsername = username.trim().replace(/^@/, "").toLowerCase();
     const usersRef = ref(db, "users");
     const snapshot = await get(usersRef);
 
     if (!snapshot.exists()) return null;
 
     const users = snapshot.val();
-    const user = Object.values(users as Record<string, any>).find((u: any) => u.username === username.toLowerCase());
+    const user = Object.values(users as Record<string, any>).find((u: any) => {
+      const storedUsername = String(u?.username || "").trim().replace(/^@/, "").toLowerCase();
+      const storedId = String(u?.id || u?.user_id || "").trim().toLowerCase();
+
+      return storedUsername === normalizedUsername || storedId === normalizedUsername;
+    });
 
     if (!user) return null;
 
@@ -73,6 +79,7 @@ export async function getUserStats(userId: string): Promise<{
   masterpieceCount: number;
   goodCount: number;
   badCount: number;
+  averageRating: number;
   mostCommonMood?: string;
   totalFriends: number;
 }> {
@@ -86,6 +93,7 @@ export async function getUserStats(userId: string): Promise<{
     let goodCount = 0;
     let badCount = 0;
     const moodCounts: Record<string, number> = {};
+    let ratingTotal = 0;
 
     if (logsSnapshot.exists()) {
       const allLogs = logsSnapshot.val();
@@ -97,6 +105,11 @@ export async function getUserStats(userId: string): Promise<{
         if (log.reaction === 2) masterpieceCount++;
         else if (log.reaction === 1) goodCount++;
         else if (log.reaction === 0) badCount++;
+
+        const ratingValue = Number(log.rating);
+        if (Number.isFinite(ratingValue) && ratingValue > 0) {
+          ratingTotal += ratingValue;
+        }
         
         if (log.mood) {
           moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
@@ -125,6 +138,7 @@ export async function getUserStats(userId: string): Promise<{
       masterpieceCount,
       goodCount,
       badCount,
+      averageRating: totalLogged > 0 ? ratingTotal / totalLogged : 0,
       mostCommonMood,
       totalFriends,
     };
@@ -135,6 +149,7 @@ export async function getUserStats(userId: string): Promise<{
       masterpieceCount: 0,
       goodCount: 0,
       badCount: 0,
+      averageRating: 0,
       totalFriends: 0,
     };
   }

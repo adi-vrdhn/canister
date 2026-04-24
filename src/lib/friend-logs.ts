@@ -26,6 +26,27 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
       return [];
     }
 
+    // Watch-only markers should never surface in activity feeds.
+    // We still show real logs here, but suppress any item that was only
+    // marked watched from a list and not logged as a full movie log.
+    const watchedRef = ref(db, "watched_movies");
+    const watchedSnapshot = await get(watchedRef);
+    const watchOnlyKeys = new Set<string>();
+
+    if (watchedSnapshot.exists()) {
+      const allWatched = watchedSnapshot.val() as Record<string, any>;
+      Object.values(allWatched).forEach((item) => {
+        if (
+          item &&
+          followingIds.includes(item.user_id) &&
+          item.list_marked &&
+          !item.logged
+        ) {
+          watchOnlyKeys.add(`${item.user_id}__${item.content_type}__${item.content_id}`);
+        }
+      });
+    }
+
     // 2. Get all movie logs
     const logsRef = ref(db, "movie_logs");
     const logsSnapshot = await get(logsRef);
@@ -42,7 +63,8 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
     const friendLogs = Object.values(allLogs)
       .filter((log: any) => {
         const logDate = new Date(log.created_at);
-        return followingIds.includes(log.user_id) && logDate >= dateThreshold;
+        const watchKey = `${log.user_id}__${log.content_type}__${log.content_id}`;
+        return followingIds.includes(log.user_id) && logDate >= dateThreshold && !watchOnlyKeys.has(watchKey);
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, limit);
