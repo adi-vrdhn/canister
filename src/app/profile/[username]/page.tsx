@@ -1682,6 +1682,12 @@ function ProfilePageInner() {
                 ) : (
                   <div className="space-y-3">
                     {followRequests.map((note) => (
+                      (() => {
+                        const requesterFollowFromCurrentUser = getMyFollowRecordToUser(note.fromUser.id);
+                        const isFollowingRequester = requesterFollowFromCurrentUser?.status === "accepted";
+                        const hasPendingRequestToRequester = requesterFollowFromCurrentUser?.status === "pending";
+
+                        return (
                       <div
                         key={note.id}
                         className="flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.03] px-4 py-3"
@@ -1709,7 +1715,33 @@ function ProfilePageInner() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {note.followRequestState === "accepted" ? (
+                          {isFollowingRequester ? (
+                            <button
+                              type="button"
+                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de] hover:bg-white/10"
+                              disabled
+                            >
+                              Following
+                            </button>
+                          ) : hasPendingRequestToRequester ? (
+                            <>
+                              <button
+                                type="button"
+                                className="rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-semibold text-black hover:bg-[#ff8d33]"
+                                disabled
+                              >
+                                Request Sent
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de] hover:bg-white/10"
+                                onClick={() => handleCancelSentFollowRequest(note.fromUser.id)}
+                                disabled={followActionLoading === note.fromUser.id}
+                              >
+                                {followActionLoading === note.fromUser.id ? "Deleting..." : "Request Delete"}
+                              </button>
+                            </>
+                          ) : note.followRequestState === "accepted" ? (
                             <>
                               <button
                                 type="button"
@@ -1742,13 +1774,15 @@ function ProfilePageInner() {
                                 className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de] hover:bg-white/10"
                                 onClick={() => handleDeclineFollowRequest(note.id)}
                                 disabled={followActionLoading === note.fromUser.id || profileFollowActionLoading}
-                              >
+                                >
                                 Decline
                               </button>
                             </>
                           )}
                         </div>
                       </div>
+                        );
+                      })()
                     ))}
                   </div>
                 )}
@@ -1801,6 +1835,8 @@ function ProfilePageInner() {
                     const isMenuOpen = openFollowMenuUserId === listedUser.id;
                     const myFollowToListedUser = getMyFollowRecordToUser(listedUser.id);
                     const followerToMe = getFollowerRecordToMe(listedUser.id);
+                    const isFollowingListedUser = myFollowToListedUser?.status === "accepted";
+                    const hasPendingFollowToListedUser = myFollowToListedUser?.status === "pending";
                     const canShowActionMenu =
                       isOwnProfile &&
                       followModalType === "following" &&
@@ -1808,11 +1844,8 @@ function ProfilePageInner() {
                     const canShowFollowerMenu =
                       isOwnProfile &&
                       followModalType === "followers" &&
-                      followerToMe?.status === "accepted";
-                    const canShowFollowBack =
-                      isOwnProfile &&
-                      followModalType === "followers" &&
-                      currentUser?.id !== listedUser.id;
+                      followerToMe?.status === "accepted" &&
+                      !hasPendingFollowToListedUser;
 
                     return (
                       <div
@@ -1834,31 +1867,38 @@ function ProfilePageInner() {
                         </Link>
 
                         <div className="ml-3 flex items-center gap-2">
-                          {canShowFollowBack && (
-                            myFollowToListedUser?.status === "accepted" ? (
-                              <button
-                                onClick={() => handleRemoveAsFollowing(listedUser.id)}
-                                disabled={followActionLoading === listedUser.id}
-                                className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
-                              >
-                                {followActionLoading === listedUser.id ? "Updating..." : "Following"}
-                              </button>
-                            ) : myFollowToListedUser?.status === "pending" ? (
+                          {isFollowingListedUser ? (
+                            <button
+                              onClick={() => handleRemoveAsFollowing(listedUser.id)}
+                              disabled={followActionLoading === listedUser.id}
+                              className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
+                            >
+                              {followActionLoading === listedUser.id ? "Updating..." : "Following"}
+                            </button>
+                          ) : hasPendingFollowToListedUser ? (
+                            <>
                               <button
                                 disabled
                                 className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#ffb36b]"
                               >
                                 Request Sent
                               </button>
-                            ) : (
                               <button
-                                onClick={() => handleFollowBack(listedUser)}
+                                onClick={() => handleCancelSentFollowRequest(listedUser.id)}
                                 disabled={followActionLoading === listedUser.id}
-                                className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-[#ff8d33] disabled:opacity-60"
+                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
                               >
-                                {followActionLoading === listedUser.id ? "Sending..." : "Follow back"}
+                                {followActionLoading === listedUser.id ? "Deleting..." : "Request Delete"}
                               </button>
-                            )
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleFollowBack(listedUser)}
+                              disabled={followActionLoading === listedUser.id}
+                              className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-[#ff8d33] disabled:opacity-60"
+                            >
+                              {followActionLoading === listedUser.id ? "Sending..." : "Follow back"}
+                            </button>
                           )}
 
                           {canShowFollowerMenu && (
