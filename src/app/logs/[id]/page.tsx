@@ -21,6 +21,7 @@ import {
   X,
   MessageCircle,
   Send,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebase";
@@ -764,6 +765,11 @@ export default function LogDetailPage() {
 
   const releaseYear = log?.content.release_date ? new Date(log.content.release_date).getFullYear() : null;
   const sortedComments = useMemo(() => sortLogCommentTree(comments, "top", log?.user_id), [comments, log?.user_id]);
+  const contentHref = log
+    ? log.content_type === "tv"
+      ? `/tv/${log.content.id}`
+      : `/movie/${log.content.id}`
+    : "#";
 
   useEffect(() => {
     if (!log) return;
@@ -868,38 +874,44 @@ export default function LogDetailPage() {
               )}
             </div>
 
-            <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] sm:gap-6 sm:p-6">
+            <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:gap-5 sm:p-6">
               <div className="relative">
-                <div className="relative h-[24rem] w-full [perspective:1400px] sm:h-[26rem]">
+                <div className="relative mx-auto h-[17rem] w-[11rem] [perspective:1400px] sm:mx-0 sm:h-[20rem] sm:w-full">
                   <div
                     className="relative h-full w-full transition-transform duration-700 [transform-style:preserve-3d]"
                     style={{
                       transform: ticketSide === "front" ? "rotateY(0deg)" : "rotateY(180deg)",
                     }}
                   >
-                    <div className="absolute inset-0 overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#0f0f0f] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]">
-                      {log.content.poster_url ? (
-                        <img
-                          src={log.content.poster_url}
-                          alt={log.content.title}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs uppercase tracking-[0.2em] text-white/35">
-                          No poster
-                        </div>
-                      )}
+                    <div className="absolute inset-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#0f0f0f] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]">
+                      <Link
+                        href={contentHref}
+                        className="absolute inset-0 z-0 block"
+                        aria-label={`Open ${log.content.title}`}
+                      >
+                        {log.content.poster_url ? (
+                          <img
+                            src={log.content.poster_url}
+                            alt={log.content.title}
+                            className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.02]"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs uppercase tracking-[0.2em] text-white/35">
+                            No poster
+                          </div>
+                        )}
+                      </Link>
                       <button
                         type="button"
                         onClick={() => setTicketSide("back")}
-                        className="absolute bottom-3 right-3 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg"
+                        className="absolute bottom-3 right-3 z-10 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg"
                       >
                         Flip
                       </button>
                     </div>
 
                     <div
-                      className="absolute inset-0 overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#111111] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]"
+                      className="absolute inset-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#111111] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]"
                       style={{ transform: "rotateY(180deg)" }}
                     >
                       {ticketImageUrl ? (
@@ -908,39 +920,51 @@ export default function LogDetailPage() {
                           alt={`${log.content.title} ticket`}
                           className="h-full w-full object-cover"
                         />
+                      ) : isOwnLog ? (
+                        <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/75">
+                            Upload a picture or ticket
+                          </p>
+                          <p className="mt-2 max-w-[10rem] text-xs leading-5 text-[#f5f0de]/70">
+                            Add an image for the back of this log card.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleTicketUploadClick}
+                            disabled={ticketUploading}
+                            className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#f5f0de] px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-white disabled:opacity-60"
+                          >
+                            <Upload className="h-3.5 w-3.5" />
+                            {ticketUploading ? "Uploading" : "Upload image"}
+                          </button>
+                          <p className="mt-3 text-[11px] text-white/45">
+                            JPG, PNG, or WebP up to 8MB.
+                          </p>
+                        </div>
                       ) : (
-                        <div className="flex h-full flex-col justify-between p-4">
-                          <div className="space-y-3">
-                            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/75">
-                              Upload a picture or ticket
-                            </p>
-                            <p className="max-w-[12rem] text-sm leading-6 text-[#f5f0de]/75">
-                              Add your own image for the back of this log card.
-                            </p>
-                          </div>
-
-                          <div className="rounded-[1.2rem] border border-dashed border-white/15 bg-white/5 p-4 text-sm text-white/60">
-                            Use the button below to upload from your device.
-                          </div>
+                        <div className="flex h-full items-center justify-center p-4 text-center">
+                          <p className="max-w-[10rem] text-xs leading-5 text-[#f5f0de]/55">
+                            No ticket image yet.
+                          </p>
                         </div>
                       )}
 
                       <button
                         type="button"
                         onClick={() => setTicketSide("front")}
-                        className="absolute bottom-3 left-3 rounded-full border border-white/10 bg-[#121212]/90 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#f5f0de] shadow-lg"
+                        className="absolute bottom-3 left-3 z-10 rounded-full border border-white/10 bg-[#121212]/90 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#f5f0de] shadow-lg"
                       >
                         Front
                       </button>
 
-                      {isOwnLog && (
+                      {isOwnLog && ticketImageUrl && (
                         <button
                           type="button"
                           onClick={handleTicketUploadClick}
                           disabled={ticketUploading}
-                          className="absolute right-3 top-3 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg disabled:opacity-60"
+                          className="absolute right-3 top-3 z-10 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg disabled:opacity-60"
                         >
-                          {ticketUploading ? "Uploading" : "Upload"}
+                          {ticketUploading ? "Uploading" : "Replace"}
                         </button>
                       )}
                     </div>
@@ -959,9 +983,15 @@ export default function LogDetailPage() {
               </div>
 
               <div className="min-w-0 self-center">
-                <h1 className="line-clamp-2 text-2xl font-black leading-[1.05] tracking-tight text-[#f5f0de] sm:text-[2.35rem]">
-                  {log.content.title}
-                </h1>
+                <Link
+                  href={contentHref}
+                  className="group inline-block max-w-full"
+                  aria-label={`Open ${log.content.title}`}
+                >
+                  <h1 className="line-clamp-2 text-xl font-black leading-[1.05] tracking-tight text-[#f5f0de] transition group-hover:text-[#ffb36b] sm:text-[2.1rem]">
+                    {log.content.title}
+                  </h1>
+                </Link>
 
                 <div className="mt-4 space-y-3 text-sm text-white/68">
                   {releaseYear && (
@@ -987,7 +1017,7 @@ export default function LogDetailPage() {
                   ) : null}
                 </div>
 
-                <div className="mt-5 border-t border-white/10 pt-4 text-[11px] uppercase tracking-[0.22em] text-[#ffb36b]/75">
+                <div className="mt-5 border-t border-white/10 pt-4 text-[10px] uppercase tracking-[0.22em] text-[#ffb36b]/75">
                   {log.content_type === "tv" ? "TV Show" : "Movie"}
                 </div>
               </div>

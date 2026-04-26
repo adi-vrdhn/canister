@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { auth, db } from "@/lib/firebase";
@@ -9,13 +9,17 @@ import { getFullTasteProfile } from "@/lib/friends-match";
 import { generateMatchAnalysis } from "@/lib/match-score";
 import { getUserByUsername } from "@/lib/profile";
 import CinematicLoading from "@/components/CinematicLoading";
+import PageLayout from "@/components/PageLayout";
 import MovieMatchAnalysisView from "@/components/MovieMatchAnalysisView";
 import type { User } from "@/types";
+import { signOut as authSignOut } from "@/lib/auth";
 
 export default function MovieMatcherReportPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const username = params.username as string;
+  const backSource = searchParams.get("from");
 
   const hardRedirect = (path: string) => {
     if (typeof window !== "undefined") {
@@ -27,6 +31,11 @@ export default function MovieMatcherReportPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
+
+  const handleSignOut = async () => {
+    await authSignOut();
+    router.push("/auth/login");
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -89,13 +98,19 @@ export default function MovieMatcherReportPage() {
     return <CinematicLoading message="Your match report is loading" />;
   }
 
+  const backHref = backSource === "matcher" ? "/movie-matcher" : `/profile/${profileUser.username}`;
+  const backLabel = backSource === "matcher" ? "Back to matcher" : "Back to profile";
+
   return (
-    <MovieMatchAnalysisView
-      analysis={analysis}
-      viewerName={currentUser.name}
-      subjectName={profileUser.name}
-      subjectUsername={profileUser.username}
-      onBack={() => router.push(`/profile/${profileUser.username}`)}
-    />
+    <PageLayout user={currentUser} onSignOut={handleSignOut} theme="brutalist" fullWidth>
+      <MovieMatchAnalysisView
+        analysis={analysis}
+        viewerName={currentUser.name}
+        subjectName={profileUser.name}
+        subjectUsername={profileUser.username}
+        backLabel={backLabel}
+        onBack={() => router.push(backHref)}
+      />
+    </PageLayout>
   );
 }

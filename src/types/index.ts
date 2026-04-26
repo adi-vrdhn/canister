@@ -294,8 +294,8 @@ export interface WatchedMovie {
 }
 
 // CinePost Types
-export type CinePostType = "trivia" | "theory" | "analysis" | "opinion" | "log";
-export type CinePostAnchorType = "movie" | "tv";
+export type CinePostType = "post" | "log";
+export type CinePostAnchorType = "movie" | "tv" | "list";
 export type CinePostEngagementType = "like" | "save";
 
 export interface CinePost {
@@ -306,7 +306,8 @@ export interface CinePost {
   anchor_label: string;
   movie_id?: number;
   content_id?: number;
-  content_type?: "movie" | "tv";
+  list_id?: string;
+  content_type?: "movie" | "tv" | "list";
   content_title?: string;
   poster_url?: string | null;
   body: string;

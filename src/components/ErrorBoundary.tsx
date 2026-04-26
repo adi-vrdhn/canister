@@ -1,4 +1,5 @@
 import React from "react";
+import ErrorPopupCard from "./ErrorPopupCard";
 
 export class ErrorBoundary extends React.Component<{
   children: React.ReactNode;
@@ -17,11 +18,13 @@ export class ErrorBoundary extends React.Component<{
   render() {
     if (this.state.hasError) {
       return (
-        <div className="w-screen h-screen flex flex-col items-center justify-center bg-red-50">
-          <h1 className="text-2xl font-bold text-red-700 mb-2">Something went wrong</h1>
-          <p className="text-red-600 mb-4">{this.state.error?.message || "Unknown error"}</p>
-          <button className="px-4 py-2 bg-zinc-900 text-white rounded" onClick={() => window.location.reload()}>Reload</button>
-        </div>
+        <ErrorPopupCard
+          title="Something went wrong"
+          message={this.state.error?.message || "Unknown error"}
+          details={this.state.error?.stack || null}
+          onRetry={() => window.location.reload()}
+          retryLabel="Reload"
+        />
       );
     }
     return this.props.children;

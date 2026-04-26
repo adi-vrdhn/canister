@@ -15,6 +15,7 @@ import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import { buildLogUrl } from "@/lib/log-url";
 import { getFriendLogs } from "@/lib/friend-logs";
+import { reportAppError } from "@/lib/report-error";
 import Link from "next/link";
 import { Clapperboard, Film, Loader2, MessageCircle, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
 
@@ -126,9 +127,13 @@ export default function DashboardPage() {
           try {
             const logs = await getFriendLogs(currentUser.id, 14, 20);
             setFriendLogs(logs);
-          } catch (error) {
-            console.error("Error fetching friend logs:", error);
-          }
+      } catch (error) {
+        reportAppError({
+          title: "Friend activity failed",
+          message: "We could not load your friends' logs.",
+          details: error instanceof Error ? error.stack || error.message : String(error),
+        });
+      }
         }
 
         // Set up real-time listener for shares
@@ -184,7 +189,11 @@ export default function DashboardPage() {
 
               setShares(sharesWithDetails);
             } catch (error) {
-              console.error("Error fetching shares details:", error);
+              reportAppError({
+                title: "Shares failed to load",
+                message: "We could not load your shares right now.",
+                details: error instanceof Error ? error.stack || error.message : String(error),
+              });
               setShares(sharesList);
             }
           });
@@ -192,7 +201,11 @@ export default function DashboardPage() {
           return () => unsubscribeShares();
         }
       } catch (error) {
-        console.error("Error fetching user:", error);
+        reportAppError({
+          title: "Failed to load dashboard",
+          message: "We could not load your account data.",
+          details: error instanceof Error ? error.stack || error.message : String(error),
+        });
         setLoading(false);
       }
     });
@@ -276,7 +289,11 @@ export default function DashboardPage() {
       setAccountResults(usersMatched);
       setShowSearchModal(true);
     } catch (error) {
-      console.error("Search error:", error);
+      reportAppError({
+        title: "Search failed",
+        message: "We could not complete the search.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
     } finally {
       setSearching(false);
     }
@@ -336,7 +353,11 @@ export default function DashboardPage() {
 
       setQuickLogResults([...movieResults, ...showResults].slice(0, 20));
     } catch (error) {
-      console.error("Quick log search error:", error);
+      reportAppError({
+        title: "Quick search failed",
+        message: "We could not load search results.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
     } finally {
       setQuickLogSearching(false);
     }
@@ -360,7 +381,11 @@ export default function DashboardPage() {
       await authSignOut();
       router.push("/auth/login");
     } catch (error) {
-      console.error("Sign out error:", error);
+      reportAppError({
+        title: "Sign out failed",
+        message: "We could not sign you out right now.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
     }
   };
 

@@ -6,6 +6,7 @@ import { RotateCcw } from "lucide-react";
 import { Content, User } from "@/types";
 import { createLogCinePost } from "@/lib/cineposts";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
+import { reportAppError } from "@/lib/report-error";
 
 interface LogMovieModalProps {
   isOpen: boolean;
@@ -78,7 +79,11 @@ export default function LogMovieModal({
           setPreviousWatchDates(priorLogs);
         }
       } catch (err) {
-        console.error("Error checking previous watches:", err);
+        reportAppError({
+          title: "Could not load watch history",
+          message: "We could not check your previous watches for this title.",
+          details: err instanceof Error ? err.stack || err.message : String(err),
+        });
         if (!cancelled) {
           setPreviousWatchDates([]);
         }
@@ -157,7 +162,11 @@ export default function LogMovieModal({
       onLogCreated?.();
       onClose();
     } catch (err) {
-      console.error("Error logging movie:", err);
+      reportAppError({
+        title: "Log failed",
+        message: "We could not save this log.",
+        details: err instanceof Error ? err.stack || err.message : String(err),
+      });
       setError("Failed to log movie. Please try again.");
     } finally {
       setLoading(false);
@@ -170,9 +179,9 @@ export default function LogMovieModal({
   const isRewatchSelected = isRewatch || hasPreviousWatch;
 
   return (
-    <div className="log-modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-md sm:items-center sm:p-4 md:p-6">
+    <div className="log-modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-md sm:items-center sm:p-3 md:p-4">
       <div
-        className={`log-modal-panel surface-strong mobile-scroll-panel relative w-full max-w-2xl max-h-[90dvh] overflow-x-hidden overflow-y-auto rounded-[1.5rem] sm:rounded-[2rem] ${
+        className={`log-modal-panel surface-strong mobile-scroll-panel relative w-full max-w-xl max-h-[84dvh] overflow-x-hidden overflow-y-auto rounded-[1.25rem] sm:rounded-[1.5rem] ${
           isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : "border border-slate-200 bg-white text-slate-900"
         }`}
       >
@@ -197,55 +206,56 @@ export default function LogMovieModal({
 
         {/* Header */}
         <div
-          className={`sticky top-0 z-10 flex items-start justify-between gap-3 border-b p-4 backdrop-blur-xl sm:p-6 md:p-7 ${
+          className={`sticky top-0 z-10 flex items-start justify-between gap-2 border-b p-3 backdrop-blur-xl sm:p-4 ${
             isBrutalist ? "border-white/10 bg-[#111111]/92" : "border-slate-200 bg-white/90"
           }`}
         >
-          <div className="flex min-w-0 items-start gap-3">
-            <Link
-              href={content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`}
-              className={`hidden overflow-hidden rounded-2xl transition-opacity hover:opacity-90 sm:block ${
-                isBrutalist ? "border border-white/10" : "border border-slate-200"
+          <Link
+            href={content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`}
+            className={`group flex min-w-0 items-center gap-3 text-left transition-opacity hover:opacity-90`}
+            title={`Open ${content.title}`}
+          >
+            <div
+              className={`relative overflow-hidden rounded-2xl border ${
+                isBrutalist ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-100"
               }`}
-              title={`Open ${content.title}`}
             >
               {content.poster_url ? (
                 <img
                   src={content.poster_url}
                   alt={content.title}
-                  className="h-16 w-12 object-cover"
+                  className="h-16 w-12 object-cover transition duration-300 group-hover:scale-[1.03] sm:h-18 sm:w-13"
                 />
               ) : (
-                <div className={isBrutalist ? "h-16 w-12 bg-white/5" : "h-16 w-12 bg-slate-100"} />
+                <div className={isBrutalist ? "h-16 w-12 bg-white/5 sm:h-18 sm:w-13" : "h-16 w-12 bg-slate-100 sm:h-18 sm:w-13"} />
               )}
-            </Link>
+            </div>
             <div className="min-w-0">
-              <div className="mb-1 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#ffb36b]">
+              <div className="mb-1 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb36b]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#ff7a1a]" />
                 Movie log
               </div>
-              <h2 className={`text-lg font-semibold sm:text-xl ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Log Movie</h2>
-              <Link
-                href={content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`}
-                className={`line-clamp-2 text-sm hover:text-slate-900 ${
-                  isBrutalist ? "text-white/60 hover:text-[#f5f0de]" : "text-slate-600"
+              <h2 className={`text-base font-semibold sm:text-lg ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Log Movie</h2>
+              <p
+                className={`line-clamp-1 text-xs sm:text-sm ${
+                  isBrutalist ? "text-white/60 group-hover:text-[#f5f0de]" : "text-slate-600 group-hover:text-slate-900"
                 }`}
               >
                 {content.title}
-              </Link>
+              </p>
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             onClick={onClose}
-            className="action"
+            className="action px-3 py-2 text-sm sm:px-4 sm:py-2.5"
           >
             Close
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5 p-4 sm:p-6 md:p-7">
+        <form onSubmit={handleSubmit} className="space-y-4 p-3 sm:space-y-5 sm:p-4">
           {checkingPreviousWatches && previousWatchDates.length === 0 && (
             <div className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${
               isBrutalist ? "border border-white/10 bg-white/5 text-white/65" : "border border-slate-200 bg-slate-50 text-slate-600"
@@ -255,7 +265,7 @@ export default function LogMovieModal({
           )}
 
           <label
-            className={`flex cursor-pointer items-start gap-4 rounded-[1.5rem] px-4 py-4 transition-all ${
+            className={`flex cursor-pointer items-start gap-3 rounded-[1.25rem] px-3 py-3 transition-all ${
               isBrutalist
                 ? "border border-white/10 bg-white/[0.04] shadow-[0_12px_30px_rgba(0,0,0,0.18)] hover:bg-white/[0.06]"
                 : "border border-slate-200 bg-slate-50 shadow-sm hover:bg-slate-100"
@@ -267,7 +277,7 @@ export default function LogMovieModal({
               onChange={(e) => setIsRewatch(e.target.checked)}
               className="sr-only"
             />
-            <div className={`mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border ${
+            <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border ${
               isRewatchSelected
                 ? isBrutalist
                   ? "border-[#ff7a1a]/40 bg-[#ff7a1a]/12 text-[#ffb36b]"
@@ -334,56 +344,56 @@ export default function LogMovieModal({
             <label className={`mb-3 block text-sm font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
               What did you think? *
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {/* Bad */}
               <button
                 type="button"
                 onClick={() => setReaction(0)}
-                className={`rounded-2xl border px-4 py-4 text-left transition-all duration-200 ${
+                className={`flex aspect-[1/1.05] w-full items-center justify-center rounded-[1rem] border px-2 py-2 text-center transition-all duration-200 ${
                   reaction === 0
                     ? isBrutalist
-                      ? "border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
+                      ? "border-white/15 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
                       : "border-slate-900 bg-slate-50 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <span className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Bad</span>
+                <span className={`text-sm font-bold sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Bad</span>
               </button>
 
               {/* Good */}
               <button
                 type="button"
                 onClick={() => setReaction(1)}
-                className={`rounded-2xl border px-4 py-4 text-left transition-all duration-200 ${
+                className={`flex aspect-[1/1.05] w-full items-center justify-center rounded-[1rem] border px-2 py-2 text-center transition-all duration-200 ${
                   reaction === 1
                     ? isBrutalist
-                      ? "border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
+                      ? "border-white/15 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
                       : "border-slate-900 bg-slate-50 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <span className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Good</span>
+                <span className={`text-sm font-bold sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Good</span>
               </button>
 
               {/* Masterpiece */}
               <button
                 type="button"
                 onClick={() => setReaction(2)}
-                className={`rounded-2xl border px-4 py-4 text-left transition-all duration-200 ${
+                className={`flex aspect-[1/1.05] w-full items-center justify-center rounded-[1rem] border px-2 py-2 text-center transition-all duration-200 ${
                   reaction === 2
                     ? isBrutalist
-                      ? "border-orange-400/60 bg-orange-500/10 shadow-[0_0_0_1px_rgba(255,122,26,0.25)]"
+                      ? "border-[#ff7a1a]/65 bg-[#ff7a1a]/12 text-[#ffb36b] shadow-[0_0_0_1px_rgba(255,122,26,0.25),0_0_34px_rgba(255,122,26,0.32)]"
                       : "border-slate-900 bg-slate-50 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <span className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Masterpiece</span>
+                <span className={`text-sm font-black leading-tight sm:text-base ${reaction === 2 && isBrutalist ? "text-[#ffb36b]" : isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Masterpiece</span>
               </button>
             </div>
           </div>
@@ -398,11 +408,11 @@ export default function LogMovieModal({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Write your review"
               className="field resize-none py-3"
-              rows={4}
+              rows={3}
             />
           </div>
 
-          <div className={`rounded-[1.5rem] border p-4 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+          <div className={`rounded-[1.25rem] border p-3 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
             <label className="flex cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
@@ -428,7 +438,7 @@ export default function LogMovieModal({
                   onChange={(e) => setPostCaption(e.target.value)}
                   placeholder="Add a quick thought for the feed..."
                   className="field min-h-20 resize-none py-3 text-sm"
-                  rows={3}
+                  rows={2}
                 />
                 <p className={`mt-1 text-xs ${isBrutalist ? "text-white/45" : "text-slate-500"}`}>
                   If empty, your review will be used as the caption.
@@ -438,17 +448,17 @@ export default function LogMovieModal({
           </div>
 
           {/* Context Log Section */}
-          <div className={`border-t pt-4 ${isBrutalist ? "border-white/10" : "border-slate-200"}`}>
+          <div className={`border-t pt-3 ${isBrutalist ? "border-white/10" : "border-slate-200"}`}>
             <button
               type="button"
               onClick={() => setShowContextLog(!showContextLog)}
-              className={`mb-3 text-sm font-medium ${isBrutalist ? "text-white/65 hover:text-[#f5f0de]" : "text-slate-700 hover:text-slate-900"}`}
+              className={`mb-2 text-sm font-medium ${isBrutalist ? "text-white/65 hover:text-[#f5f0de]" : "text-slate-700 hover:text-slate-900"}`}
             >
               {showContextLog ? "Hide context" : "Show context"}
             </button>
 
             {showContextLog && (
-              <div className={`space-y-3 rounded-[1.5rem] p-4 ${isBrutalist ? "bg-white/[0.03]" : "bg-slate-50"}`}>
+              <div className={`space-y-3 rounded-[1.25rem] p-3 ${isBrutalist ? "bg-white/[0.03]" : "bg-slate-50"}`}>
                 {/* Location */}
                 <div>
                   <label className={`mb-1 block text-xs font-medium ${isBrutalist ? "text-white/55" : "text-slate-600"}`}>

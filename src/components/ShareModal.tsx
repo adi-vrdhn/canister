@@ -9,6 +9,7 @@ import LogMovieModal from './LogMovieModal';
 import { hasUserLoggedContent } from '@/lib/logs';
 import { createShareReply, getShareReplies } from '@/lib/share-replies';
 import { MessageCircle, SendHorizontal } from "lucide-react";
+import { reportAppError } from "@/lib/report-error";
 
 interface ShareModalProps {
   share: ShareWithDetails | null;
@@ -70,7 +71,11 @@ export default function ShareModal({
         const nextReplies = await getShareReplies(share.id, currentUserId);
         setReplies(nextReplies);
       } catch (error) {
-        console.error("Error loading share replies:", error);
+        reportAppError({
+          title: "Could not load replies",
+          message: "We could not load the replies for this share.",
+          details: error instanceof Error ? error.stack || error.message : String(error),
+        });
         setReplies([]);
       } finally {
         setReplyLoading(false);
@@ -184,7 +189,11 @@ export default function ShareModal({
       setShowContextMenu(false);
       onClose();
     } catch (error) {
-      console.error('Error deleting share:', error);
+      reportAppError({
+        title: "Delete failed",
+        message: "We could not delete this share.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
     }
   };
 
@@ -196,7 +205,11 @@ export default function ShareModal({
       await createShareReply(share, user, replyText);
       setReplyText("");
     } catch (error) {
-      console.error("Error sending share reply:", error);
+      reportAppError({
+        title: "Reply failed",
+        message: "We could not send your reply.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
     } finally {
       setReplySending(false);
     }
@@ -224,7 +237,11 @@ export default function ShareModal({
         setShowContextMenu(false);
       }
     } catch (error) {
-      console.error('Error marking as watched:', error);
+      reportAppError({
+        title: "Could not mark as watched",
+        message: "We could not update this share.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
     }
   };
 
@@ -239,7 +256,11 @@ export default function ShareModal({
       setShowLogModal(false);
       setShowContextMenu(false);
     } catch (error) {
-      console.error('Error updating share:', error);
+      reportAppError({
+        title: "Update failed",
+        message: "We could not update this share.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
     }
   };
 

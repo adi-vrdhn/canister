@@ -171,7 +171,7 @@ function averageTastePolarity(tastes: MatchTaste[]): number {
 
 function calculateProfileConfidence(userATastes: MatchTaste[], userBTastes: MatchTaste[]): number {
   const minCount = Math.min(userATastes.length, userBTastes.length);
-  return 0.72 + 0.28 * (1 - Math.exp(-minCount / 10));
+  return 0.9 + 0.1 * (1 - Math.exp(-minCount / 12));
 }
 
 function calculateExactOverlap(userATastes: MatchTaste[], userBTastes: MatchTaste[]): number {
@@ -492,13 +492,14 @@ export function calculateMatchScore(
   const exactOverlap = calculateExactOverlap(userATastes, userBTastes);
   const confidence = calculateProfileConfidence(userATastes, userBTastes);
   const weightedScore =
-    0.34 * genreSim +
-    0.18 * ratingSim +
-    0.12 * vibeSim +
-    0.16 * creatorSim +
+    0.42 * genreSim +
+    0.18 * creatorSim +
+    0.14 * ratingSim +
+    0.10 * vibeSim +
     0.10 * eraSim +
     0.06 * languageSim;
-  const totalScore = 100 * Math.min(1, weightedScore * confidence + exactOverlap * 0.10);
+  const overlapBoost = exactOverlap * 0.28;
+  const totalScore = 100 * Math.min(1, weightedScore * confidence + overlapBoost);
 
   return {
     genreSim: Math.round(genreSim * 100),

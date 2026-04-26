@@ -785,16 +785,30 @@ export default function MovieMatcherPage() {
           </div>
         )}
 
-        {/* Page Title */}
-        <div className="mb-6 text-center sm:mb-12 sm:text-left">
-          <h1 className="mb-1 text-3xl font-bold text-gray-900 sm:mb-2 sm:text-4xl">MovieMatcher</h1>
-          <p className="mx-auto max-w-sm text-sm text-gray-600 sm:mx-0 sm:max-w-none sm:text-base">
-            Build your taste profile and discover movies and shows tailored just for you
-          </p>
+        {/* Page Header */}
+        <div className="mb-6 flex flex-col gap-4 rounded-[1.75rem] border border-white/10 bg-white/5 p-4 text-center shadow-[0_14px_35px_rgba(0,0,0,0.18)] sm:mb-10 sm:p-6 sm:text-left">
+          <div className="space-y-3">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-[#f5f0de] transition hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to dashboard
+            </Link>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#ffb36b]">Movie Matcher</p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f5f0de] sm:text-4xl">
+                Build your taste profile
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-[#f5f0de]/65 sm:text-base">
+                Add movies and shows, then get matches based on taste, eras, directors, genres, and real cinematic overlap.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="mb-5 flex gap-2 overflow-x-auto border-b border-gray-200 sm:mb-8">
+        <div className="mb-5 flex gap-2 overflow-x-auto border-b border-white/10 sm:mb-8">
           <button
             onClick={() => {
               setActiveTab("build");
@@ -965,7 +979,7 @@ export default function MovieMatcherPage() {
                           friend={friend}
                           onFindScore={async () => {
                             if (isMobileViewport) {
-                              router.push(`/movie-matcher/${friend.username}`);
+                              router.push(`/movie-matcher/${friend.username}?from=matcher`);
                               return;
                             }
 

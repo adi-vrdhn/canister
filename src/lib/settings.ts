@@ -20,6 +20,7 @@ export interface SettingsData {
     collaborationInvites: boolean;
     matcherUpdates: boolean;
     emailNotifications: boolean;
+    pushNotifications: boolean;
   };
   appearance: {
     theme: ThemePreference;
@@ -51,6 +52,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
     collaborationInvites: true,
     matcherUpdates: true,
     emailNotifications: false,
+    pushNotifications: false,
   },
   appearance: {
     theme: "system",
@@ -83,6 +85,7 @@ export function mergeSettings(raw: any): SettingsData {
       collaborationInvites: raw?.notifications?.collaborationInvites ?? DEFAULT_SETTINGS.notifications.collaborationInvites,
       matcherUpdates: raw?.notifications?.matcherUpdates ?? DEFAULT_SETTINGS.notifications.matcherUpdates,
       emailNotifications: raw?.notifications?.emailNotifications ?? DEFAULT_SETTINGS.notifications.emailNotifications,
+      pushNotifications: raw?.notifications?.pushNotifications ?? DEFAULT_SETTINGS.notifications.pushNotifications,
     },
     appearance: {
       theme: raw?.appearance?.theme || DEFAULT_SETTINGS.appearance.theme,
@@ -249,4 +252,10 @@ export async function shouldDeliverNotificationToUser(
   const settings = getSettingsFromUserRecord(snapshot.exists() ? snapshot.val() : null);
   const preferenceKey = notificationPreferenceForType(type);
   return Boolean(settings.notifications[preferenceKey]);
+}
+
+export async function shouldEnablePushNotificationsForUser(userId: string): Promise<boolean> {
+  const snapshot = await get(ref(db, `users/${userId}`));
+  const settings = getSettingsFromUserRecord(snapshot.exists() ? snapshot.val() : null);
+  return Boolean(settings.notifications.pushNotifications);
 }

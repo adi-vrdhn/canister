@@ -65,6 +65,7 @@ function Avatar({
 }
 
 function getContentHref(post: CinePostWithDetails): string | null {
+  if (post.list_id && post.content_type === "list") return `/lists/${post.list_id}`;
   if (!post.content_id || !post.content_type) return null;
   return post.content_type === "tv" ? `/tv/${post.content_id}` : `/movie/${post.content_id}`;
 }
@@ -417,10 +418,28 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
           const contentHref = getContentHref(post);
           const postHref = `/posts/${post.id}`;
           const preview = getPreview(post.body);
+          const shouldIgnorePostClick = (target: EventTarget | null) => {
+            if (!(target instanceof Element)) return false;
+            return Boolean(target.closest("a,button,[role='button'],input,textarea,select,label"));
+          };
 
           return (
             <div key={post.id} className={isBrutalist ? "py-5 sm:py-6" : "space-y-4"}>
-              <article className={isBrutalist ? "bg-black text-[#f5f0de]" : "overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"}>
+              <article
+                className={`cursor-pointer ${isBrutalist ? "bg-black text-[#f5f0de]" : "overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"}`}
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  if (shouldIgnorePostClick(event.target)) return;
+                  router.push(postHref);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    router.push(postHref);
+                  }
+                }}
+              >
                 <div className={`grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-5 ${
                   isBrutalist ? "px-0 py-0" : "p-3 sm:p-5"
                 }`}>
@@ -431,6 +450,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                         isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
                       }`}
                       title={`Open ${post.content_title || post.anchor_label}`}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {post.poster_url ? (
                         <img
@@ -452,13 +472,14 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
 
                     <div className="min-w-0 py-1">
                       <div className="flex items-start gap-3">
-                        <Link href={profileHref(post.user)} className="flex-shrink-0">
+                        <Link href={profileHref(post.user)} className="flex-shrink-0" onClick={(event) => event.stopPropagation()}>
                           <Avatar user={post.user} size="h-7 w-7 sm:h-8 sm:w-8" dark={isBrutalist} />
                         </Link>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                             <Link
                               href={profileHref(post.user)}
+                              onClick={(event) => event.stopPropagation()}
                               className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-blue-600"}`}
                             >
                               {post.user.name}
@@ -466,15 +487,17 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                             <span className={`text-[10px] sm:text-xs ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>{relativeTime(post.created_at)}</span>
                           </div>
                         </div>
-                        <CinePostOwnerMenu
-                          post={post}
-                          currentUser={currentUser}
-                          onDeleted={refreshPosts}
-                          onUpdated={refreshPosts}
-                        />
+                        <div onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
+                          <CinePostOwnerMenu
+                            post={post}
+                            currentUser={currentUser}
+                            onDeleted={refreshPosts}
+                            onUpdated={refreshPosts}
+                          />
+                        </div>
                       </div>
 
-                      <Link href={postHref} className="mt-2 block sm:mt-3">
+                      <Link href={postHref} className="mt-2 block sm:mt-3" onClick={(event) => event.stopPropagation()}>
                         <p className={`whitespace-pre-wrap text-[13px] leading-5 sm:text-[14px] sm:leading-6 ${
                           isBrutalist ? "text-[#f5f0de]/92" : "text-slate-700"
                         }`}>
@@ -488,6 +511,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                           className={`mt-1 inline-flex text-[11px] font-black sm:mt-2 sm:text-sm ${
                             isBrutalist ? "text-[#ffb36b]" : "text-blue-600"
                           }`}
+                          onClick={(event) => event.stopPropagation()}
                         >
                           Show more
                         </Link>
@@ -501,6 +525,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                       <button
                         type="button"
                         onClick={() => handleEngagement(post, "like", !post.liked_by_current_user)}
+                        onMouseDown={(event) => event.stopPropagation()}
                         className={`inline-flex items-center justify-center transition ${
                           post.liked_by_current_user
                             ? isBrutalist
@@ -517,6 +542,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                       <button
                         type="button"
                         onClick={() => openPeopleModal(post, "like", "Liked by")}
+                        onMouseDown={(event) => event.stopPropagation()}
                         disabled={post.likes_count === 0}
                         className={`px-1 py-2 text-sm font-black disabled:opacity-40 ${
                           isBrutalist ? "text-[#ffb36b]" : "text-rose-600 disabled:text-slate-400"
@@ -526,6 +552,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                       </button>
                       <Link
                         href={postHref}
+                        onClick={(event) => event.stopPropagation()}
                         className={`inline-flex items-center justify-center gap-1.5 transition ${
                           isBrutalist ? "text-white/65 hover:text-[#ffb36b]" : "rounded-2xl bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 sm:px-3 sm:text-sm"
                         }`}
@@ -537,6 +564,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                     <button
                       type="button"
                       onClick={() => handleEngagement(post, "save", !post.saved_by_current_user)}
+                      onMouseDown={(event) => event.stopPropagation()}
                       className={`inline-flex items-center justify-center transition ${
                         post.saved_by_current_user
                           ? isBrutalist

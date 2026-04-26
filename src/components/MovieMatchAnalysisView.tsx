@@ -14,6 +14,7 @@ type MovieMatchAnalysisViewProps = {
   viewerName: string;
   subjectName: string;
   subjectUsername?: string;
+  backLabel?: string;
   onBack?: () => void;
   onClose?: () => void;
   embedded?: boolean;
@@ -98,6 +99,7 @@ export default function MovieMatchAnalysisView({
   viewerName,
   subjectName,
   subjectUsername,
+  backLabel = "Back",
   onBack,
   onClose,
   embedded = false,
@@ -135,7 +137,7 @@ export default function MovieMatchAnalysisView({
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-sm font-medium text-[#f5f0de] transition hover:border-[#ff7a1a]/40 hover:bg-white/[0.06]"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              {backLabel}
             </button>
           ) : (
             <div className="h-9" />

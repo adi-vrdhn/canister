@@ -52,6 +52,13 @@ export default function Sidebar({
     setShowInstallHelp(true);
   };
 
+  const handleSignOutClick = () => {
+    void onSignOut?.();
+    if (typeof window !== "undefined") {
+      window.location.assign("/auth/login");
+    }
+  };
+
   if (!user) {
     return null;
   }
@@ -210,7 +217,7 @@ export default function Sidebar({
           Download app
         </button>
         <button
-          onClick={onSignOut}
+          onClick={handleSignOutClick}
           className={`w-full rounded-full border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
             isBrutalist
               ? "border-white/10 bg-[#161616] text-[#f5f0de] hover:bg-white/5"

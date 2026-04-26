@@ -25,7 +25,7 @@ export default function ProfileSettingsIndexPage() {
       onSignOut={handleSignOut}
       title="Settings"
       description="Pick a section. Each one opens on its own page so the controls stay small and easy to scan."
-      backHref="/profile/edit"
+      backHref="/profile"
     >
       <div className="divide-y divide-white/10">
         {sections.map((section) =>
@@ -53,6 +53,25 @@ export default function ProfileSettingsIndexPage() {
             </Link>
           )
         )}
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="space-y-1">
+          {[
+            { href: "/terms", label: "Terms and Conditions" },
+            { href: "/privacy", label: "Privacy Policy" },
+            { href: "/credits", label: "Credits" },
+          ].map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="flex items-center justify-between rounded-xl px-3 py-3 text-sm font-semibold text-[#f5f0de] transition hover:bg-white/5 hover:text-[#ffb36b]"
+            >
+              <span>{link.label}</span>
+              <ChevronRight className="h-4 w-4 text-white/35" />
+            </Link>
+          ))}
+        </div>
       </div>
     </SettingsPageFrame>
   );

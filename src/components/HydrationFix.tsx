@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, ReactNode } from "react";
+import { subscribeToForegroundPushMessages } from "@/lib/push-notifications";
 
 export default function HydrationFix({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -22,16 +23,35 @@ export default function HydrationFix({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (typeof window === "undefined" || !("Notification" in window)) return;
 
-    const isLocalhost =
-      typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    return subscribeToForegroundPushMessages((payload) => {
+      if (Notification.permission !== "granted") return;
 
-    if (!window.isSecureContext && !isLocalhost) return;
+      const title = payload.notification?.title || "Canisterr";
+      const body = payload.notification?.body || payload.data?.body || "You have a new notification.";
+      const icon = payload.notification?.icon || "/icon.svg";
+      const clickTarget =
+        (payload as { fcmOptions?: { link?: string } }).fcmOptions?.link ||
+        payload.data?.link ||
+        "/notifications";
 
-    navigator.serviceWorker.register("/sw.js").catch((error) => {
-      console.warn("Service worker registration failed:", error);
+      try {
+        const notification = new Notification(title, {
+          body,
+          icon,
+          badge: icon,
+          data: { url: clickTarget },
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          window.location.href = clickTarget;
+          notification.close();
+        };
+      } catch (error) {
+        console.warn("Foreground notification failed:", error);
+      }
     });
   }, []);
 

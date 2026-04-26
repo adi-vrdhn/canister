@@ -1,67 +1,25 @@
-const CACHE_NAME = "canisterr-pwa-v1";
-const OFFLINE_URL = "/offline";
-const PRECACHE_URLS = [OFFLINE_URL, "/icon.svg"];
-
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting())
-  );
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(async (cacheNames) => {
-      await Promise.all(cacheNames.map((cacheName) => {
-        if (cacheName !== CACHE_NAME) {
-          return caches.delete(cacheName);
+    (async () => {
+      try {
+        await self.registration.unregister();
+      } catch (error) {
+        console.warn("Service worker unregister failed:", error);
+      }
+
+      try {
+        if ("caches" in self) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
         }
-        return Promise.resolve();
-      }));
-      await self.clients.claim();
-    })
+      } catch (error) {
+        console.warn("Cache cleanup failed:", error);
+      }
+    })()
   );
 });
 
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone)).catch(() => {});
-          return response;
-        })
-        .catch(async () => {
-          const cachedPage = await caches.match(request);
-          return cachedPage || caches.match(OFFLINE_URL);
-        })
-    );
-    return;
-  }
-
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        return fetch(request).then((response) => {
-          if (!response || response.status !== 200 || response.type !== "basic") {
-            return response;
-          }
-
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone)).catch(() => {});
-          return response;
-        });
-      })
-    );
-  }
-});

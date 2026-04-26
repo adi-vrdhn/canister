@@ -42,6 +42,7 @@ function profileHref(user: User): string {
 }
 
 function contentHref(post: CinePostWithDetails): string | null {
+  if (post.list_id && post.content_type === "list") return `/lists/${post.list_id}`;
   if (!post.content_id || !post.content_type) return null;
   return post.content_type === "tv" ? `/tv/${post.content_id}` : `/movie/${post.content_id}`;
 }

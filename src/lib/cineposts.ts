@@ -21,7 +21,10 @@ type CreateCinePostInput = {
   anchorLabel: string;
   body: string;
   tags?: string[];
-  content: Content;
+  content?: Content | null;
+  listId?: string;
+  listName?: string;
+  listCoverUrl?: string | null;
   logId?: string;
 };
 
@@ -148,11 +151,15 @@ export async function createCinePost(input: CreateCinePostInput): Promise<CinePo
   if (!postId) throw new Error("Failed to create CinePost ID");
 
   const now = new Date().toISOString();
-  const contentType = input.content.type === "tv" ? "tv" : "movie";
+  const contentType: "movie" | "tv" | "list" = input.listId
+    ? "list"
+    : input.content?.type === "tv"
+      ? "tv"
+      : "movie";
   const defaultTags = [
     input.anchorLabel,
     input.type,
-    ...(input.content.genres || []),
+    ...(input.content?.genres || []),
     input.content?.director || "",
     ...((input.content as any)?.cast || []),
     ...((input.content as any)?.actors || []),
@@ -170,12 +177,23 @@ export async function createCinePost(input: CreateCinePostInput): Promise<CinePo
     updated_at: now,
   };
 
-  post.content_id = input.content.id;
-  post.content_type = contentType;
-  post.content_title = input.content.title || (input.content as any).name || input.anchorLabel;
-  post.poster_url = input.content.poster_url || null;
+  if (input.content && !input.listId) {
+    post.content_id = input.content.id;
+  }
 
-  if (contentType === "movie") {
+  if (input.listId) {
+    post.list_id = input.listId;
+  }
+
+  post.content_type = contentType;
+  post.content_title =
+    input.listName?.trim() ||
+    input.content?.title ||
+    (input.content as any)?.name ||
+    input.anchorLabel;
+  post.poster_url = input.listCoverUrl ?? input.content?.poster_url ?? null;
+
+  if (contentType === "movie" && input.content) {
     post.movie_id = input.content.id;
   }
 

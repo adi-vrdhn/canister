@@ -53,7 +53,9 @@ export default function CinePostPreviewList({
     <div className={`space-y-3 ${className}`}>
       {posts.map((post) => {
         const contentHref =
-          post.content_id && post.content_type
+          post.list_id && post.content_type === "list"
+            ? `/lists/${post.list_id}`
+            : post.content_id && post.content_type
             ? post.content_type === "tv"
               ? `/tv/${post.content_id}`
               : `/movie/${post.content_id}`
