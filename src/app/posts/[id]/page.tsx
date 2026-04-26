@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
-import { ArrowLeft, Bookmark, Heart, MessageCircle, Send, X } from "lucide-react";
+import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreVertical, Pencil, Send, Trash2, X } from "lucide-react";
 import CinematicLoading from "@/components/CinematicLoading";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import PageLayout from "@/components/PageLayout";
@@ -19,10 +19,13 @@ import { auth, db } from "@/lib/firebase";
 import { signOut as authSignOut } from "@/lib/auth";
 import {
   createCinePostComment,
+  deleteCinePostComment,
   getCinePost,
   getCinePostEngagementUsers,
   setCinePostEngagement,
+  updateCinePostComment,
 } from "@/lib/cineposts";
+import { reportAppError } from "@/lib/report-error";
 
 function formatPostType(type: string): string {
   return type.charAt(0).toUpperCase() + type.slice(1);
@@ -57,7 +60,7 @@ function linkify(text: string) {
           href={part}
           target="_blank"
           rel="noreferrer"
-          className="font-semibold text-blue-600 underline-offset-2 hover:underline"
+          className="font-semibold text-[#ff7a1a] underline-offset-2 hover:underline"
         >
           {part}
         </a>
@@ -138,22 +141,94 @@ function CommentThread({
   currentUser,
   postOwnerId,
   onReply,
+  onEdit,
+  onDelete,
   replyingTo,
   replyText,
   setReplyingTo,
   setReplyText,
   submitting,
+  theme = "brutalist",
 }: {
   comment: CinePostCommentWithUser;
   currentUser: User | null;
   postOwnerId: string;
   onReply: (parentId: string, ownerId: string) => Promise<void>;
+  onEdit: (commentId: string, content: string) => Promise<void>;
+  onDelete: (commentId: string) => Promise<void>;
   replyingTo: string | null;
   replyText: string;
   setReplyingTo: (commentId: string | null) => void;
   setReplyText: (value: string) => void;
   submitting: boolean;
+  theme?: "default" | "brutalist";
 }) {
+  const isBrutalist = theme === "brutalist";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.content);
+  const [commentSaving, setCommentSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditText(comment.content);
+    }
+  }, [comment.content, isEditing]);
+
+  const canManageComment = currentUser?.id === comment.user_id;
+
+  const startEdit = () => {
+    setMenuOpen(false);
+    setEditText(comment.content);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditText(comment.content);
+  };
+
+  const saveEdit = async () => {
+    if (editText.trim().length < 2) return;
+
+    try {
+      setCommentSaving(true);
+      await onEdit(comment.id, editText);
+      setIsEditing(false);
+    } catch (error) {
+      reportAppError({
+        title: "Comment update failed",
+        message: "We could not save your edit.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
+    } finally {
+      setCommentSaving(false);
+    }
+  };
+
+  const deleteComment = async () => {
+    const confirmed = window.confirm(
+      comment.replies.length > 0
+        ? "Delete this comment and its replies?"
+        : "Delete this comment?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setMenuOpen(false);
+      setCommentSaving(true);
+      await onDelete(comment.id);
+    } catch (error) {
+      reportAppError({
+        title: "Comment delete failed",
+        message: "We could not delete this comment.",
+        details: error instanceof Error ? error.stack || error.message : String(error),
+      });
+    } finally {
+      setCommentSaving(false);
+    }
+  };
+
   return (
     <div className="py-4">
       <div className="flex gap-3">
@@ -161,35 +236,127 @@ function CommentThread({
           <Avatar user={comment.user} />
         </Link>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Link href={profileHref(comment.user)} className="text-sm font-black text-slate-950 hover:text-blue-600">
-              {comment.user.name}
-            </Link>
-            <span className="text-xs text-slate-400">{relativeTime(comment.created_at)}</span>
-            {comment.insightScore > 8 && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                top insight
-              </span>
-            )}
-            {comment.user_id === postOwnerId && (
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                owner
-              </span>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Link href={profileHref(comment.user)} className="text-sm font-black text-[#f5f0de] hover:text-white">
+                  {comment.user.name}
+                </Link>
+                <span className="text-xs text-slate-400">{relativeTime(comment.created_at)}</span>
+                {comment.insightScore > 8 && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                    top insight
+                  </span>
+                )}
+                {comment.user_id === postOwnerId && (
+                  <span className="rounded-full bg-[#ffb36b]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#ff7a1a]">
+                    owner
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {canManageComment && (
+              <div className="relative flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((open) => !open)}
+                  className={`rounded-full p-1 transition ${
+                    isBrutalist ? "text-white/55 hover:bg-white/5 hover:text-[#f5f0de]" : "text-slate-400 hover:bg-slate-50 hover:text-slate-950"
+                  }`}
+                  aria-label="Comment options"
+                  aria-expanded={menuOpen}
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+
+                {menuOpen && (
+                  <div
+                    className={`absolute right-0 top-9 z-20 w-40 overflow-hidden border p-1 shadow-xl ${
+                      isBrutalist ? "border-white/10 bg-[#111111]" : "rounded-2xl border-slate-200 bg-white"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={startEdit}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                        isBrutalist ? "text-[#f5f0de] hover:bg-white/5" : "rounded-xl text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deleteComment}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                        isBrutalist ? "text-[#ff7a1a] hover:bg-white/5" : "rounded-xl text-red-600 hover:bg-red-50"
+                      }`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{linkify(comment.content)}</p>
-          {currentUser && (
-            <button
-              type="button"
-              onClick={() => {
-                setReplyingTo(replyingTo === comment.id ? null : comment.id);
-                setReplyText("");
-              }}
-              className="mt-2 text-xs font-black text-blue-600"
-            >
-              Reply
-              {comment.replies.length > 0 ? ` (${comment.replies.length})` : ""}
-            </button>
+
+          {isEditing ? (
+            <div className="mt-2 space-y-2">
+              <textarea
+                value={editText}
+                onChange={(event) => setEditText(event.target.value)}
+                rows={3}
+                className={`w-full resize-none rounded-3xl border px-4 py-3 text-sm leading-6 outline-none ${
+                  isBrutalist
+                    ? "border-white/10 bg-[#0d0d0d] text-[#f5f0de] focus:border-[#ff7a1a]"
+                    : "border-slate-200 bg-white text-slate-800 focus:border-blue-500"
+                }`}
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className={`rounded-full border px-3 py-2 text-xs font-black ${
+                    isBrutalist
+                      ? "border-white/10 text-[#f5f0de] hover:bg-white/5"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  disabled={commentSaving || editText.trim().length < 2}
+                  className={`rounded-full px-3 py-2 text-xs font-black text-black disabled:opacity-50 ${
+                    isBrutalist ? "bg-[#ff7a1a] hover:bg-[#ff8d3b]" : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {commentSaving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                {linkify(comment.content)}
+              </p>
+              {currentUser && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplyingTo(replyingTo === comment.id ? null : comment.id);
+                    setReplyText("");
+                  }}
+                  className="mt-2 text-xs font-black text-[#ff7a1a]"
+                >
+                  Reply
+                  {comment.replies.length > 0 ? ` (${comment.replies.length})` : ""}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -200,7 +367,7 @@ function CommentThread({
             value={replyText}
             onChange={(event) => setReplyText(event.target.value)}
             placeholder={`Reply to ${comment.user.name}`}
-            className="min-w-0 flex-1 rounded-full border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="min-w-0 flex-1 rounded-full border border-white/10 bg-[#111111] px-3 py-2 text-sm text-[#f5f0de] outline-none focus:border-[#ff7a1a]"
           />
           <button
             type="button"
@@ -219,20 +386,23 @@ function CommentThread({
           {comment.replies.map((reply) => (
             <CommentThread
               key={reply.id}
-              comment={reply}
-              currentUser={currentUser}
-              postOwnerId={postOwnerId}
-              onReply={onReply}
-              replyingTo={replyingTo}
-              replyText={replyText}
-              setReplyingTo={setReplyingTo}
-              setReplyText={setReplyText}
-              submitting={submitting}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+            comment={reply}
+            currentUser={currentUser}
+            postOwnerId={postOwnerId}
+            onReply={onReply}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            replyingTo={replyingTo}
+            replyText={replyText}
+            setReplyingTo={setReplyingTo}
+            setReplyText={setReplyText}
+            submitting={submitting}
+            theme={theme}
+          />
+        ))}
+      </div>
+    )}
+  </div>
   );
 }
 
@@ -343,6 +513,18 @@ export default function CinePostPage() {
     }
   };
 
+  const handleEditComment = async (commentId: string, content: string) => {
+    if (!user || !post) return;
+    await updateCinePostComment(post.id, user.id, commentId, content);
+    await refreshPost();
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!user || !post) return;
+    await deleteCinePostComment(post.id, user.id, commentId);
+    await refreshPost();
+  };
+
   if (loading || !user) {
     return <CinematicLoading message="Post is loading" />;
   }
@@ -418,12 +600,12 @@ export default function CinePostPage() {
                 </Link>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <Link href={profileHref(post.user)} className="text-lg font-black text-slate-950 hover:text-blue-600">
+                    <Link href={profileHref(post.user)} className="text-lg font-black text-[#f5f0de] hover:text-white">
                       {post.user.name}
                     </Link>
                     <span className="text-sm text-slate-400">{relativeTime(post.created_at)}</span>
                   </div>
-                  <span className="mt-2 inline-flex rounded-full bg-blue-600 px-3 py-1 text-xs font-black text-white">
+                  <span className="mt-2 inline-flex rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-black text-black">
                     {formatPostType(post.type)}
                   </span>
                 </div>
@@ -432,6 +614,7 @@ export default function CinePostPage() {
                   currentUser={user}
                   onDeleted={() => router.push("/dashboard")}
                   onUpdated={refreshPost}
+                  theme="brutalist"
                 />
               </div>
 
@@ -486,30 +669,30 @@ export default function CinePostPage() {
                 onClick={() => handleEngagement("save", !post.saved_by_current_user)}
                 className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 transition ${
                   post.saved_by_current_user
-                    ? "bg-blue-50 text-blue-600"
+                    ? "bg-[#ffb36b]/20 text-[#ff7a1a]"
                     : "bg-slate-50 text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                <Bookmark className={`h-5 w-5 ${post.saved_by_current_user ? "fill-blue-500" : ""}`} />
+                <Bookmark className={`h-5 w-5 ${post.saved_by_current_user ? "fill-[#ff7a1a]" : ""}`} />
               </button>
             </div>
           </div>
         </article>
 
-        <section className="mt-5 rounded-[2rem] bg-slate-50 p-4 sm:p-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <section className="mt-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-1 sm:px-0">
             <div>
-              <h2 className="text-xl font-black text-slate-950">Comments</h2>
-              <p className="text-sm text-slate-500">Top insights rise first, with full threaded replies expanded.</p>
+              <h2 className="text-xl font-black text-[#f5f0de]">Comments</h2>
+              <p className="text-sm text-white/55">Top insights rise first, with full threaded replies expanded.</p>
             </div>
-            <div className="rounded-full bg-white p-1 shadow-sm">
+            <div className="rounded-full border border-white/10 bg-white/5 p-1">
               {(["top", "newest"] as const).map((sort) => (
                 <button
                   key={sort}
                   type="button"
                   onClick={() => setCommentSort(sort)}
                   className={`rounded-full px-3 py-1.5 text-xs font-black capitalize transition ${
-                    commentSort === sort ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100"
+                    commentSort === sort ? "bg-[#ff7a1a] text-black" : "text-white/55 hover:bg-white/10 hover:text-[#f5f0de]"
                   }`}
                 >
                   {sort}
@@ -518,27 +701,27 @@ export default function CinePostPage() {
             </div>
           </div>
 
-          <div className="mb-5 flex gap-2">
+          <div className="mb-5 flex gap-2 px-1 sm:px-0">
             <input
               value={commentText}
               onChange={(event) => setCommentText(event.target.value)}
               placeholder="Add a comment..."
-              className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500"
+              className="min-w-0 flex-1 rounded-full border border-white/10 bg-[#111111] px-4 py-3 text-sm text-[#f5f0de] outline-none focus:border-[#ff7a1a]"
             />
             <button
               type="button"
               disabled={submittingComment || commentText.trim().length < 2}
               onClick={handleComment}
-              className="rounded-full bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
+              className="rounded-full bg-[#ff7a1a] px-4 py-3 text-black disabled:opacity-50"
               aria-label="Send comment"
             >
               <Send className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="divide-y divide-slate-200/70">
+          <div className="divide-y divide-white/10 px-1 sm:px-0">
             {post.comments.length === 0 ? (
-              <p className="rounded-3xl border border-dashed border-slate-200 bg-white/70 p-5 text-sm text-slate-500">
+              <p className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-white/55">
                 No comments yet. Start the thread.
               </p>
             ) : (
@@ -549,11 +732,14 @@ export default function CinePostPage() {
                   currentUser={user}
                   postOwnerId={post.user_id}
                   onReply={handleReply}
+                  onEdit={handleEditComment}
+                  onDelete={handleDeleteComment}
                   replyingTo={replyingTo}
                   replyText={replyText}
                   setReplyingTo={setReplyingTo}
                   setReplyText={setReplyText}
                   submitting={submittingComment}
+                  theme="brutalist"
                 />
               ))
             )}

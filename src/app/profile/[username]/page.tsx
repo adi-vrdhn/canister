@@ -39,6 +39,10 @@ import {
   getUserStats,
   updateUserProfile,
 } from "@/lib/profile";
+import {
+  acceptFollowRequest as persistAcceptFollowRequest,
+  createFollowRequestNotification,
+} from "@/lib/notifications";
 import { signOut as authSignOut } from "@/lib/auth";
 import type { List, ListWithItems, MovieLogWithContent, User } from "@/types";
 
@@ -72,7 +76,7 @@ function formatCompactCount(count: number): string {
   }).format(count).toLowerCase();
 }
 
-function getRecentMoodGenres(logs: MovieLogWithContent[], limit = 3): string[] {
+function getRecentMoodGenres(logs: MovieLogWithContent[], limit = 1): string[] {
   const genreScores = new Map<string, { count: number; firstSeen: number }>();
 
   logs.forEach((log, index) => {
@@ -97,12 +101,16 @@ function getRecentMoodGenres(logs: MovieLogWithContent[], limit = 3): string[] {
 }
 
 function getCurrentMoodGenres(logs: MovieLogWithContent[]): string[] {
-  if (logs.length === 0) return [];
-  if (logs.length === 1) {
-    return logs[0]?.content?.genres?.slice(0, 3) || [];
+  const recentMovieLogs = logs
+    .filter((log) => log.content_type === "movie")
+    .slice(0, 4);
+
+  if (recentMovieLogs.length === 0) return [];
+  if (recentMovieLogs.length === 1) {
+    return recentMovieLogs[0]?.content?.genres?.slice(0, 1) || [];
   }
 
-  return getRecentMoodGenres(logs.slice(0, 5), 3);
+  return getRecentMoodGenres(recentMovieLogs, 1);
 }
 
 function ProfilePageInner() {
@@ -482,7 +490,7 @@ function ProfilePageInner() {
           const [statsObj, genres, recentLogs] = await Promise.all([
             getUserStats(profileUser.id),
             getMostWatchedGenres(profileUser.id),
-            getUserMovieLogs(profileUser.id, 5),
+            getUserMovieLogs(profileUser.id, 12),
           ]);
 
         if (cancelled) return;
@@ -599,7 +607,7 @@ function ProfilePageInner() {
     if (!recentMoodGenres || recentMoodGenres.length === 0) {
       return "Not set yet";
     }
-    return recentMoodGenres.join(", ");
+    return recentMoodGenres[0] || "Not set yet";
   }, [recentMoodGenres]);
 
   const shownUsers = useMemo(() => {
@@ -698,21 +706,7 @@ function ProfilePageInner() {
     };
 
     await set(ref(db, `follows/${followId}`), newFollow);
-    if (await shouldDeliverNotificationToUser(targetUser.id, "follow_request")) {
-    await set(ref(db, `notifications/${targetUser.id}/${followId}`), {
-      type: "follow_request",
-      seen: false,
-      followRequestState: "pending",
-      fromUser: {
-        id: currentUser.id,
-        username: currentUser.username,
-          name: currentUser.name,
-          avatar_url: currentUser.avatar_url || null,
-        },
-        created_at: createdAt,
-        createdAt,
-      });
-    }
+    await createFollowRequestNotification(targetUser.id, followId, currentUser, createdAt);
     setAllFollows((prev) => [...prev, newFollow]);
   };
 
@@ -767,17 +761,7 @@ function ProfilePageInner() {
 
       const updatedFollow: FollowRecord = { ...followRecord, status: "accepted" };
       await set(ref(db, `follows/${note.id}`), updatedFollow);
-      await set(ref(db, `notifications/${currentUser.id}/${note.id}`), {
-        type: note.type,
-        seen: true,
-        followRequestState: "accepted",
-        fromUser: note.fromUser,
-        createdAt: note.createdAt,
-        created_at: note.createdAt,
-        listId: note.listId,
-        listName: note.listName,
-        ref_id: note.ref_id,
-      });
+      await persistAcceptFollowRequest(currentUser.id, note, { keepNotification: true });
 
       setAllFollows((prev) => prev.map((follow) => (follow.id === note.id ? updatedFollow : follow)));
       setNotifications((prev) =>
@@ -1282,7 +1266,7 @@ function ProfilePageInner() {
             </p>
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#f5f0de]/60 sm:text-base">
-              <span className="font-semibold text-[#f5f0de]">Current mood:</span>{" "}
+              <span className="font-semibold text-[#f5f0de]">Top genre from last 4 movies:</span>{" "}
               {DOMPurify.sanitize(currentlyIntoText)}
             </p>
 

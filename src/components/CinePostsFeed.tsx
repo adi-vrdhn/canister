@@ -493,6 +493,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                             currentUser={currentUser}
                             onDeleted={refreshPosts}
                             onUpdated={refreshPosts}
+                            theme={theme}
                           />
                         </div>
                       </div>

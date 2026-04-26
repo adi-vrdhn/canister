@@ -11,7 +11,7 @@ const sections = [
   { href: "/profile/settings/privacy", icon: Shield, title: "Privacy", desc: "Profile, list and log visibility." },
   { href: "/profile/settings/notifications", icon: Bell, title: "Notifications", desc: "Follow, comment and email alerts." },
   { href: "/profile/settings/social", icon: Users, title: "Social", desc: "Blocked users and collaborations." },
-  { href: "/profile/settings/account", icon: KeyRound, title: "Account", desc: "Password, deactivate and delete." },
+  { href: "/profile/settings/account", icon: KeyRound, title: "Account", desc: "Password, deactivate and delete profile." },
   { href: "mailto:support@cineparte.app", icon: LifeBuoy, title: "Support", desc: "Help, bug reports and contact." },
 ];
 

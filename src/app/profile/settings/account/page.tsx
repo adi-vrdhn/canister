@@ -151,9 +151,9 @@ export default function SettingsAccountPage() {
           )}
         </SettingLine>
 
-        <SettingLine icon={Trash2} title="Delete account" description="Remove the profile and related data permanently.">
+        <SettingLine icon={Trash2} title="Delete profile" description="Remove the profile and related data permanently.">
           <button onClick={deleteAccount} disabled={busy} className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-[#0a0a0a] transition hover:bg-[#ff8d3b] disabled:opacity-50">
-            Delete forever
+            Delete profile
           </button>
         </SettingLine>
 

@@ -411,7 +411,11 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                     }}
                   />
                   {searching && (
-                    <span className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                    <span
+                      className={`absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 ${
+                        isBrutalist ? "border-white/20 border-t-[#ff7a1a]" : "border-slate-300 border-t-blue-600"
+                      }`}
+                    />
                   )}
                 </div>
 

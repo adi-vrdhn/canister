@@ -34,16 +34,24 @@ export default function CinePostPreviewList({
   className = "",
   currentUser = null,
   onPostMutated,
+  theme = "default",
 }: {
   posts: CinePostWithDetails[];
   emptyText?: string;
   className?: string;
   currentUser?: User | null;
   onPostMutated?: () => void;
+  theme?: "default" | "brutalist";
 }) {
+  const isBrutalist = theme === "brutalist";
+
   if (posts.length === 0) {
     return (
-      <div className={`border border-dashed border-white/10 bg-[#111111] p-6 text-center text-sm text-white/50 ${className}`}>
+      <div
+        className={`border border-dashed p-6 text-center text-sm ${
+          isBrutalist ? "border-white/10 bg-[#111111] text-white/50" : "border-slate-200 bg-white text-slate-500"
+        } ${className}`}
+      >
         {emptyText}
       </div>
     );
@@ -100,6 +108,7 @@ export default function CinePostPreviewList({
                     currentUser={currentUser}
                     onDeleted={onPostMutated}
                     onUpdated={onPostMutated}
+                    theme={theme}
                   />
                 )}
               </div>

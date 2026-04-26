@@ -52,6 +52,22 @@ function fallbackUser(userId: string): User {
   };
 }
 
+function stripUndefinedFields<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedFields(item)) as T;
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, fieldValue]) => fieldValue !== undefined)
+        .map(([key, fieldValue]) => [key, stripUndefinedFields(fieldValue)])
+    ) as T;
+  }
+
+  return value;
+}
+
 export function parseNotificationItems(raw: unknown): NotificationItem[] {
   if (!raw || typeof raw !== "object") return [];
 
@@ -169,12 +185,15 @@ export async function acceptFollowRequest(
   if (options?.keepNotification) {
     const notificationRef = ref(db, `notifications/${userId}/${note.id}`);
     const notificationSnapshot = await get(notificationRef);
-    await set(notificationRef, {
-      ...(notificationSnapshot.exists() ? notificationSnapshot.val() : {}),
-      ...note,
-      followRequestState: "accepted",
-      seen: true,
-    });
+    await set(
+      notificationRef,
+      stripUndefinedFields({
+        ...(notificationSnapshot.exists() ? notificationSnapshot.val() : {}),
+        ...note,
+        followRequestState: "accepted",
+        seen: true,
+      })
+    );
     return;
   }
 
@@ -232,7 +251,41 @@ export async function sendFollowRequest(
   await set(ref(db, `follows/${followId}`), newFollow);
 
   if (await shouldDeliverNotificationToUser(targetUser.id, "follow_request")) {
-    await set(ref(db, `notifications/${targetUser.id}/${followId}`), {
+    await set(
+      ref(db, `notifications/${targetUser.id}/${followId}`),
+      stripUndefinedFields({
+        type: "follow_request",
+        seen: false,
+        followRequestState: "pending",
+        fromUser: {
+          id: fromUser.id,
+          username: fromUser.username,
+          name: fromUser.name,
+          avatar_url: fromUser.avatar_url || null,
+        },
+        created_at: createdAt,
+        createdAt,
+      })
+    );
+  }
+}
+
+export async function createFollowRequestNotification(
+  userId: string,
+  followId: string,
+  fromUser: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url?: string | null;
+  },
+  createdAt: string
+): Promise<void> {
+  if (!(await shouldDeliverNotificationToUser(userId, "follow_request"))) return;
+
+  await set(
+    ref(db, `notifications/${userId}/${followId}`),
+    stripUndefinedFields({
       type: "follow_request",
       seen: false,
       followRequestState: "pending",
@@ -244,8 +297,8 @@ export async function sendFollowRequest(
       },
       created_at: createdAt,
       createdAt,
-    });
-  }
+    })
+  );
 }
 
 export function createNotificationFallbackUser(userId: string): User {

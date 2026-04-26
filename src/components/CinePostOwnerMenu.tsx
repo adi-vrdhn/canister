@@ -10,6 +10,7 @@ interface CinePostOwnerMenuProps {
   currentUser: User | null;
   onDeleted: () => void;
   onUpdated: () => void;
+  theme?: "default" | "brutalist";
 }
 
 function tagsToText(tags: string[]): string {
@@ -28,7 +29,9 @@ export default function CinePostOwnerMenu({
   currentUser,
   onDeleted,
   onUpdated,
+  theme = "default",
 }: CinePostOwnerMenuProps) {
+  const isBrutalist = theme === "brutalist";
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [body, setBody] = useState(post.body);
@@ -74,7 +77,9 @@ export default function CinePostOwnerMenu({
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          className="flex items-center justify-center p-1 text-[#ff7a1a] transition hover:text-[#ffb36b]"
+          className={`flex items-center justify-center p-1 transition ${
+            isBrutalist ? "text-[#f5f0de] hover:text-[#ff7a1a]" : "text-[#ff7a1a] hover:text-[#ffb36b]"
+          }`}
           aria-label="Post options"
           aria-expanded={menuOpen}
         >
@@ -82,7 +87,11 @@ export default function CinePostOwnerMenu({
         </button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl">
+          <div
+            className={`absolute right-0 top-11 z-20 w-44 overflow-hidden border p-1 shadow-xl ${
+              isBrutalist ? "border-white/10 bg-[#111111] text-[#f5f0de]" : "rounded-2xl border-slate-200 bg-white"
+            }`}
+          >
             <button
               type="button"
               onClick={() => {
@@ -91,7 +100,9 @@ export default function CinePostOwnerMenu({
                 setTags(tagsToText(post.tags || []));
                 setEditOpen(true);
               }}
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                isBrutalist ? "text-[#f5f0de] hover:bg-white/5" : "rounded-xl text-slate-700 hover:bg-slate-50"
+              }`}
             >
               <Pencil className="h-4 w-4" />
               Edit post
@@ -99,7 +110,9 @@ export default function CinePostOwnerMenu({
             <button
               type="button"
               onClick={handleDelete}
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold text-red-600 transition hover:bg-red-50"
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                isBrutalist ? "text-[#ff7a1a] hover:bg-white/5" : "rounded-xl text-red-600 hover:bg-red-50"
+              }`}
             >
               <Trash2 className="h-4 w-4" />
               Delete post
@@ -109,41 +122,59 @@ export default function CinePostOwnerMenu({
       </div>
 
       {editOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center">
-          <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-2xl">
+        <div className={`fixed inset-0 z-50 flex items-end justify-center p-3 backdrop-blur-sm sm:items-center ${
+          isBrutalist ? "bg-black/75" : "bg-slate-950/45"
+        }`}>
+          <div
+            className={`w-full max-w-lg p-4 shadow-2xl ${
+              isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : "rounded-[1.75rem] border border-slate-200 bg-white"
+            }`}
+          >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-black text-slate-950">Edit post</h3>
-                <p className="text-sm text-slate-500">Update the text and tags for this post.</p>
+                <h3 className={`text-lg font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Edit post</h3>
+                <p className={`text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                  Update the text and tags for this post.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={closeEditor}
-                className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+                className={`rounded-full border p-2 transition ${
+                  isBrutalist ? "border-white/10 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                }`}
                 aria-label="Close editor"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <label className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            <label className={`text-xs font-black uppercase tracking-[0.18em] ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>
               Post
             </label>
             <textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
               rows={6}
-              className="mt-2 w-full resize-none rounded-3xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-500"
+              className={`mt-2 w-full resize-none border px-4 py-3 text-sm leading-6 outline-none ${
+                isBrutalist
+                  ? "rounded-3xl border-white/10 bg-[#0d0d0d] text-[#f5f0de] focus:border-[#ff7a1a]"
+                  : "rounded-3xl border-slate-200 text-slate-800 focus:border-blue-500"
+              }`}
               placeholder="Write your post..."
             />
 
-            <label className="mt-4 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            <label className={`mt-4 block text-xs font-black uppercase tracking-[0.18em] ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>
               Tags
             </label>
             <input
               value={tags}
               onChange={(event) => setTags(event.target.value)}
-              className="mt-2 w-full rounded-full border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"
+              className={`mt-2 w-full border px-4 py-3 text-sm outline-none ${
+                isBrutalist
+                  ? "rounded-full border-white/10 bg-[#0d0d0d] text-[#f5f0de] focus:border-[#ff7a1a]"
+                  : "rounded-full border-slate-200 focus:border-blue-500"
+              }`}
               placeholder="music, masterpiece, ending"
             />
 
@@ -151,7 +182,11 @@ export default function CinePostOwnerMenu({
               <button
                 type="button"
                 onClick={closeEditor}
-                className="flex-1 rounded-full border border-slate-200 px-4 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50"
+                className={`flex-1 px-4 py-3 text-sm font-black transition ${
+                  isBrutalist
+                    ? "rounded-full border border-white/10 text-[#f5f0de] hover:bg-white/5"
+                    : "rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
               >
                 Cancel
               </button>
@@ -159,7 +194,11 @@ export default function CinePostOwnerMenu({
                 type="button"
                 onClick={handleEdit}
                 disabled={saving || body.trim().length < 2}
-                className="flex-1 rounded-full bg-blue-600 px-4 py-3 text-sm font-black text-white transition hover:bg-blue-700 disabled:opacity-50"
+                className={`flex-1 px-4 py-3 text-sm font-black text-white transition disabled:opacity-50 ${
+                  isBrutalist
+                    ? "rounded-full bg-[#ff7a1a] hover:bg-[#ff8d3b]"
+                    : "rounded-full bg-blue-600 hover:bg-blue-700"
+                }`}
               >
                 {saving ? "Saving..." : "Save changes"}
               </button>

@@ -518,6 +518,95 @@ export async function createCinePostComment(
   return comment;
 }
 
+function collectCommentDescendants(
+  commentsById: Record<string, CinePostComment>,
+  commentId: string
+): string[] {
+  const ids = [commentId];
+
+  Object.values(commentsById).forEach((comment) => {
+    if (comment.parent_id === commentId) {
+      ids.push(...collectCommentDescendants(commentsById, comment.id));
+    }
+  });
+
+  return ids;
+}
+
+export async function updateCinePostComment(
+  postId: string,
+  userId: string,
+  commentId: string,
+  content: string
+): Promise<CinePostComment> {
+  const [postSnapshot, commentSnapshot] = await Promise.all([
+    get(ref(db, `posts/${postId}`)),
+    get(ref(db, `comments/${postId}`)),
+  ]);
+
+  if (!postSnapshot.exists()) {
+    throw new Error("Post not found");
+  }
+
+  if (!commentSnapshot.exists()) {
+    throw new Error("Comment not found");
+  }
+
+  const commentsById = commentSnapshot.val() as Record<string, CinePostComment>;
+  const existingComment = commentsById[commentId];
+
+  if (!existingComment) {
+    throw new Error("Comment not found");
+  }
+
+  if (existingComment.user_id !== userId) {
+    throw new Error("Only the comment owner can edit this comment");
+  }
+
+  const updatedComment: CinePostComment = {
+    ...existingComment,
+    content: content.trim(),
+    updated_at: new Date().toISOString(),
+  };
+
+  await set(ref(db, `comments/${postId}/${commentId}`), updatedComment);
+  return updatedComment;
+}
+
+export async function deleteCinePostComment(
+  postId: string,
+  userId: string,
+  commentId: string
+): Promise<void> {
+  const [postSnapshot, commentSnapshot] = await Promise.all([
+    get(ref(db, `posts/${postId}`)),
+    get(ref(db, `comments/${postId}`)),
+  ]);
+
+  if (!postSnapshot.exists()) {
+    throw new Error("Post not found");
+  }
+
+  if (!commentSnapshot.exists()) {
+    throw new Error("Comment not found");
+  }
+
+  const post = postSnapshot.val() as CinePost;
+  const commentsById = commentSnapshot.val() as Record<string, CinePostComment>;
+  const existingComment = commentsById[commentId];
+
+  if (!existingComment) {
+    throw new Error("Comment not found");
+  }
+
+  if (existingComment.user_id !== userId && post.user_id !== userId) {
+    throw new Error("Only the comment owner or post owner can delete this comment");
+  }
+
+  const descendantIds = collectCommentDescendants(commentsById, commentId);
+  await Promise.all(descendantIds.map((id) => remove(ref(db, `comments/${postId}/${id}`))));
+}
+
 async function createCinePostNotification(
   userId: string,
   type: "post_like" | "post_save" | "post_comment" | "comment_reply",
