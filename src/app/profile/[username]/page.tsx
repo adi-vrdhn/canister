@@ -744,7 +744,15 @@ function ProfilePageInner() {
     const followRecord = allFollows.find((follow) => follow.id === note.id);
     if (!followRecord) return;
 
+    const loadingKey = isOwnProfile ? note.fromUser?.id || note.id : null;
+
     try {
+      if (loadingKey) {
+        setFollowActionLoading(loadingKey);
+      } else {
+        setProfileFollowActionLoading(true);
+      }
+
       const updatedFollow: FollowRecord = { ...followRecord, status: "accepted" };
       await set(ref(db, `follows/${note.id}`), updatedFollow);
       await set(ref(db, `notifications/${currentUser.id}/${note.id}`), {
@@ -776,6 +784,12 @@ function ProfilePageInner() {
       }
     } catch (error) {
       console.error("Error accepting follow request:", error);
+    } finally {
+      if (loadingKey) {
+        setFollowActionLoading(null);
+      } else {
+        setProfileFollowActionLoading(false);
+      }
     }
   };
 
@@ -1592,7 +1606,7 @@ function ProfilePageInner() {
               {isOwnProfile && (
                 <button
                   onClick={() => setFollowModalType("requests")}
-                  className={`relative rounded-xl px-4 py-2 font-semibold transition ${
+                  className={`relative rounded-full px-3 py-1.5 text-sm font-semibold transition ${
                     followModalType === "requests"
                       ? "bg-[#ff7a1a] text-black"
                       : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
@@ -1609,7 +1623,7 @@ function ProfilePageInner() {
               {isOwnProfile && (
                 <button
                   onClick={() => setFollowModalType("sent-requests")}
-                  className={`relative rounded-xl px-4 py-2 font-semibold transition ${
+                  className={`relative rounded-full px-3 py-1.5 text-sm font-semibold transition ${
                     followModalType === "sent-requests"
                       ? "bg-[#ff7a1a] text-black"
                       : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
@@ -1633,13 +1647,13 @@ function ProfilePageInner() {
               )}
             </div>
             {followModalType === "requests" && isOwnProfile ? (
-              <section className="space-y-6 rounded-[1.5rem] border border-white/10 bg-white/5 p-5">
+              <section className="space-y-4 rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
                 <div className="mb-4 flex items-center gap-2">
                   <Users className="h-5 w-5 text-[#ff7a1a]" />
                   <h2 className="text-lg font-bold text-[#f5f0de]">Friend Requests</h2>
                 </div>
                 {followRequests.length === 0 ? (
-                  <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-black/20 p-10 text-center text-white/55">
+                  <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-white/55">
                     No incoming friend requests.
                   </div>
                 ) : (
@@ -1647,7 +1661,7 @@ function ProfilePageInner() {
                     {followRequests.map((note) => (
                       <div
                         key={note.id}
-                        className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3"
+                        className="flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.03] px-4 py-3"
                       >
                         <div className="flex items-center gap-3">
                           {note.fromUser.avatar_url ? (
@@ -1675,6 +1689,7 @@ function ProfilePageInner() {
                           {note.followRequestState === "accepted" ? (
                             <>
                               <button
+                                type="button"
                                 className="rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-semibold text-black hover:bg-[#ff8d33]"
                                 onClick={() => handleFollowBackFromRequest(note)}
                                 disabled={followActionLoading === note.fromUser.id}
@@ -1682,6 +1697,7 @@ function ProfilePageInner() {
                                 {followActionLoading === note.fromUser.id ? "Sending..." : "Follow back"}
                               </button>
                               <button
+                                type="button"
                                 className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de] hover:bg-white/10"
                                 onClick={() => handleDeleteFollowRequestNotification(note.id)}
                               >
@@ -1691,14 +1707,18 @@ function ProfilePageInner() {
                           ) : (
                             <>
                               <button
+                                type="button"
                                 className="rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-semibold text-black hover:bg-[#ff8d33]"
                                 onClick={() => handleAcceptFollowRequest(note)}
+                                disabled={followActionLoading === note.fromUser.id || profileFollowActionLoading}
                               >
-                                Confirm
+                                {followActionLoading === note.fromUser.id || profileFollowActionLoading ? "Confirming..." : "Confirm"}
                               </button>
                               <button
+                                type="button"
                                 className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de] hover:bg-white/10"
                                 onClick={() => handleDeclineFollowRequest(note.id)}
+                                disabled={followActionLoading === note.fromUser.id || profileFollowActionLoading}
                               >
                                 Decline
                               </button>
@@ -1713,14 +1733,14 @@ function ProfilePageInner() {
             ) : followModalType === "sent-requests" && isOwnProfile ? (
               <section className="space-y-3">
                 {sentRequestUsers.length === 0 ? (
-                  <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-white/55">
+                  <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-white/55">
                     No pending requests sent.
                   </div>
                 ) : (
                   sentRequestUsers.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3"
+                      className="flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.03] px-4 py-3"
                     >
                       <Link href={`/profile/${user.username}`} className="flex min-w-0 flex-1 items-center gap-3">
                           {user.avatar_url ? (
