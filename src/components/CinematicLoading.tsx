@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -100,9 +101,19 @@ export default function CinematicLoading({
         </div>
 
         <div className="mx-auto max-w-md rounded-[2rem] border border-white/10 bg-[#111111]/95 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur-md">
-          <p className="brand-wordmark text-4xl font-bold tracking-tight text-[#f8e9c8] sm:text-5xl">
-            Canisterr
-          </p>
+          <div className="mx-auto flex w-fit items-center gap-3">
+            <Image
+              src="/logo.png"
+              alt=""
+              width={44}
+              height={44}
+              className="h-11 w-11 rounded-full object-cover"
+              aria-hidden="true"
+            />
+            <p className="brand-wordmark text-4xl font-bold tracking-tight text-[#f8e9c8] sm:text-5xl">
+              Canisterr
+            </p>
+          </div>
           <p className="mt-4 text-base font-semibold text-[#f5f0de]">{message}</p>
           <p className="mt-2 text-sm text-white/65">
             Setting up your cinema room with recent posters.

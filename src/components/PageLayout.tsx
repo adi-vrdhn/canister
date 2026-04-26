@@ -3,6 +3,7 @@
 import Sidebar from "./Sidebar";
 import EmailVerificationBadge from "./EmailVerificationBadge";
 import NotificationBell from "./NotificationBell";
+import Image from "next/image";
 import Link from "next/link";
 import { User } from "@/types";
 import { ReactNode, useEffect, useState } from "react";
@@ -78,12 +79,22 @@ export default function PageLayout({
 
         <Link
           href="/dashboard"
-          className={`brand-wordmark text-2xl font-bold transition hover:opacity-80 sm:text-3xl ${
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 transition hover:opacity-80 ${
             isBrutalist ? "text-[#f5f0de]" : "text-zinc-950"
           }`}
           aria-label="Go to home"
         >
-          Canisterr
+          <Image
+            src="/logo.png"
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-full object-cover sm:h-8 sm:w-8"
+            aria-hidden="true"
+          />
+          <span className="brand-wordmark text-xl font-bold tracking-tight sm:text-2xl">
+            Canisterr
+          </span>
         </Link>
         {headerAction === "settings" ? (
           <Link
