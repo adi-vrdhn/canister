@@ -203,6 +203,10 @@ function ProfilePageInner() {
   const [profilePageError, setProfilePageError] = useState<string | null>(null);
   const [followRequestError, setFollowRequestError] = useState<string | null>(null);
   const [displayListError, setDisplayListError] = useState<string | null>(null);
+  const [followRemovalPrompt, setFollowRemovalPrompt] = useState<{
+    kind: "following" | "follower";
+    user: User;
+  } | null>(null);
 
   useEffect(() => {
     if (!displayListMenuOpen) return;
@@ -710,6 +714,32 @@ function ProfilePageInner() {
     setAllFollows((prev) => [...prev, newFollow]);
   };
 
+  const followBackToUser = async (targetUser: Pick<User, "id" | "username" | "name" | "avatar_url">) => {
+    if (!currentUser || currentUser.id === targetUser.id) return;
+
+    const existingFollow = allFollows.find(
+      (follow) => follow.follower_id === currentUser.id && follow.following_id === targetUser.id
+    );
+    const followId = existingFollow?.id || `${currentUser.id}-${targetUser.id}-${Date.now()}`;
+    const createdAt = existingFollow?.createdAt || existingFollow?.created_at || new Date().toISOString();
+    const acceptedFollow: FollowRecord = {
+      id: followId,
+      follower_id: currentUser.id,
+      following_id: targetUser.id,
+      status: "accepted",
+      created_at: createdAt,
+      createdAt,
+    };
+
+    await set(ref(db, `follows/${followId}`), acceptedFollow);
+    setAllFollows((prev) => [
+      ...prev.filter(
+        (follow) => !(follow.follower_id === currentUser.id && follow.following_id === targetUser.id)
+      ),
+      acceptedFollow,
+    ]);
+  };
+
   const handleSendFollowRequest = async () => {
     if (!currentUser || !profileUser || isOwnProfile || profileFollowActionLoading) return;
     if (!canSendFollowRequest) {
@@ -816,7 +846,7 @@ function ProfilePageInner() {
     if (!note.fromUser || !currentUser) return;
     try {
       setFollowActionLoading(note.fromUser.id);
-      await sendFollowRequestToUser(note.fromUser);
+      await followBackToUser(note.fromUser);
     } catch (error) {
       console.error("Error following back from request:", error);
     } finally {
@@ -864,6 +894,25 @@ function ProfilePageInner() {
     } finally {
       setFollowActionLoading(null);
     }
+  };
+
+  const openFollowRemovalPrompt = (kind: "following" | "follower", user: User) => {
+    setOpenFollowMenuUserId(null);
+    setFollowRemovalPrompt({ kind, user });
+  };
+
+  const confirmFollowRemoval = async () => {
+    if (!followRemovalPrompt) return;
+
+    const { kind, user } = followRemovalPrompt;
+    setFollowRemovalPrompt(null);
+
+    if (kind === "following") {
+      await handleRemoveAsFollowing(user.id);
+      return;
+    }
+
+    await handleRemoveFollower(user.id);
   };
 
   const handleFollowBack = async (targetUser: User) => {
@@ -1916,7 +1965,7 @@ function ProfilePageInner() {
                               {isMenuOpen && (
                                 <div className="absolute right-0 top-8 z-20 min-w-[190px] rounded-xl border border-white/10 bg-[#111111] p-1 shadow-lg">
                                   <button
-                                    onClick={() => handleRemoveFollower(listedUser.id)}
+                                    onClick={() => openFollowRemovalPrompt("follower", listedUser)}
                                     disabled={followActionLoading === listedUser.id}
                                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
                                   >
@@ -1942,7 +1991,7 @@ function ProfilePageInner() {
                               {isMenuOpen && (
                                 <div className="absolute right-0 top-8 z-20 min-w-[170px] rounded-xl border border-white/10 bg-[#111111] p-1 shadow-lg">
                                   <button
-                                    onClick={() => handleRemoveAsFollowing(listedUser.id)}
+                                    onClick={() => openFollowRemovalPrompt("following", listedUser)}
                                     disabled={followActionLoading === listedUser.id}
                                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
                                   >
@@ -2123,6 +2172,55 @@ function ProfilePageInner() {
                 {" "}Skipped {ratingsImportSummary.skipped} rows.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {followRemovalPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Close follow removal prompt"
+            onClick={() => setFollowRemovalPrompt(null)}
+          />
+          <div className="relative w-full max-w-md rounded-[1.5rem] border border-white/10 bg-[#111111] p-5 shadow-2xl sm:p-6">
+            <div className="mb-4">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#ffb36b]">Warning</p>
+              <h3 className="mt-2 text-xl font-black text-[#f5f0de]">
+                {followRemovalPrompt.kind === "following"
+                  ? `Remove ${followRemovalPrompt.user.name} from following?`
+                  : `Remove ${followRemovalPrompt.user.name} as a follower?`}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-white/55">
+                {followRemovalPrompt.kind === "following"
+                  ? `This will stop you from following @${followRemovalPrompt.user.username}.`
+                  : `This will remove @${followRemovalPrompt.user.username} from your followers list.`}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFollowRemovalPrompt(null)}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-[#f5f0de] transition hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmFollowRemoval}
+                disabled={
+                  followActionLoading === followRemovalPrompt.user.id ||
+                  profileFollowActionLoading
+                }
+                className="rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-black text-black transition hover:bg-[#ff8d33] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {followActionLoading === followRemovalPrompt.user.id || profileFollowActionLoading
+                  ? "Removing..."
+                  : "Remove"}
+              </button>
+            </div>
           </div>
         </div>
       )}
