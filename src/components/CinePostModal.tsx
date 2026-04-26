@@ -200,17 +200,20 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       setSaving(true);
       setError("");
       if (anchorType === "list") {
+        const list = selectedList;
+        if (!list) return;
+
         await createCinePost({
           user,
           type: "post",
           anchorType,
-          anchorLabel: selectedList.name,
+          anchorLabel: list.name,
           body: content,
           tags: tags.split(","),
           content: null,
-          listId: selectedList.id,
-          listName: selectedList.name,
-          listCoverUrl: selectedList.cover_image_url,
+          listId: list.id,
+          listName: list.name,
+          listCoverUrl: list.cover_image_url,
         });
       } else {
         await createCinePost({

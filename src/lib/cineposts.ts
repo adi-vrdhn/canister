@@ -369,7 +369,7 @@ export async function getRelatedCinePosts(
   currentUserId?: string,
   limit: number = 3
 ): Promise<CinePostWithDetails[]> {
-  if (!post.content_id || !post.content_type) return [];
+  if (!post.content_id || !post.content_type || post.content_type === "list") return [];
   const posts = await getCinePostsForContent(post.content_id, post.content_type, currentUserId, 20);
   return posts.filter((candidate) => candidate.id !== post.id).slice(0, limit);
 }
