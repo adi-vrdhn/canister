@@ -662,6 +662,18 @@ function ProfilePageInner() {
     );
   };
 
+  const getFollowerRecordToMe = (targetUserId: string) => {
+    if (!currentUser) return null;
+    return (
+      allFollows.find(
+        (follow) =>
+          follow.follower_id === targetUserId &&
+          follow.following_id === currentUser.id &&
+          follow.status === "accepted"
+      ) || null
+    );
+  };
+
   const removeFollowRecord = async (followId: string) => {
     await set(ref(db, `follows/${followId}`), null);
     setAllFollows((prev) => prev.filter((follow) => follow.id !== followId));
@@ -823,6 +835,27 @@ function ProfilePageInner() {
       await sendFollowRequestToUser(note.fromUser);
     } catch (error) {
       console.error("Error following back from request:", error);
+    } finally {
+      setFollowActionLoading(null);
+    }
+  };
+
+  const handleRemoveFollower = async (targetUserId: string) => {
+    const followerRecord = allFollows.find(
+      (follow) =>
+        follow.follower_id === targetUserId &&
+        follow.following_id === currentUser?.id &&
+        follow.status === "accepted"
+    );
+    if (!followerRecord) return;
+
+    try {
+      setFollowActionLoading(targetUserId);
+      await removeFollowRecord(followerRecord.id);
+      setFollowers((prev) => prev.filter((entry) => entry.id !== targetUserId));
+      setFollowerCount((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Error removing follower:", error);
     } finally {
       setFollowActionLoading(null);
     }
@@ -1289,13 +1322,19 @@ function ProfilePageInner() {
                     </>
                   ) : (
                     <button
-                      onClick={isFollowingProfile ? handleUnfollowProfile : handleSendFollowRequest}
-                      disabled={isFollowRequestSent || profileFollowActionLoading || !canSendFollowRequest}
+                      onClick={
+                        isFollowingProfile
+                          ? handleUnfollowProfile
+                          : isFollowRequestSent
+                            ? () => handleCancelSentFollowRequest(profileUser.id)
+                            : handleSendFollowRequest
+                      }
+                      disabled={profileFollowActionLoading || (!isFollowingProfile && !isFollowRequestSent && !canSendFollowRequest)}
                       className={`inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full px-4 py-2 text-xs font-black transition sm:px-5 sm:py-2.5 sm:text-sm ${
                         isFollowingProfile
                           ? "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                           : isFollowRequestSent
-                          ? "border border-white/10 bg-white/5 text-[#ffb36b]"
+                          ? "border border-white/10 bg-white/5 text-[#ffb36b] hover:bg-white/10"
                           : !canSendFollowRequest
                           ? "border border-white/10 bg-white/5 text-white/35"
                           : "border border-[#ff7a1a] bg-[#ff7a1a] text-black hover:bg-[#ff8d33]"
@@ -1777,10 +1816,15 @@ function ProfilePageInner() {
                   shownUsers.map((listedUser) => {
                     const isMenuOpen = openFollowMenuUserId === listedUser.id;
                     const myFollowToListedUser = getMyFollowRecordToUser(listedUser.id);
+                    const followerToMe = getFollowerRecordToMe(listedUser.id);
                     const canShowActionMenu =
                       isOwnProfile &&
                       followModalType === "following" &&
                       myFollowToListedUser?.status === "accepted";
+                    const canShowFollowerMenu =
+                      isOwnProfile &&
+                      followModalType === "followers" &&
+                      followerToMe?.status === "accepted";
                     const canShowFollowBack =
                       isOwnProfile &&
                       followModalType === "followers" &&
@@ -1833,6 +1877,32 @@ function ProfilePageInner() {
                             )
                           )}
 
+                          {canShowFollowerMenu && (
+                            <div className="relative">
+                              <button
+                                onClick={() =>
+                                  setOpenFollowMenuUserId((prev) => (prev === listedUser.id ? null : listedUser.id))
+                                }
+                                className="rounded-full p-1 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]"
+                                aria-label="Open follower actions"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </button>
+
+                              {isMenuOpen && (
+                                <div className="absolute right-0 top-8 z-20 min-w-[190px] rounded-xl border border-white/10 bg-[#111111] p-1 shadow-lg">
+                                  <button
+                                    onClick={() => handleRemoveFollower(listedUser.id)}
+                                    disabled={followActionLoading === listedUser.id}
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
+                                  >
+                                    {followActionLoading === listedUser.id ? "Updating..." : "Remove as follower"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {canShowActionMenu && (
                             <div className="relative">
                               <button
@@ -1852,7 +1922,7 @@ function ProfilePageInner() {
                                     disabled={followActionLoading === listedUser.id}
                                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
                                   >
-                                    {followActionLoading === listedUser.id ? "Updating..." : "Unfollow"}
+                                    {followActionLoading === listedUser.id ? "Updating..." : "Remove as following"}
                                   </button>
                                 </div>
                               )}
