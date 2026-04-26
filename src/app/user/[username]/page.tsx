@@ -11,6 +11,7 @@ import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getUserByUsername, getUserStats, getFollowerCount, getFollowingCount } from "@/lib/profile";
 import { getUserMovieLogs } from "@/lib/logs";
+import { buildLogUrl } from "@/lib/log-url";
 import { Mail, Users, Film, Star, Zap, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -270,7 +271,7 @@ export default function UserProfilePage() {
               recentLogs.map((log) => (
                 <div
                   key={log.id}
-                  onClick={() => router.push(`/logs/${log.id}`)}
+                  onClick={() => router.push(buildLogUrl(log))}
                   className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
                 >
                   <div className="flex gap-4">

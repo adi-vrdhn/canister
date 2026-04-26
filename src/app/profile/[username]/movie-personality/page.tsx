@@ -75,7 +75,7 @@ export default function MoviePersonalityPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="brutalist min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,122,26,0.18),_rgba(10,10,10,0.98)_42%,_#050505_100%)] text-[#f5f0de]">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <Link
           href={`/profile/${profileUser.username}`}

@@ -13,6 +13,7 @@ import { signOut as authSignOut } from "@/lib/auth";
 import { deleteMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
+import { buildLogUrl } from "@/lib/log-url";
 import {
   Calendar,
   ChevronLeft,
@@ -20,6 +21,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
   X,
@@ -152,13 +154,20 @@ function groupLogsByMonth(logsToGroup: MovieLogWithContent[]): Array<{ month: st
   return result;
 }
 
+function logKey(log: MovieLogWithContent): string {
+  return `${log.content_type}-${log.content_id}`;
+}
+
 function LogCard({
   log,
   onOpen,
+  isRewatch,
 }: {
   log: MovieLogWithContent;
   onOpen: (log: MovieLogWithContent) => void;
+  isRewatch: boolean;
 }) {
+  const hasReview = Boolean(log.notes && log.notes.trim().length > 0);
   return (
     <button
       onClick={() => onOpen(log)}
@@ -206,16 +215,29 @@ function LogCard({
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${getReactionClasses(log)}`}>
                 {getReactionLabel(log)}
               </span>
-              <span className="text-[10px] font-semibold text-white/45 transition group-hover:text-[#ffb36b] sm:hidden">
-                Details
-              </span>
+              {isRewatch && (
+                <span
+                  className="inline-flex items-center justify-center text-[#f5f0de]/80 transition group-hover:text-[#f5f0de]"
+                  aria-label="Rewatch"
+                  title="Rewatch"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </span>
+              )}
+              {hasReview && (
+                <span className="text-[10px] font-semibold text-white/45 transition group-hover:text-[#ffb36b] sm:hidden">
+                  Details
+                </span>
+              )}
             </div>
           </div>
 
           <div className="hidden justify-end sm:flex">
-            <span className="rounded-full border border-white/10 px-2 py-1 text-xs font-semibold text-white/45 transition group-hover:border-orange-500/30 group-hover:text-[#ffb36b]">
-              Details
-            </span>
+            {hasReview && (
+              <span className="rounded-full border border-white/10 px-2 py-1 text-xs font-semibold text-white/45 transition group-hover:border-orange-500/30 group-hover:text-[#ffb36b]">
+                Details
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -310,6 +332,15 @@ export default function LogsPage() {
   const monthLogs = useMemo(() => {
     return logs.filter((log) => isSameMonth(log.watched_date, currentMonth));
   }, [logs, currentMonth]);
+
+  const rewatchKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const log of logs) {
+      const key = logKey(log);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
+  }, [logs]);
 
   const dayLogs = useMemo(() => {
     if (!selectedDay) return [] as MovieLogWithContent[];
@@ -458,7 +489,7 @@ export default function LogsPage() {
   }, [searchFilter, searchResults]);
 
   const handleOpenLogDetails = (log: MovieLogWithContent) => {
-    router.push(`/logs/${log.id}`);
+    router.push(buildLogUrl(log));
   };
 
   const scrollToListSection = () => {
@@ -502,7 +533,7 @@ export default function LogsPage() {
             className="action-primary flex basis-[30%] min-w-0 items-center justify-center gap-2 rounded-full px-3 py-3 text-sm font-semibold sm:px-4"
           >
             <Plus className="w-5 h-5" />
-            Log Movie
+            Log
           </button>
 
           <div className="relative basis-[70%] min-w-0">
@@ -618,11 +649,6 @@ export default function LogsPage() {
                           )
                         ))}
                       </div>
-                      {dayLogsInCell.length > 1 && (
-                        <span className="absolute bottom-1 right-1 z-40 rounded-sm bg-[#ff7a1a] px-1.5 py-0.5 text-[10px] font-black leading-none text-black shadow-sm sm:bottom-1.5 sm:right-1.5 sm:text-xs">
-                          {dayLogsInCell.length}
-                        </span>
-                      )}
                     </div>
                   ) : (
                     <>
@@ -658,11 +684,11 @@ export default function LogsPage() {
               </h3>
             </div>
 
-            <div className="grid w-full max-w-[16rem] grid-cols-2 border border-white/10 bg-white/[0.04] p-1 shadow-sm backdrop-blur">
+            <div className="flex items-center justify-center gap-2">
               <button
                 onClick={() => setListMode("month")}
                 className={`rounded-full px-2.5 py-1.5 text-xs font-black transition sm:text-sm ${
-                  listMode === "month" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-white"
+                  listMode === "month" ? "bg-[#ff7a1a] text-black shadow-sm" : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                 }`}
               >
                 Month
@@ -673,7 +699,7 @@ export default function LogsPage() {
                   setSelectedDay(null);
                 }}
                 className={`rounded-full px-2.5 py-1.5 text-xs font-black transition sm:text-sm ${
-                  listMode === "all" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-white"
+                  listMode === "all" ? "bg-[#ff7a1a] text-black shadow-sm" : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                 }`}
               >
                 All
@@ -697,6 +723,7 @@ export default function LogsPage() {
                           key={log.id}
                           log={log}
                           onOpen={handleOpenLogDetails}
+                          isRewatch={rewatchKeys.has(logKey(log))}
                         />
                       ))}
                     </div>
@@ -711,6 +738,7 @@ export default function LogsPage() {
                     key={log.id}
                     log={log}
                     onOpen={handleOpenLogDetails}
+                    isRewatch={rewatchKeys.has(logKey(log))}
                   />
                 ))}
               </div>
@@ -886,9 +914,20 @@ export default function LogsPage() {
                     </span>
                   )}
                   <p className="mt-1 text-sm text-white/65">Watched on {formatWatchedDate(activeLog.watched_date)}</p>
-                  <span className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium ${getReactionClasses(activeLog)}`}>
-                    {getReactionLabel(activeLog)}
-                  </span>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${getReactionClasses(activeLog)}`}>
+                      {getReactionLabel(activeLog)}
+                    </span>
+                    {rewatchKeys.has(logKey(activeLog)) && (
+                      <span
+                        className="inline-flex items-center justify-center text-[#f5f0de]/80"
+                        aria-label="Rewatch"
+                        title="Rewatch"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -934,7 +973,7 @@ export default function LogsPage() {
 
             <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-white/10 bg-[#111111] p-5">
               <button
-                onClick={() => router.push(`/logs/${activeLog.id}`)}
+                onClick={() => router.push(buildLogUrl(activeLog))}
                 className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-[#f5f0de] hover:bg-white/[0.04]"
               >
                 <Pencil className="w-4 h-4" />

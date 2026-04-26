@@ -1,7 +1,51 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import { onAuthStateChanged } from "firebase/auth";
+import { get, ref } from "firebase/database";
+import {
+  ArrowLeft,
+  Lock,
+  Globe,
+  Plus,
+  Trash2,
+  UserPlus,
+  Loader2,
+  Edit2,
+  Grid3x3,
+  List as ListIcon,
+  Eye,
+  MoreVertical,
+  GripVertical,
+  MoveRight,
+  Copy,
+  ChevronUp,
+  ChevronDown,
+  UserX,
+} from "lucide-react";
+import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
+import { User, ListWithItems, ListCollaboratorWithUser } from "@/types";
+import { auth, db } from "@/lib/firebase";
+import { signOut as authSignOut } from "@/lib/auth";
+import {
+  getListWithDetails,
+  removeItemFromList,
+  addCollaborator,
+  removeCollaborator,
+  updateList,
+  deleteList,
+  isUserCollaborator,
+  updateListViewPreferences,
+  reorderListItems,
+  createList,
+  addItemToList,
+} from "@/lib/lists";
 import { getLogsForContent } from "@/lib/logs";
 import { getUserWatchedMovies, upsertWatchedMovie, type WatchedMovie } from "@/lib/watched-movies";
+import { canInviteCollaborators, isUsernameBlocked, mergeSettings } from "@/lib/settings";
 
 function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, cloneLoading, onToggleWatchedStatus, watchedStatusEnabled, viewType, onSetViewType, onToggleReorder, reorderMode }: {
   onEdit: () => void;
@@ -135,22 +179,10 @@ function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, c
     </div>
   );
 }
-import { useRouter, useParams } from "next/navigation";
-import PageLayout from "@/components/PageLayout";
-import CinematicLoading from "@/components/CinematicLoading";
-import { User, ListWithItems, ListCollaboratorWithUser } from "@/types";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { ref, get } from "firebase/database";
-import { signOut as authSignOut } from "@/lib/auth";
-import { getListWithDetails, removeItemFromList, addCollaborator, removeCollaborator, updateList, deleteList, isUserCollaborator, updateListViewPreferences, reorderListItems, createList, addItemToList } from "@/lib/lists";
-import { ArrowLeft, Lock, Globe, Plus, Trash2, UserPlus, UserX, Loader2, Edit2, Grid3x3, List as ListIcon, Eye, MoreVertical, GripVertical, MoveRight, Copy } from "lucide-react";
-// ...existing imports above...
-import Link from "next/link";
-
 
 export default function ListDetailPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [currentUserSettings, setCurrentUserSettings] = useState(() => mergeSettings(null));
   const [list, setList] = useState<ListWithItems | null>(null);
   const [logsMap, setLogsMap] = useState<Record<number, any[]>>({});
   useEffect(() => {
@@ -247,6 +279,7 @@ export default function ListDetailPage() {
         };
 
         setUser(currentUser);
+        setCurrentUserSettings(mergeSettings(userData?.settings));
 
         // Fetch list details
         const usersRef = ref(db, "users");
@@ -470,6 +503,10 @@ export default function ListDetailPage() {
 
   const handleOpenAddCollaborator = async () => {
     if (!user) return;
+    if (!canInviteCollaborators(currentUserSettings)) {
+      alert("Your collaboration invites are turned off in settings.");
+      return;
+    }
 
     try {
       // Fetch accepted followers/friends
@@ -501,6 +538,16 @@ export default function ListDetailPage() {
       friendIds.forEach((friendId) => {
         if (allUsers[friendId] && !existingCollabIds.has(friendId)) {
           const userData = allUsers[friendId];
+          const friendSettings = mergeSettings(userData?.settings);
+          if (
+            friendSettings.account.status !== "active" ||
+            !friendSettings.social.allowCollaborations ||
+            isUsernameBlocked(friendSettings, user.username) ||
+            isUsernameBlocked(currentUserSettings, userData.username || "")
+          ) {
+            return;
+          }
+
           friends.push({
             id: userData.id || friendId,
             username: userData.username || "",
@@ -827,7 +874,7 @@ export default function ListDetailPage() {
           {reorderMode && viewType === "list" && canEdit && (
             <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40">
               <MoveRight className="h-3.5 w-3.5" />
-              Drag rows to reorder
+              Use arrows or drag to reorder
             </div>
           )}
           {sortedItems.length > 0 ? (
@@ -847,6 +894,8 @@ export default function ListDetailPage() {
                 const watchedRecord = watchedMovies[watchedKey] || null;
                 const userWatched = Boolean(watchedRecord);
                 const canReorder = reorderMode && canEdit && viewType === "list";
+                const isFirst = idx === 0;
+                const isLast = idx === sortedItems.length - 1;
                 return (
                   <div
                     key={item.id}
@@ -855,7 +904,7 @@ export default function ListDetailPage() {
                         ? `group relative flex items-start gap-3 py-1 ${canReorder ? "cursor-grab active:cursor-grabbing" : ""}`
                         : `relative flex flex-col ${editMode && isOwner ? "cursor-move" : ""}`
                     }
-                    draggable={canReorder}
+                      draggable={canReorder}
                     onDragStart={canReorder ? e => {
                       e.dataTransfer.setData("text/plain", idx.toString());
                       e.currentTarget.classList.add("opacity-50");
@@ -872,7 +921,30 @@ export default function ListDetailPage() {
                       if (fromIdx === idx) return;
                       await handleReorderItems(fromIdx, idx);
                     } : undefined}
-                    >
+                      >
+                    {canReorder && (
+                      <div className="mt-0.5 flex w-6 shrink-0 flex-col items-center gap-1 text-white/40">
+                        <GripVertical className="h-3.5 w-3.5" />
+                        <button
+                          type="button"
+                          aria-label={`Move ${item.content.title} up`}
+                          disabled={isFirst}
+                          onClick={() => void handleReorderItems(idx, idx - 1)}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-[#111111] text-white/55 transition hover:border-[#ff7a1a] hover:text-[#ffb36b] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronUp className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Move ${item.content.title} down`}
+                          disabled={isLast}
+                          onClick={() => void handleReorderItems(idx, idx + 1)}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-[#111111] text-white/55 transition hover:border-[#ff7a1a] hover:text-[#ffb36b] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                     {/* Poster */}
                     <Link
                       href={item.content.type === "tv"
@@ -903,12 +975,12 @@ export default function ListDetailPage() {
                           {rank}
                         </span>
                       )}
-                    </Link>
+                      </Link>
                       <div className={viewType === "list" ? "min-w-0 flex-1 pt-0.5" : "min-w-0 pt-1"}>
                         {canReorder && (
                           <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
                             <GripVertical className="h-3.5 w-3.5" />
-                            Drag to reorder
+                            Tap arrows or drag
                           </div>
                         )}
                         <p className="line-clamp-2 text-xs font-semibold leading-snug text-[#f5f0de] sm:text-sm">

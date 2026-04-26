@@ -12,6 +12,7 @@ import {
   MovieLog,
   User,
 } from "@/types";
+import { shouldDeliverNotificationToUser } from "./settings";
 
 type CreateCinePostInput = {
   user: User;
@@ -505,6 +506,8 @@ async function createCinePostNotification(
   refId: string,
   fromUser: User
 ): Promise<void> {
+  if (!(await shouldDeliverNotificationToUser(userId, type))) return;
+
   const notificationRef = push(ref(db, `notifications/${userId}`));
 
   await set(notificationRef, {

@@ -1,65 +1,241 @@
 import { UserTasteWithContent } from "@/types";
 import { getUserMovieLogs } from "@/lib/logs";
 
-/**
- * Extract genres from user's taste movies as a Set
- */
-function getUserGenresSet(tastes: UserTasteWithContent[]): Set<string> {
-  const genres = new Set<string>();
+type MatchTaste = UserTasteWithContent & {
+  notes?: string | null;
+  source?: "taste" | "log";
+};
+
+function getContentGenres(taste: MatchTaste): string[] {
+  if (!taste.content || !Array.isArray((taste.content as any).genres)) return [];
+  return Array.from(
+    new Set(
+      (taste.content as any).genres
+        .map((genre: string) => String(genre).trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
+function getReactionWeight(reaction?: 0 | 1 | 2): number {
+  if (reaction === 2) return 1.7;
+  if (reaction === 1) return 0.85;
+  if (reaction === 0) return -1.15;
+  return 0.55;
+}
+
+function getSourceWeight(taste: MatchTaste): number {
+  return taste.source === "log" ? 1.15 : 0.95;
+}
+
+function getRecencyWeight(addedAt?: string): number {
+  if (!addedAt) return 1;
+  const timestamp = new Date(addedAt).getTime();
+  if (Number.isNaN(timestamp)) return 1;
+  const ageDays = Math.max(0, (Date.now() - timestamp) / 86400000);
+  return 1 / (1 + ageDays / 90);
+}
+
+function getReviewSentiment(notes?: string | null): number {
+  if (!notes) return 0;
+
+  const positiveTerms = [
+    "love",
+    "loved",
+    "amazing",
+    "awesome",
+    "beautiful",
+    "brilliant",
+    "excellent",
+    "favorite",
+    "favourite",
+    "great",
+    "good",
+    "incredible",
+    "masterpiece",
+    "perfect",
+    "wonderful",
+    "fantastic",
+    "solid",
+    "nice",
+    "enjoyed",
+  ];
+
+  const negativeTerms = [
+    "bad",
+    "boring",
+    "awful",
+    "terrible",
+    "hate",
+    "hated",
+    "weak",
+    "messy",
+    "slow",
+    "dull",
+    "mid",
+    "mess",
+    "poor",
+    "worse",
+    "worst",
+    "disappointing",
+    "forgettable",
+  ];
+
+  const text = notes.toLowerCase();
+  let score = 0;
+  positiveTerms.forEach((term) => {
+    if (text.includes(term)) score += 1;
+  });
+  negativeTerms.forEach((term) => {
+    if (text.includes(term)) score -= 1;
+  });
+
+  return Math.max(-1, Math.min(1, score / 4));
+}
+
+function getTastePolarity(taste: MatchTaste): number {
+  const reaction = getReactionWeight(taste.reaction);
+  const sentiment = getReviewSentiment(taste.notes);
+  return reaction + sentiment * 0.85;
+}
+
+function getTasteInfluence(taste: MatchTaste): number {
+  const polarity = getTastePolarity(taste);
+  const recency = getRecencyWeight(taste.added_at);
+  const source = getSourceWeight(taste);
+  return polarity * recency * source;
+}
+
+function buildWeightedGenreAffinities(tastes: MatchTaste[]): Map<string, number> {
+  const genreWeights = new Map<string, number>();
 
   tastes.forEach((taste) => {
-    if (taste.content && Array.isArray((taste.content as any).genres)) {
-      const contentGenres = (taste.content as any).genres;
-      contentGenres.forEach((genre: string) => {
-        genres.add(genre.toLowerCase());
-      });
+    const genres = getContentGenres(taste);
+    if (genres.length === 0) return;
+
+    const itemWeight = getTasteInfluence(taste);
+    const spread = genres.length > 0 ? itemWeight / Math.sqrt(genres.length) : itemWeight;
+
+    genres.forEach((genre) => {
+      genreWeights.set(genre, (genreWeights.get(genre) || 0) + spread);
+    });
+  });
+
+  const affinities = new Map<string, number>();
+  genreWeights.forEach((value, genre) => {
+    const stabilized = value / 2.4;
+    const affinity = 1 / (1 + Math.exp(-stabilized));
+    affinities.set(genre, affinity);
+  });
+
+  return affinities;
+}
+
+function averageRecentTasteMood(tastes: MatchTaste[], limit = 5): number | null {
+  const recent = [...tastes]
+    .filter((taste) => taste.added_at || taste.reaction !== undefined || taste.notes)
+    .sort((a, b) => new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime())
+    .slice(0, limit);
+
+  if (recent.length === 0) return null;
+
+  let total = 0;
+  let totalWeight = 0;
+
+  recent.forEach((taste, index) => {
+    const polarity = getTastePolarity(taste);
+    const recency = getRecencyWeight(taste.added_at);
+    const decay = Math.max(0.5, 1 - index * 0.08);
+    const weight = Math.max(0.2, recency * decay);
+    total += polarity * weight;
+    totalWeight += weight;
+  });
+
+  return totalWeight > 0 ? total / totalWeight : null;
+}
+
+function averageTastePolarity(tastes: MatchTaste[]): number {
+  if (tastes.length === 0) return 0;
+
+  let total = 0;
+  let totalWeight = 0;
+
+  tastes.forEach((taste) => {
+    const weight = Math.max(0.25, getRecencyWeight(taste.added_at) * getSourceWeight(taste));
+    total += getTastePolarity(taste) * weight;
+    totalWeight += weight;
+  });
+
+  return totalWeight > 0 ? total / totalWeight : 0;
+}
+
+function calculateProfileConfidence(userATastes: MatchTaste[], userBTastes: MatchTaste[]): number {
+  const minCount = Math.min(userATastes.length, userBTastes.length);
+  return 0.72 + 0.28 * (1 - Math.exp(-minCount / 10));
+}
+
+function calculateExactOverlap(userATastes: MatchTaste[], userBTastes: MatchTaste[]): number {
+  if (userATastes.length === 0 || userBTastes.length === 0) return 0;
+
+  const idsA = new Set(userATastes.map((taste) => `${taste.content_type}-${taste.content_id}`));
+  let shared = 0;
+
+  userBTastes.forEach((taste) => {
+    if (idsA.has(`${taste.content_type}-${taste.content_id}`)) {
+      shared += 1;
     }
   });
 
-  return genres;
+  const denominator = Math.max(1, Math.min(userATastes.length, userBTastes.length));
+  return Math.min(1, shared / denominator);
 }
 
 /**
  * Calculate GenreSim (0-1)
- * Jaccard similarity of genres (better than cosine for categorical data)
+ * Weighted genre affinity similarity. Genres are influenced by
+ * explicit taste, log reaction, review sentiment, and recency.
  */
 export function calculateGenreSim(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): number {
-  const genresA = getUserGenresSet(userATastes);
-  const genresB = getUserGenresSet(userBTastes);
+  const profileA = buildWeightedGenreAffinities(userATastes);
+  const profileB = buildWeightedGenreAffinities(userBTastes);
 
-  if (genresA.size === 0 || genresB.size === 0) return 0;
+  const allGenres = new Set([...profileA.keys(), ...profileB.keys()]);
+  if (allGenres.size === 0) return 0;
 
-  // Intersection - common genres
-  const intersection = Array.from(genresA).filter((g) => genresB.has(g));
+  let similarity = 0;
+  let totalWeight = 0;
+  allGenres.forEach((genre) => {
+    const affinityA = profileA.get(genre) ?? 0.5;
+    const affinityB = profileB.get(genre) ?? 0.5;
+    const diff = Math.min(1, Math.abs(affinityA - affinityB));
+    const strength = Math.max(Math.abs(affinityA - 0.5), Math.abs(affinityB - 0.5));
+    const weight = 0.35 + strength;
+    similarity += (1 - diff) * weight;
+    totalWeight += weight;
+  });
 
-  // Union - all unique genres
-  const union = new Set([...genresA, ...genresB]);
-
-  // Jaccard similarity = intersection / union
-  const jaccard = intersection.length / union.size;
-  
-  // Boost the score - genres are fundamental to taste
-  // If they share even 1 genre out of many, it's meaningful
-  return Math.min(1, jaccard * 1.5);
+  return totalWeight > 0 ? Math.max(0, Math.min(1, similarity / totalWeight)) : 0;
 }
 
 /**
  * Calculate RatingSim (0-1)
- * Based on average rating difference
- * Currently assumes all movies in taste are rated equally (1.0)
- * This will improve when explicit ratings are implemented
+ * Based on how similar the users' review/reaction polarity is.
  */
 export function calculateRatingSim(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): number {
-  // For now, assume all movies in taste are "good" (rating 1)
-  // Give baseline of 0.8 to account for rating uncertainty
-  // This will be enhanced when we add explicit ratings
-  return 0.8;
+  if (userATastes.length === 0 || userBTastes.length === 0) return 0;
+
+  const avgA = averageTastePolarity(userATastes);
+  const avgB = averageTastePolarity(userBTastes);
+
+  // Same reaction style = closer to 1, very different reaction style = closer to 0.
+  const normalizedDiff = Math.min(3, Math.abs(avgA - avgB));
+  return Math.max(0, 1 - normalizedDiff / 3);
 }
 
 /**
@@ -68,25 +244,25 @@ export function calculateRatingSim(
  * Estimates compatibility from genre distribution
  */
 export function calculateVibeSim(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): number {
-  // If both users have diverse genre tastes, they likely have compatible vibes
-  const genresA = getUserGenresSet(userATastes);
-  const genresB = getUserGenresSet(userBTastes);
+  const vibeA = averageRecentTasteMood(userATastes);
+  const vibeB = averageRecentTasteMood(userBTastes);
 
-  if (genresA.size === 0 || genresB.size === 0) return 0;
+  if (vibeA === null || vibeB === null) {
+    const genresA = new Set(buildWeightedGenreAffinities(userATastes).keys());
+    const genresB = new Set(buildWeightedGenreAffinities(userBTastes).keys());
 
-  // Users with diverse tastes (many genres) are more likely compatible
-  // Genre diversity is a proxy for vibe compatibility
-  const diversityA = Math.min(genresA.size, 10) / 10; // Max at 10 genres
-  const diversityB = Math.min(genresB.size, 10) / 10;
+    if (genresA.size === 0 || genresB.size === 0) return 0;
 
-  // Average diversity similarity
-  const diversitySim = (diversityA + diversityB) / 2;
+    const diversityA = Math.min(genresA.size, 10) / 10;
+    const diversityB = Math.min(genresB.size, 10) / 10;
+    return ((diversityA + diversityB) / 2) * 0.7 + 0.3;
+  }
 
-  // Weight: 70% genre diversity, 30% baseline confidence
-  return diversitySim * 0.7 + 0.3;
+  const diff = Math.min(3, Math.abs(vibeA - vibeB));
+  return Math.max(0, 1 - diff / 3);
 }
 
 /**
@@ -122,8 +298,8 @@ function getUserCreators(tastes: UserTasteWithContent[]): Set<string> {
  * Boosted because shared creators are very meaningful
  */
 export function calculateCreatorSim(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): number {
   const creatorsA = getUserCreators(userATastes);
   const creatorsB = getUserCreators(userBTastes);
@@ -174,8 +350,8 @@ function getAverageYear(tastes: UserTasteWithContent[]): number {
  * More lenient - people within ~20 years are similar
  */
 export function calculateEraSim(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): number {
   const avgYearA = getAverageYear(userATastes);
   const avgYearB = getAverageYear(userBTastes);
@@ -209,8 +385,8 @@ function getUserLanguages(tastes: UserTasteWithContent[]): Set<string> {
  * Boosted because shared language preference is meaningful
  */
 export function calculateLanguageSim(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): number {
   const languagesA = getUserLanguages(userATastes);
   const languagesB = getUserLanguages(userBTastes);
@@ -303,8 +479,8 @@ export interface MatchAnalysis extends MatchScoreBreakdown {
 }
 
 export function calculateMatchScore(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): MatchScoreBreakdown {
   const genreSim = calculateGenreSim(userATastes, userBTastes);
   const ratingSim = calculateRatingSim(userATastes, userBTastes);
@@ -313,14 +489,16 @@ export function calculateMatchScore(
   const eraSim = calculateEraSim(userATastes, userBTastes);
   const languageSim = calculateLanguageSim(userATastes, userBTastes);
 
-  const totalScore = 100 * (
-    0.35 * genreSim +
-    0.20 * ratingSim +
-    0.15 * vibeSim +
-    0.15 * creatorSim +
+  const exactOverlap = calculateExactOverlap(userATastes, userBTastes);
+  const confidence = calculateProfileConfidence(userATastes, userBTastes);
+  const weightedScore =
+    0.34 * genreSim +
+    0.18 * ratingSim +
+    0.12 * vibeSim +
+    0.16 * creatorSim +
     0.10 * eraSim +
-    0.05 * languageSim
-  );
+    0.06 * languageSim;
+  const totalScore = 100 * Math.min(1, weightedScore * confidence + exactOverlap * 0.10);
 
   return {
     genreSim: Math.round(genreSim * 100),
@@ -337,7 +515,7 @@ export function calculateMatchScore(
  * Get genre distribution from tastes
  */
 function getGenreDistribution(
-  tastes: UserTasteWithContent[]
+  tastes: MatchTaste[]
 ): { genre: string; count: number }[] {
   const genreCounts = new Map<string, number>();
 
@@ -428,8 +606,8 @@ export async function getCommonMasterpieceMovies(
  * Returns movies that are in BOTH users' taste profiles
  */
 export function getCommonTasteMovies(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): Array<{
   id: number;
   title: string;
@@ -460,8 +638,8 @@ export function getCommonTasteMovies(
  * Get common movies with full details
  */
 function getCommonMoviesWithDetails(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[]
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[]
 ): Array<{
   id: number;
   title: string;
@@ -492,8 +670,8 @@ function getCommonMoviesWithDetails(
  * Generate comprehensive match analysis
  */
 export async function generateMatchAnalysis(
-  userATastes: UserTasteWithContent[],
-  userBTastes: UserTasteWithContent[],
+  userATastes: MatchTaste[],
+  userBTastes: MatchTaste[],
   userAId: string,
   userBId: string
 ): Promise<MatchAnalysis> {

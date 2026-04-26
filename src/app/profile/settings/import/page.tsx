@@ -260,14 +260,14 @@ export default function SettingsImportPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={busy}
-            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50"
           >
             Choose file
           </button>
           <button
             onClick={handleClearImports}
             disabled={busy}
-            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50"
           >
             Clear imports
           </button>
@@ -277,7 +277,7 @@ export default function SettingsImportPage() {
           <button
             onClick={handleExport}
             disabled={busy}
-            className="rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-[#0a0a0a] transition hover:bg-[#ff8d3b] disabled:opacity-50"
           >
             Download export
           </button>

@@ -45,9 +45,9 @@ export default function EmailVerificationBadge({ className = "" }: EmailVerifica
 
   return (
     <div className={className}>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-[#f5f0de]">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-900">
+          <span className="rounded-full bg-[#ff7a1a] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#0a0a0a]">
             Verify Email
           </span>
           <span>Please verify your email to secure your account.</span>
@@ -57,19 +57,19 @@ export default function EmailVerificationBadge({ className = "" }: EmailVerifica
             type="button"
             onClick={handleResendVerification}
             disabled={sending}
-            className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 disabled:opacity-60"
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
           >
             {sending ? "Sending..." : "Resend Verification"}
           </button>
           <Link
             href="/profile/edit"
-            className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-900 transition hover:bg-amber-100"
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10"
           >
             Edit Email
           </Link>
         </div>
       </div>
-      {status && <p className="mt-2 text-xs text-amber-800">{status}</p>}
+      {status && <p className="mt-2 text-xs text-white/70">{status}</p>}
     </div>
   );
 }

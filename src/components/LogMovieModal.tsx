@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { RotateCcw } from "lucide-react";
 import { Content, User } from "@/types";
 import { createLogCinePost } from "@/lib/cineposts";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
@@ -165,15 +166,41 @@ export default function LogMovieModal({
 
   if (!isOpen) return null;
 
+  const hasPreviousWatch = previousWatchDates.length > 0;
+  const isRewatchSelected = isRewatch || hasPreviousWatch;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-2 backdrop-blur-sm sm:items-center sm:p-4 md:p-6">
-      <div className={`surface-strong mobile-scroll-panel w-full max-w-2xl rounded-[1.5rem] sm:rounded-[2rem] ${
-        isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : ""
-      }`}>
+    <div className="log-modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-md sm:items-center sm:p-4 md:p-6">
+      <div
+        className={`log-modal-panel surface-strong mobile-scroll-panel relative w-full max-w-2xl max-h-[90dvh] overflow-x-hidden overflow-y-auto rounded-[1.5rem] sm:rounded-[2rem] ${
+          isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : "border border-slate-200 bg-white text-slate-900"
+        }`}
+      >
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div
+            className={`log-modal-glow absolute -top-24 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full blur-3xl ${
+              isBrutalist ? "bg-[#ff7a1a]/18" : "bg-orange-300/35"
+            }`}
+          />
+          <div
+            className={`log-modal-glow absolute -bottom-24 -left-16 h-44 w-44 rounded-full blur-3xl ${
+              isBrutalist ? "bg-white/5" : "bg-slate-200/70"
+            }`}
+            style={{ animationDelay: "1.2s" }}
+          />
+          <div
+            className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#ff7a1a]/70 to-transparent ${
+              isBrutalist ? "opacity-80" : "opacity-100"
+            }`}
+          />
+        </div>
+
         {/* Header */}
-        <div className={`sticky top-0 z-10 flex items-start justify-between gap-3 border-b p-4 backdrop-blur sm:p-6 md:p-7 ${
-          isBrutalist ? "border-white/10 bg-[#111111]/95" : "border-slate-200 bg-white/95"
-        }`}>
+        <div
+          className={`sticky top-0 z-10 flex items-start justify-between gap-3 border-b p-4 backdrop-blur-xl sm:p-6 md:p-7 ${
+            isBrutalist ? "border-white/10 bg-[#111111]/92" : "border-slate-200 bg-white/90"
+          }`}
+        >
           <div className="flex min-w-0 items-start gap-3">
             <Link
               href={content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`}
@@ -193,6 +220,10 @@ export default function LogMovieModal({
               )}
             </Link>
             <div className="min-w-0">
+              <div className="mb-1 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#ffb36b]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#ff7a1a]" />
+                Movie log
+              </div>
               <h2 className={`text-lg font-semibold sm:text-xl ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Log Movie</h2>
               <Link
                 href={content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`}
@@ -216,29 +247,59 @@ export default function LogMovieModal({
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5 p-4 sm:p-6 md:p-7">
           {checkingPreviousWatches && previousWatchDates.length === 0 && (
-            <div className={`rounded-2xl px-4 py-3 text-sm ${
+            <div className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${
               isBrutalist ? "border border-white/10 bg-white/5 text-white/65" : "border border-slate-200 bg-slate-50 text-slate-600"
             }`}>
               Checking previous watches...
             </div>
           )}
 
-          <label className={`flex cursor-pointer items-start gap-3 rounded-2xl px-4 py-3 transition-colors ${
-            isBrutalist ? "border border-white/10 bg-white/5 hover:bg-white/[0.07]" : "border border-slate-200 bg-slate-50 hover:bg-slate-100"
-          }`}>
+          <label
+            className={`flex cursor-pointer items-start gap-4 rounded-[1.5rem] px-4 py-4 transition-all ${
+              isBrutalist
+                ? "border border-white/10 bg-white/[0.04] shadow-[0_12px_30px_rgba(0,0,0,0.18)] hover:bg-white/[0.06]"
+                : "border border-slate-200 bg-slate-50 shadow-sm hover:bg-slate-100"
+            }`}
+          >
             <input
               type="checkbox"
-              checked={isRewatch || previousWatchDates.length > 0}
+              checked={isRewatchSelected}
               onChange={(e) => setIsRewatch(e.target.checked)}
-              className={`mt-1 h-4 w-4 rounded focus:ring-slate-400 ${isBrutalist ? "border-white/30 text-[#ff7a1a]" : "border-slate-300 text-slate-900"}`}
+              className="sr-only"
             />
-            <div className="min-w-0">
-              <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Rewatch</p>
-              <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+            <div className={`mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border ${
+              isRewatchSelected
+                ? isBrutalist
+                  ? "border-[#ff7a1a]/40 bg-[#ff7a1a]/12 text-[#ffb36b]"
+                  : "border-orange-200 bg-orange-50 text-orange-600"
+                : isBrutalist
+                  ? "border-white/10 bg-white/5 text-white/45"
+                  : "border-slate-200 bg-white text-slate-400"
+            }`}>
+              <RotateCcw className={`h-4 w-4 ${isRewatchSelected ? "rewatch-icon-spin" : ""}`} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Rewatch</p>
+                {hasPreviousWatch ? (
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
+                    isBrutalist ? "bg-white/5 text-[#ffb36b]" : "bg-orange-100 text-orange-700"
+                  }`}>
+                    Seen before
+                  </span>
+                ) : (
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
+                    isBrutalist ? "bg-white/5 text-white/55" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    Fresh watch
+                  </span>
+                )}
+              </div>
+              <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
                 Tick this if you have watched it before. A new log entry will still be created.
               </p>
-              {previousWatchDates.length > 0 && (
-                <p className={`mt-1 text-xs ${isBrutalist ? "text-white/70" : "text-slate-600"}`}>
+              {hasPreviousWatch && (
+                <p className={`mt-2 text-xs ${isBrutalist ? "text-white/70" : "text-slate-600"}`}>
                   Previously logged {previousWatchDates.length} time{previousWatchDates.length === 1 ? "" : "s"}.
                 </p>
               )}
@@ -278,11 +339,11 @@ export default function LogMovieModal({
               <button
                 type="button"
                 onClick={() => setReaction(0)}
-                className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                className={`rounded-2xl border px-4 py-4 text-left transition-all duration-200 ${
                   reaction === 0
                     ? isBrutalist
-                      ? "border-white/10 bg-white/5"
-                      : "border-slate-900 bg-slate-50"
+                      ? "border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
+                      : "border-slate-900 bg-slate-50 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
@@ -295,11 +356,11 @@ export default function LogMovieModal({
               <button
                 type="button"
                 onClick={() => setReaction(1)}
-                className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                className={`rounded-2xl border px-4 py-4 text-left transition-all duration-200 ${
                   reaction === 1
                     ? isBrutalist
-                      ? "border-white/10 bg-white/5"
-                      : "border-slate-900 bg-slate-50"
+                      ? "border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
+                      : "border-slate-900 bg-slate-50 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
@@ -312,11 +373,11 @@ export default function LogMovieModal({
               <button
                 type="button"
                 onClick={() => setReaction(2)}
-                className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                className={`rounded-2xl border px-4 py-4 text-left transition-all duration-200 ${
                   reaction === 2
                     ? isBrutalist
                       ? "border-orange-400/60 bg-orange-500/10 shadow-[0_0_0_1px_rgba(255,122,26,0.25)]"
-                      : "border-slate-900 bg-slate-50"
+                      : "border-slate-900 bg-slate-50 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
@@ -341,7 +402,7 @@ export default function LogMovieModal({
             />
           </div>
 
-          <div className={`rounded-3xl border p-4 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+          <div className={`rounded-[1.5rem] border p-4 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
             <label className="flex cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
@@ -387,7 +448,7 @@ export default function LogMovieModal({
             </button>
 
             {showContextLog && (
-              <div className={`space-y-3 rounded-2xl p-4 ${isBrutalist ? "bg-white/[0.03]" : "bg-slate-50"}`}>
+              <div className={`space-y-3 rounded-[1.5rem] p-4 ${isBrutalist ? "bg-white/[0.03]" : "bg-slate-50"}`}>
                 {/* Location */}
                 <div>
                   <label className={`mb-1 block text-xs font-medium ${isBrutalist ? "text-white/55" : "text-slate-600"}`}>

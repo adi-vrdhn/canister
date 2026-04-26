@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
-import { MovieLogWithContent, User, Content, LogCommentWithUser } from "@/types";
+import { MovieLog, MovieLogWithContent, User, Content, LogCommentWithUser } from "@/types";
 import { deleteMovieLog, updateMovieLog, getLogsForContent } from "@/lib/logs";
 import { likeLog, unlikeLog, getLogLikes } from "@/lib/log-likes";
 import { getMovieDetails } from "@/lib/tmdb";
@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import { auth, db } from "@/lib/firebase";
 import { ref, get, ref as dbRef, push as dbPush } from "firebase/database";
+import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   createLogComment,
@@ -33,6 +34,9 @@ import {
   likeLogComment,
   unlikeLogComment,
 } from "@/lib/log-comments";
+import { buildLogUrl } from "@/lib/log-url";
+import { shouldDeliverNotificationToUser } from "@/lib/settings";
+import { storage } from "@/lib/firebase";
 
 function relativeTime(dateString: string): string {
   const diff = Date.now() - new Date(dateString).getTime();
@@ -88,13 +92,13 @@ function PeopleModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/25 p-3 backdrop-blur-sm sm:items-center">
-      <div className="w-full max-w-md rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-[#121212] p-4 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-950">{title}</h3>
+          <h3 className="text-base font-bold text-[#f5f0de]">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-slate-500 hover:bg-slate-50"
+            className="rounded-full p-2 text-white/55 hover:bg-white/5"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -103,11 +107,11 @@ function PeopleModal({
         {loading ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded-2xl bg-slate-100" />
+              <div key={i} className="h-12 animate-pulse rounded-2xl bg-white/5" />
             ))}
           </div>
         ) : users.length === 0 ? (
-          <p className="text-sm text-slate-500">No one here yet.</p>
+          <p className="text-sm text-white/55">No one here yet.</p>
         ) : (
           <div className="space-y-2">
             {users.map((person) => (
@@ -115,12 +119,12 @@ function PeopleModal({
                 key={person.id}
                 href={`/profile/${person.username || person.id}`}
                 onClick={onClose}
-                className="flex items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-slate-50"
+                className="flex items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-white/5"
               >
                 <Avatar user={person} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-950">{person.name}</p>
-                  <p className="truncate text-xs text-slate-500">@{person.username}</p>
+                  <p className="truncate text-sm font-semibold text-[#f5f0de]">{person.name}</p>
+                  <p className="truncate text-xs text-white/55">@{person.username}</p>
                 </div>
               </Link>
             ))}
@@ -131,16 +135,24 @@ function PeopleModal({
   );
 }
 
-function sortLogCommentTree(comments: LogCommentWithUser[], mode: "top" | "newest"): LogCommentWithUser[] {
+function sortLogCommentTree(
+  comments: LogCommentWithUser[],
+  mode: "top" | "newest",
+  ownerId?: string
+): LogCommentWithUser[] {
   return comments
     .map((comment) => ({
       ...comment,
-      replies: sortLogCommentTree(comment.replies, mode),
+      replies: sortLogCommentTree(comment.replies, mode, ownerId),
     }))
     .sort((a, b) => {
       if (mode === "newest") {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
+
+      const aOwner = ownerId && a.user_id === ownerId ? 1 : 0;
+      const bOwner = ownerId && b.user_id === ownerId ? 1 : 0;
+      if (aOwner !== bOwner) return bOwner - aOwner;
 
       if (b.insightScore !== a.insightScore) return b.insightScore - a.insightScore;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -326,13 +338,16 @@ export default function LogDetailPage() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [commentSort, setCommentSort] = useState<"top" | "newest">("top");
   const [showCommentLikesModal, setShowCommentLikesModal] = useState(false);
   const [commentLikers, setCommentLikers] = useState<User[]>([]);
   const [commentLikersLoading, setCommentLikersLoading] = useState(false);
   const [commentLikesTitle, setCommentLikesTitle] = useState("");
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const [commentLikeLoadingId, setCommentLikeLoadingId] = useState<string | null>(null);
+  const [ticketSide, setTicketSide] = useState<"front" | "back">("front");
+  const [ticketImageUrl, setTicketImageUrl] = useState<string | null>(null);
+  const [ticketUploading, setTicketUploading] = useState(false);
+  const ticketInputRef = useRef<HTMLInputElement | null>(null);
 
   const getFallbackContent = (contentType: "movie" | "tv", contentId: number): Content => {
     if (contentType === "tv") {
@@ -443,6 +458,7 @@ export default function LogDetailPage() {
         };
 
         setLog(foundLog);
+        setTicketImageUrl((foundLog as MovieLog).ticket_image_url || null);
         setEditingNotes(foundLog.notes || "");
         setEditingReaction(typeof foundLog.reaction === "number" ? foundLog.reaction : 1);
 
@@ -493,7 +509,7 @@ export default function LogDetailPage() {
         setLiked(true);
         setLikeCount((c) => c + 1);
         // Send notification to log owner if not self
-        if (user.id !== log.user.id) {
+        if (user.id !== log.user.id && (await shouldDeliverNotificationToUser(log.user.id, "like"))) {
           const notifRef = dbRef(db, `notifications/${log.user.id}`);
           await dbPush(notifRef, {
             type: "like",
@@ -590,6 +606,49 @@ export default function LogDetailPage() {
     } catch (error) {
       console.error("Error updating log:", error);
       alert("Failed to update log");
+    }
+  };
+
+  const handleTicketUploadClick = () => {
+    ticketInputRef.current?.click();
+  };
+
+  const handleTicketFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !log || !user || log.user_id !== user.id) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      alert("Image size must be 8MB or smaller.");
+      return;
+    }
+
+    try {
+      setTicketUploading(true);
+
+      const uploadRef = storageRef(storage, `log-ticket-images/${log.id}/${Date.now()}-${file.name}`);
+      await uploadBytes(uploadRef, file, {
+        contentType: file.type,
+      });
+
+      const downloadUrl = await getDownloadURL(uploadRef);
+      await updateMovieLog(log.id, {
+        ticket_image_url: downloadUrl,
+      } as Partial<MovieLog>);
+
+      setTicketImageUrl(downloadUrl);
+      setLog((prev) => (prev ? { ...prev, ticket_image_url: downloadUrl } : prev));
+      setTicketSide("back");
+    } catch (error) {
+      console.error("Error uploading ticket image:", error);
+      alert("Failed to upload the image. Please try again.");
+    } finally {
+      setTicketUploading(false);
+      event.target.value = "";
     }
   };
 
@@ -704,7 +763,18 @@ export default function LogDetailPage() {
   };
 
   const releaseYear = log?.content.release_date ? new Date(log.content.release_date).getFullYear() : null;
-  const sortedComments = useMemo(() => sortLogCommentTree(comments, commentSort), [comments, commentSort]);
+  const sortedComments = useMemo(() => sortLogCommentTree(comments, "top", log?.user_id), [comments, log?.user_id]);
+
+  useEffect(() => {
+    if (!log) return;
+
+    const canonicalUrl = buildLogUrl(log, targetCommentId ? { comment: targetCommentId } : undefined);
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (currentUrl !== canonicalUrl) {
+      router.replace(canonicalUrl);
+    }
+  }, [log, router, targetCommentId]);
 
   useEffect(() => {
     if (!targetCommentId || commentsLoading) return;
@@ -744,41 +814,44 @@ export default function LogDetailPage() {
   const isOwnLog = log.user_id === user.id;
 
   return (
-    <PageLayout user={user} onSignOut={() => router.push("/auth/login")}>
-      <div className="min-h-screen bg-slate-50 text-slate-950">
+    <PageLayout user={user} onSignOut={() => router.push("/auth/login")} theme="brutalist">
+      <div className="min-h-screen bg-[#0f0f0f] text-[#f5f0de]">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-slate-600 transition-colors hover:text-slate-950"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back
-          </button>
-
-          {/* Menu (owner only) */}
-          {isOwnLog && (
-            <div className="relative">
+        {/* Movie Info */}
+        <div className="mb-8">
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#121212] shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="relative flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-5">
               <button
-                onClick={() => setShowMenu(!showMenu)}
-                className="rounded-lg p-2 transition-colors hover:bg-slate-100"
-                aria-label="Open log menu"
-                title="Open log menu"
+                onClick={() => router.back()}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-[#f5f0de]/75 transition hover:text-[#f5f0de]"
               >
-                <MoreVertical className="w-5 h-5" />
+                <ArrowLeft className="h-4 w-4" />
+                Back
               </button>
 
-              {showMenu && (
-                <div className="absolute right-0 z-10 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+              {isOwnLog ? (
+                <button
+                  type="button"
+                  onClick={() => setShowMenu((prev) => !prev)}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-[#f5f0de]/75 hover:bg-white/10"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                  Menu
+                </button>
+              ) : (
+                <span className="text-[11px] uppercase tracking-[0.22em] text-[#ffb36b]/75">Log detail</span>
+              )}
+
+              {isOwnLog && showMenu && (
+                <div className="absolute right-4 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-white/10 bg-[#121212] shadow-lg">
                   <button
                     onClick={() => {
                       setIsEditing(true);
                       setShowMenu(false);
                     }}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-slate-50"
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-[#f5f0de] transition-colors hover:bg-white/5"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <Edit2 className="h-4 w-4" />
                     Edit
                   </button>
                   <button
@@ -786,63 +859,146 @@ export default function LogDetailPage() {
                       handleDelete();
                       setShowMenu(false);
                     }}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-rose-600 transition-colors hover:bg-rose-50"
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-rose-300 transition-colors hover:bg-rose-500/10"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="h-4 w-4" />
                     Delete
                   </button>
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Movie Info */}
-        <div className="mb-8">
-          <div className="flex gap-4 sm:gap-5">
-            {log.content.poster_url && (
-              <Link
-                href={log.content_type === "tv" ? `/tv/${log.content_id}` : `/movie/${log.content_id}`}
-                className="block w-24 shrink-0 overflow-hidden rounded-lg bg-slate-100 shadow-sm sm:w-28"
-                title={`Open ${log.content.title}`}
-              >
-                <img
-                  src={log.content.poster_url}
-                  alt={log.content.title}
-                  className="aspect-[2/3] w-full object-cover"
-                />
-              </Link>
-            )}
-            <div className="min-w-0 flex-1 pt-1">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">{log.content.title}</h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 sm:text-sm">
-                {releaseYear && <span>{releaseYear}</span>}
-                <span>•</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Watched {formatDate(log.watched_date)}
-                </span>
+            <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] sm:gap-6 sm:p-6">
+              <div className="relative">
+                <div className="relative h-[24rem] w-full [perspective:1400px] sm:h-[26rem]">
+                  <div
+                    className="relative h-full w-full transition-transform duration-700 [transform-style:preserve-3d]"
+                    style={{
+                      transform: ticketSide === "front" ? "rotateY(0deg)" : "rotateY(180deg)",
+                    }}
+                  >
+                    <div className="absolute inset-0 overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#0f0f0f] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]">
+                      {log.content.poster_url ? (
+                        <img
+                          src={log.content.poster_url}
+                          alt={log.content.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs uppercase tracking-[0.2em] text-white/35">
+                          No poster
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setTicketSide("back")}
+                        className="absolute bottom-3 right-3 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg"
+                      >
+                        Flip
+                      </button>
+                    </div>
+
+                    <div
+                      className="absolute inset-0 overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#111111] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]"
+                      style={{ transform: "rotateY(180deg)" }}
+                    >
+                      {ticketImageUrl ? (
+                        <img
+                          src={ticketImageUrl}
+                          alt={`${log.content.title} ticket`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full flex-col justify-between p-4">
+                          <div className="space-y-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/75">
+                              Upload a picture or ticket
+                            </p>
+                            <p className="max-w-[12rem] text-sm leading-6 text-[#f5f0de]/75">
+                              Add your own image for the back of this log card.
+                            </p>
+                          </div>
+
+                          <div className="rounded-[1.2rem] border border-dashed border-white/15 bg-white/5 p-4 text-sm text-white/60">
+                            Use the button below to upload from your device.
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setTicketSide("front")}
+                        className="absolute bottom-3 left-3 rounded-full border border-white/10 bg-[#121212]/90 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#f5f0de] shadow-lg"
+                      >
+                        Front
+                      </button>
+
+                      {isOwnLog && (
+                        <button
+                          type="button"
+                          onClick={handleTicketUploadClick}
+                          disabled={ticketUploading}
+                          className="absolute right-3 top-3 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg disabled:opacity-60"
+                        >
+                          {ticketUploading ? "Uploading" : "Upload"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {isOwnLog && (
+                  <input
+                    ref={ticketInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleTicketFileChange}
+                  />
+                )}
               </div>
-              {log.content.genres?.length ? (
-                <p className="mt-3 text-xs text-slate-600 sm:text-sm">
-                  <span className="font-semibold text-slate-500">Genres:</span>{" "}
-                  {log.content.genres.slice(0, 4).join(" • ")}
-                </p>
-              ) : null}
+
+              <div className="min-w-0 self-center">
+                <h1 className="line-clamp-2 text-2xl font-black leading-[1.05] tracking-tight text-[#f5f0de] sm:text-[2.35rem]">
+                  {log.content.title}
+                </h1>
+
+                <div className="mt-4 space-y-3 text-sm text-white/68">
+                  {releaseYear && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
+                      <span>{releaseYear}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
+                    <span className="inline-flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      Watched {formatDate(log.watched_date)}
+                    </span>
+                  </div>
+                  {log.content.genres?.length ? (
+                    <div className="flex items-start gap-2">
+                      <span className="mt-2 inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
+                      <p className="leading-6 text-[#f5f0de]/78">
+                        {log.content.genres.slice(0, 4).join(" • ")}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-5 border-t border-white/10 pt-4 text-[11px] uppercase tracking-[0.22em] text-[#ffb36b]/75">
+                  {log.content_type === "tv" ? "TV Show" : "Movie"}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Review */}
-        <div
-          className={`mb-8 border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
-            log.reaction === 2
-              ? "shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_18px_40px_rgba(16,185,129,0.14)]"
-              : ""
-          }`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-slate-950">
+        <div className="mb-8 border-t border-white/10 pt-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-lg font-semibold text-[#f5f0de] sm:text-xl">
               {isOwnLog ? "Your review" : `${log.user.name}'s review`}
             </h2>
             {(() => {
@@ -852,7 +1008,7 @@ export default function LogDetailPage() {
               );
               return (
                 <span
-                  className={`inline-flex items-center gap-2 border px-3 py-1 text-sm font-bold ${reaction.badgeClass}`}
+                  className={`inline-flex items-center gap-2 border px-4 py-1.5 text-sm font-bold ${reaction.badgeClass}`}
                 >
                   {reactionLabel}
                 </span>
@@ -863,7 +1019,7 @@ export default function LogDetailPage() {
           {isOwnLog && isEditing ? (
             <div className="mt-4 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Review</label>
+                <label className="mb-2 block text-sm font-medium text-white/60">Review</label>
                 <textarea
                   value={editingNotes}
                   onChange={(e) => setEditingNotes(e.target.value)}
@@ -879,32 +1035,32 @@ export default function LogDetailPage() {
                     setIsEditing(false);
                     setEditingNotes(log.notes);
                   }}
-                  className="rounded-none border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="rounded-none border border-white/10 px-4 py-2 text-sm font-medium text-[#f5f0de] hover:bg-white/5"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="rounded-none bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  className="rounded-none bg-[#ff7a1a] px-4 py-2 text-sm font-medium text-black hover:bg-[#ff8d33]"
                 >
                   Save Changes
                 </button>
               </div>
             </div>
           ) : (
-            <div className="mt-4 whitespace-pre-wrap text-[16px] leading-7 text-slate-800">
-              {log.notes || <span className="text-slate-400">No review written yet.</span>}
+            <div className="mt-5 whitespace-pre-wrap text-[15px] leading-7 text-[#f5f0de]/90">
+              {log.notes || <span className="text-white/35">No review written yet.</span>}
             </div>
           )}
 
-          <div className="mt-4 flex items-center gap-3 text-sm">
+          <div className="mt-5 inline-flex items-center gap-2 text-sm">
             <button
               onClick={handleLike}
               disabled={likeLoading}
-              className={`inline-flex items-center gap-2 border px-3 py-2 font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 font-medium transition-colors ${
                 liked
-                  ? "border-rose-200 bg-rose-50 text-rose-600"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  ? "text-rose-300"
+                  : "text-[#f5f0de]/80 hover:text-[#f5f0de]"
               }`}
               aria-label={liked ? "Unlike" : "Like"}
               title={liked ? "Unlike" : "Like"}
@@ -914,7 +1070,7 @@ export default function LogDetailPage() {
             <button
               type="button"
               onClick={handleOpenLikes}
-              className="border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-50"
+              className="font-medium text-[#f5f0de]/80 transition hover:text-[#f5f0de]"
             >
               {likeCount}
             </button>
@@ -922,17 +1078,17 @@ export default function LogDetailPage() {
 
           {/* Reaction Edit (owner only, only in edit mode) */}
           {isOwnLog && isEditing && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-500">Change reaction:</span>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <span className="text-sm text-white/55">Change reaction:</span>
               {[{label: "Bad", value: 0}, {label: "Good", value: 1}, {label: "Masterpiece", value: 2}].map(opt => (
                 <button
                   key={opt.value}
                   disabled={reactionSaving}
                   onClick={() => handleReactionChange(opt.value as 0|1|2)}
-                  className={`rounded-none border px-3 py-1 text-sm font-medium transition-colors ${
+                  className={`rounded-none border px-3 py-1.5 text-sm font-medium transition-colors ${
                     editingReaction === opt.value
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      ? "border-[#ff7a1a] bg-[#ff7a1a] text-black"
+                      : "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                   }`}
                 >
                   {opt.label}
@@ -944,26 +1100,26 @@ export default function LogDetailPage() {
 
         {/* Context Log */}
         {log.context_log && (
-          <div className="mb-8 border-t border-slate-200 pt-6">
-            <h3 className="mb-4 text-lg font-semibold text-slate-950">Context log</h3>
-            <div className="space-y-3 text-slate-700">
+          <div className="mb-8 border-t border-white/10 pt-6">
+            <h3 className="mb-4 text-lg font-semibold text-[#f5f0de]">Context log</h3>
+            <div className="space-y-3 text-white/75">
               {log.context_log.location && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Where</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#ffb36b]/80">Where</p>
                   <p>{log.context_log.location}</p>
                 </div>
               )}
 
               {log.context_log.watched_with && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">With whom</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#ffb36b]/80">With whom</p>
                   <p>{log.context_log.watched_with}</p>
                 </div>
               )}
 
               {log.context_log.mood && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Mood</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#ffb36b]/80">Mood</p>
                   <p>{log.context_log.mood}</p>
                 </div>
               )}
@@ -972,43 +1128,29 @@ export default function LogDetailPage() {
         )}
 
         {/* Comments */}
-        <div className="mb-8 border-t border-slate-200 pt-6">
+        <div className="mb-8 border-t border-white/10 pt-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-slate-950">
+              <h3 className="inline-flex items-center gap-2 text-base font-semibold text-[#f5f0de] sm:text-lg">
                 <MessageCircle className="h-4 w-4" />
                 Comments
               </h3>
-              <p className="text-sm text-slate-500">Replies and likes stay with this log.</p>
-            </div>
-            <div className="inline-flex rounded-none border border-slate-200 bg-white p-1">
-              {(["top", "newest"] as const).map((sort) => (
-                <button
-                  key={sort}
-                  type="button"
-                  onClick={() => setCommentSort(sort)}
-                  className={`rounded-none px-3 py-1.5 text-xs font-black capitalize transition ${
-                    commentSort === sort ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-50"
-                  }`}
-                >
-                  {sort}
-                </button>
-              ))}
+              <p className="text-xs text-white/45 sm:text-sm">Replies and likes stay with this log.</p>
             </div>
           </div>
 
-          <div className="mb-5 flex gap-2">
+          <div className="mb-4 flex gap-2">
             <input
               value={commentText}
               onChange={(event) => setCommentText(event.target.value)}
               placeholder="Add a comment..."
-              className="min-w-0 flex-1 border-b border-slate-200 bg-transparent px-0 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500"
+              className="min-w-0 flex-1 border-b border-white/10 bg-transparent px-0 py-2.5 text-sm text-[#f5f0de] outline-none placeholder:text-white/35 focus:border-[#ff7a1a]"
             />
             <button
               type="button"
               disabled={submittingComment || commentText.trim().length < 2}
               onClick={handleComment}
-              className="inline-flex items-center gap-1 rounded-none bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-none bg-[#ff7a1a] px-4 py-2.5 text-sm font-black text-black disabled:opacity-50"
               aria-label="Send comment"
             >
               <Send className="h-4 w-4" />
@@ -1016,15 +1158,15 @@ export default function LogDetailPage() {
             </button>
           </div>
 
-          <div className="divide-y divide-slate-200/70">
+          <div className="divide-y divide-white/10">
             {commentsLoading ? (
               <div className="space-y-3 py-2">
                 {[0, 1, 2].map((item) => (
-                  <div key={item} className="h-20 animate-pulse rounded-none bg-slate-100" />
+                  <div key={item} className="h-20 animate-pulse rounded-none bg-white/5" />
                 ))}
               </div>
             ) : sortedComments.length === 0 ? (
-              <p className="py-4 text-sm text-slate-500">No comments yet. Start the thread.</p>
+              <p className="py-4 text-sm text-white/55">No comments yet. Start the thread.</p>
             ) : (
               sortedComments.map((comment) => (
                 <CommentThread
@@ -1050,24 +1192,24 @@ export default function LogDetailPage() {
 
         {/* Log History for this user and movie/show */}
         {userLogs.length > 1 && (
-          <div className="mb-6 border-t border-slate-200 pt-6">
+          <div className="mb-6 border-t border-white/10 pt-6">
             <button
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition mb-4"
+              className="mb-4 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#f5f0de] hover:bg-white/5 transition"
               onClick={() => setShowUserLogs((v) => !v)}
             >
               {showUserLogs ? "Hide log history" : `Show log history (${userLogs.length})`}
             </button>
             {showUserLogs && (
-              <div className="divide-y divide-slate-200">
+              <div className="divide-y divide-white/10">
                 {userLogs.map((l) => {
                   const reaction = getReactionDisplay(l.reaction as 0 | 1 | 2);
                   return (
                     <div key={l.id} className="flex items-center gap-4 py-4">
-                      <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(`/logs/${l.id}`)} title={`View this log`}>
+                      <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(l))} title={`View this log`}>
                         <span className={`mt-1 text-xs px-2 py-0.5 rounded-full border block ${reaction.badgeClass}`}>{reaction.label}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-slate-900 cursor-pointer hover:underline" onClick={() => router.push(`/logs/${l.id}`)}>
+                        <span className="font-semibold text-slate-900 cursor-pointer hover:underline" onClick={() => router.push(buildLogUrl(l))}>
                           {formatDate(l.watched_date)}
                         </span>
                         {l.notes && (
@@ -1076,7 +1218,7 @@ export default function LogDetailPage() {
                       </div>
                       <button
                         className="ml-2 rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                        onClick={() => router.push(`/logs/${l.id}`)}
+                        onClick={() => router.push(buildLogUrl(l))}
                       >
                         View Log
                       </button>

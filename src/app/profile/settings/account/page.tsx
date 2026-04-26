@@ -134,37 +134,37 @@ export default function SettingsAccountPage() {
     >
       <div className="space-y-2">
         <SettingLine icon={KeyRound} title="Change password" description="Send a reset email to the connected address.">
-          <button onClick={resetPassword} disabled={busy} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
+          <button onClick={resetPassword} disabled={busy} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50">
             Reset email
           </button>
         </SettingLine>
 
         <SettingLine icon={LogOut} title="Deactivate account" description="Temporarily pause the account and sign out.">
           {settings.account.status === "deactivated" ? (
-            <span className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/55">
               Deactivated
             </span>
           ) : (
-            <button onClick={deactivateAccount} disabled={busy} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
+            <button onClick={deactivateAccount} disabled={busy} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50">
               Deactivate
             </button>
           )}
         </SettingLine>
 
         <SettingLine icon={Trash2} title="Delete account" description="Remove the profile and related data permanently.">
-          <button onClick={deleteAccount} disabled={busy} className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-500 disabled:opacity-50">
+          <button onClick={deleteAccount} disabled={busy} className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-[#0a0a0a] transition hover:bg-[#ff8d3b] disabled:opacity-50">
             Delete forever
           </button>
         </SettingLine>
 
         <SettingLine icon={LifeBuoy} title="Help" description="If something feels off, contact support.">
-          <a href="mailto:support@cineparte.app" className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+          <a href="mailto:support@cineparte.app" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10">
             Email support
           </a>
         </SettingLine>
 
-        {message && <p className="pt-2 text-xs text-emerald-700">{message}</p>}
-        {error && <p className="pt-2 text-xs text-rose-700">{error}</p>}
+        {message && <p className="pt-2 text-xs text-[#ffb36b]">{message}</p>}
+        {error && <p className="pt-2 text-xs text-[#ffb36b]">{error}</p>}
       </div>
     </SettingsPageFrame>
   );

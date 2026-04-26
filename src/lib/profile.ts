@@ -21,6 +21,7 @@ export async function getUserProfile(userId: string): Promise<User | null> {
       name: userData.name || "",
       email: userData.email || undefined,
       avatar_url: userData.avatar_url || null,
+      avatar_scale: typeof userData.avatar_scale === "number" ? userData.avatar_scale : 1,
       created_at: userData.createdAt || new Date().toISOString(),
       bio: userData.bio || "",
       display_list_id: userData.display_list_id || undefined,
@@ -59,6 +60,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
       name: userData.name,
       email: userData.email || undefined,
       avatar_url: userData.avatar_url || null,
+      avatar_scale: typeof userData.avatar_scale === "number" ? userData.avatar_scale : 1,
       created_at: userData.created_at || userData.createdAt || new Date().toISOString(),
       bio: userData.bio || "",
       display_list_id: userData.display_list_id || undefined,
@@ -208,6 +210,7 @@ export async function updateUserProfile(
     name?: string;
     bio?: string;
     avatar_url?: string;
+    avatar_scale?: number;
     username?: string;
     email?: string;
     mood_tags?: string[];

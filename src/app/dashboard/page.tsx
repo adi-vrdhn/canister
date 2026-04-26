@@ -13,9 +13,10 @@ import { ref, get, onValue } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
+import { buildLogUrl } from "@/lib/log-url";
 import { getFriendLogs } from "@/lib/friend-logs";
 import Link from "next/link";
-import { Clapperboard, Film, Loader2, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
+import { Clapperboard, Film, Loader2, MessageCircle, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
 
 import CinePostsFeed from "@/components/CinePostsFeed";
 import CinePostModal from "@/components/CinePostModal";
@@ -380,7 +381,8 @@ export default function DashboardPage() {
       kind: "shared" as const,
       poster_url: (share.movie || share.content)?.poster_url || null,
       title: (share.movie || share.content)?.title || "Unknown",
-      byline: `shared by ${share.sender?.name || "Unknown"}`,
+      byline: `by ${share.sender?.name || "Unknown"}`,
+      note: share.note || null,
       reaction: "",
       createdAt: share.created_at,
       onClick: () => setSelectedShare(share),
@@ -393,7 +395,7 @@ export default function DashboardPage() {
       byline: `by ${log.friend.name}`,
       reaction: log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad",
       createdAt: log.created_at,
-      onClick: () => router.push(`/logs/${log.id}`),
+      onClick: () => router.push(buildLogUrl(log)),
     })),
   ]
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
@@ -593,16 +595,16 @@ export default function DashboardPage() {
 
           {friendActivity.length > 0 ? (
             <>
-              <div className="-mx-3 overflow-x-auto px-3 pb-4 sm:mx-0 sm:px-0">
-                <div className="flex gap-2.5 sm:gap-6">
+              <div className="-mx-3 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-0 sm:pb-4">
+                <div className="flex gap-2 sm:gap-4">
                   {friendActivity.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={item.onClick}
-                      className="w-[27vw] min-w-[5.5rem] max-w-[6.75rem] flex-shrink-0 cursor-pointer overflow-hidden border border-white/10 bg-[#111111] text-left transition hover:border-[#ff7a1a]/50 hover:shadow-[0_12px_30px_rgba(0,0,0,0.35)] sm:w-56 sm:min-w-0 sm:max-w-none"
+                      className="w-[6rem] min-w-[6rem] max-w-[6rem] flex-shrink-0 cursor-pointer overflow-hidden border border-white/10 bg-[#111111] text-left transition hover:border-[#ff7a1a]/50 hover:shadow-[0_12px_30px_rgba(0,0,0,0.35)] sm:w-52 sm:min-w-0 sm:max-w-none"
                     >
-                      <div className="relative aspect-[3/4] overflow-hidden bg-[#1a1a1a] sm:h-72 sm:aspect-auto">
+                      <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a] sm:h-64 sm:aspect-auto">
                         {item.poster_url ? (
                           <img
                             src={item.poster_url}
@@ -615,17 +617,28 @@ export default function DashboardPage() {
                           </div>
                         )}
                       </div>
-                      <div className="p-2 sm:p-3">
-                        <h3 className="mb-0.5 truncate text-[11px] font-semibold leading-tight text-[#f5f0de] sm:mb-1 sm:text-base">
+                      <div className="p-1.5 sm:p-3">
+                        <h3 className="mb-0.5 truncate text-[9px] font-semibold leading-tight text-[#f5f0de] sm:mb-1 sm:text-base">
                           {item.title}
                         </h3>
-                        <p className="mb-1 truncate text-[10px] leading-tight text-white/55 sm:mb-2 sm:text-sm">
+                        <p className="mb-1 truncate text-[8px] leading-tight text-white/55 sm:mb-2 sm:text-sm">
                           {item.byline}
                         </p>
-                        <div className="min-h-[1rem] sm:min-h-[1.5rem]">
-                          <span className="text-[10px] font-medium text-[#ffb36b] sm:text-sm">
-                            {item.reaction}
+                        <div className="flex items-end justify-between gap-2">
+                          <span className="text-[8px] font-medium uppercase tracking-[0.16em] text-[#ff7a1a] sm:text-[10px]">
+                            {item.kind === "shared" ? "shared" : item.reaction}
                           </span>
+                          {item.kind === "shared" && item.note ? (
+                            <span
+                              className="inline-flex items-center justify-center text-[#f5f0de]"
+                              aria-label="Contains message"
+                              title="Contains message"
+                            >
+                              <MessageCircle className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
+                            </span>
+                          ) : (
+                            <span className="min-h-[0.75rem]" />
+                          )}
                         </div>
                       </div>
                     </button>

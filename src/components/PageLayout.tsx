@@ -5,7 +5,11 @@ import EmailVerificationBadge from "./EmailVerificationBadge";
 import NotificationBell from "./NotificationBell";
 import Link from "next/link";
 import { User } from "@/types";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { Settings } from "lucide-react";
+import { onValue, ref } from "firebase/database";
+import { db } from "@/lib/firebase";
+import { DEFAULT_SETTINGS, mergeSettings, resolveThemePreference } from "@/lib/settings";
 
 interface PageLayoutProps {
   user: User | null;
@@ -13,6 +17,7 @@ interface PageLayoutProps {
   onSignOut?: () => void;
   fullWidth?: boolean;
   theme?: "default" | "brutalist";
+  headerAction?: "notifications" | "settings";
 }
 
 export default function PageLayout({
@@ -20,10 +25,36 @@ export default function PageLayout({
   children,
   onSignOut,
   fullWidth = false,
-  theme = "default",
+  theme = "brutalist",
+  headerAction = "notifications",
 }: PageLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isBrutalist = theme === "brutalist";
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const root = document.documentElement;
+
+    if (!user) {
+      root.dataset.cineTheme = DEFAULT_SETTINGS.appearance.theme;
+      root.dataset.cineTextSize = DEFAULT_SETTINGS.appearance.textSize;
+      root.dataset.cineReduceMotion = DEFAULT_SETTINGS.appearance.reduceMotion ? "true" : "false";
+      root.style.colorScheme = "light";
+      return;
+    }
+
+    const userRef = ref(db, `users/${user.id}`);
+    const unsubscribe = onValue(userRef, (snapshot) => {
+      const settings = mergeSettings(snapshot.exists() ? snapshot.val()?.settings : null);
+      root.dataset.cineTheme = settings.appearance.theme;
+      root.dataset.cineTextSize = settings.appearance.textSize;
+      root.dataset.cineReduceMotion = settings.appearance.reduceMotion ? "true" : "false";
+      root.style.colorScheme = resolveThemePreference(settings.appearance.theme);
+    });
+
+    return () => unsubscribe();
+  }, [user?.id]);
 
   return (
     <div className={`${isBrutalist ? "brutalist bg-[#0a0a0a]" : "app-shell"} flex min-h-dvh overflow-x-hidden`}>
@@ -54,7 +85,21 @@ export default function PageLayout({
         >
           Canisterr
         </Link>
-        <NotificationBell user={user} theme={theme} />
+        {headerAction === "settings" ? (
+          <Link
+            href="/profile/settings"
+            className={`absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition ${
+              isBrutalist
+                ? "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
+                : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+            }`}
+            aria-label="Profile settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Link>
+        ) : (
+          <NotificationBell user={user} theme={theme} />
+        )}
       </header>
 
       {/* Sidebar: hidden on mobile, slide-in on open */}

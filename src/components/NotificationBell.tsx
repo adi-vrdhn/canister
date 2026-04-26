@@ -1,86 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, X } from "lucide-react";
-import { get, onValue, ref, remove, set } from "firebase/database";
+import { onValue, ref } from "firebase/database";
 import { db } from "@/lib/firebase";
 import type { User } from "@/types";
-
-type NotificationType =
-  | "follow_request"
-  | "collaboration_request"
-  | "post_like"
-  | "post_save"
-  | "post_comment"
-  | "comment_reply"
-  | "like"
-  | "log_comment"
-  | "log_comment_reply"
-  | "log_comment_like";
-
-type NotificationItem = {
-  id: string;
-  type: NotificationType;
-  fromUser?: {
-    id: string;
-    username: string;
-    name: string;
-    avatar_url?: string | null;
-  };
-  createdAt: string;
-  ref_id?: string;
-  listId?: string;
-  listName?: string;
-  logId?: string;
-  commentId?: string;
-};
-
-function notificationHref(note: NotificationItem): string {
-  if (note.type === "collaboration_request" && note.listId) return `/lists/${note.listId}`;
-  if ((note.type === "post_like" || note.type === "post_save" || note.type === "post_comment" || note.type === "comment_reply") && note.ref_id) {
-    return `/posts/${note.ref_id}`;
-  }
-  if ((note.type === "log_comment" || note.type === "log_comment_reply" || note.type === "log_comment_like") && note.logId) {
-    return note.commentId ? `/logs/${note.logId}?comment=${note.commentId}` : `/logs/${note.logId}`;
-  }
-  if (note.type === "like" && note.logId) return `/logs/${note.logId}`;
-  if (note.fromUser?.username) return `/profile/${note.fromUser.username}`;
-  return "/dashboard";
-}
-
-function notificationText(note: NotificationItem): string {
-  switch (note.type) {
-    case "follow_request":
-      return "requested to follow you.";
-    case "collaboration_request":
-      return `sent you a collaboration request${note.listName ? ` for ${note.listName}` : ""}.`;
-    case "post_like":
-      return "liked your post.";
-    case "post_save":
-      return "saved your post.";
-    case "post_comment":
-      return "commented on your post.";
-    case "comment_reply":
-      return "replied to your comment.";
-    case "like":
-      return "liked your log.";
-    case "log_comment":
-      return "commented on your log.";
-    case "log_comment_reply":
-      return "replied to your log comment.";
-    case "log_comment_like":
-      return "liked your log comment.";
-    default:
-      return "sent you a notification.";
-  }
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
+import { mergeSettings, shouldShowNotificationForSettings } from "@/lib/settings";
+import {
+  acceptFollowRequest as acceptFollowRequestAction,
+  clearAllNotifications,
+  declineFollowRequest as declineFollowRequestAction,
+  formatNotificationDate,
+  notificationHref,
+  notificationText,
+  parseNotificationItems,
+  removeNotification,
+  sendFollowRequest,
+  sortNotificationItems,
+  type NotificationItem,
+} from "@/lib/notifications";
 
 export default function NotificationBell({
   user,
@@ -91,6 +30,7 @@ export default function NotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [settings, setSettings] = useState(mergeSettings(null));
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const isBrutalist = theme === "brutalist";
 
@@ -106,24 +46,18 @@ export default function NotificationBell({
         return;
       }
 
-      const rows = Object.entries(snapshot.val()).map(([id, raw]: any) => ({
-        id,
-        type: raw.type,
-        fromUser: raw.fromUser,
-        createdAt: raw.createdAt || raw.created_at || new Date().toISOString(),
-        ref_id: raw.ref_id,
-        listId: raw.listId,
-        listName: raw.listName,
-        logId: raw.logId,
-        commentId: raw.commentId,
-      })) as NotificationItem[];
-
-      setNotifications(
-        rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      );
+      setNotifications(sortNotificationItems(parseNotificationItems(snapshot.val())));
     });
 
-    return () => unsubscribe();
+    const userRef = ref(db, `users/${user.id}`);
+    const unsubscribeSettings = onValue(userRef, (snapshot) => {
+      setSettings(mergeSettings(snapshot.exists() ? snapshot.val()?.settings : null));
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeSettings();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -137,12 +71,13 @@ export default function NotificationBell({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const latestCreatedAt = notifications[0]?.createdAt || "";
-  const hasUnread = useMemo(() => {
-    if (!user || !latestCreatedAt) return false;
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(`notif_seen_${user.id}`) !== latestCreatedAt;
-  }, [latestCreatedAt, user]);
+  const visibleNotifications = notifications.filter((note) => shouldShowNotificationForSettings(settings, note.type));
+  const latestCreatedAt = visibleNotifications[0]?.createdAt || "";
+  const hasUnread =
+    !!user &&
+    !!latestCreatedAt &&
+    typeof window !== "undefined" &&
+    localStorage.getItem(`notif_seen_${user.id}`) !== latestCreatedAt;
 
   const openNotifications = () => {
     setOpen((current) => {
@@ -156,31 +91,23 @@ export default function NotificationBell({
 
   const clearNotifications = async () => {
     if (!user) return;
-    await remove(ref(db, `notifications/${user.id}`));
+    await clearAllNotifications(user.id);
     setOpen(false);
   };
 
   const acceptFollowRequest = async (note: NotificationItem) => {
     if (!user) return;
-
-    const followRef = ref(db, `follows/${note.id}`);
-    const followSnapshot = await get(followRef);
-    if (followSnapshot.exists()) {
-      await set(followRef, {
-        ...followSnapshot.val(),
-        status: "accepted",
-      });
-    }
-    await remove(ref(db, `notifications/${user.id}/${note.id}`));
+    await acceptFollowRequestAction(user.id, note, { keepNotification: true });
   };
 
   const declineFollowRequest = async (note: NotificationItem) => {
     if (!user) return;
+    await declineFollowRequestAction(user.id, note);
+  };
 
-    await Promise.all([
-      remove(ref(db, `follows/${note.id}`)),
-      remove(ref(db, `notifications/${user.id}/${note.id}`)),
-    ]);
+  const followBack = async (note: NotificationItem) => {
+    if (!user || !note.fromUser) return;
+    await sendFollowRequest(user, note.fromUser);
   };
 
   if (!user) return null;
@@ -206,7 +133,7 @@ export default function NotificationBell({
           <div className={`flex items-center justify-between px-4 py-3 ${isBrutalist ? "border-b border-white/10" : "border-b border-slate-100"}`}>
             <div>
               <p className={`font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Notifications</p>
-              <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>{notifications.length} update{notifications.length === 1 ? "" : "s"}</p>
+              <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>{visibleNotifications.length} update{visibleNotifications.length === 1 ? "" : "s"}</p>
             </div>
             <button
               type="button"
@@ -218,12 +145,12 @@ export default function NotificationBell({
             </button>
           </div>
 
-          {notifications.length === 0 ? (
+          {visibleNotifications.length === 0 ? (
             <div className={`p-6 text-center text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>No notifications yet.</div>
           ) : (
             <>
               <div className="max-h-96 overflow-y-auto p-2">
-                {notifications.map((note) => {
+                {visibleNotifications.slice(0, 5).map((note) => {
                   const avatar = note.fromUser?.avatar_url ? (
                     <img
                       src={note.fromUser.avatar_url}
@@ -244,7 +171,7 @@ export default function NotificationBell({
                           <span className={`font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>{note.fromUser?.name || "Someone"}</span>{" "}
                           {notificationText(note)}
                         </p>
-                        <p className={`mt-1 text-xs ${isBrutalist ? "text-white/40" : "text-slate-400"}`}>{formatDate(note.createdAt)}</p>
+                        <p className={`mt-1 text-xs ${isBrutalist ? "text-white/40" : "text-slate-400"}`}>{formatNotificationDate(note.createdAt)}</p>
                       </div>
                     </>
                   );
@@ -260,20 +187,41 @@ export default function NotificationBell({
                           {content}
                         </Link>
                         <div className="mt-3 grid grid-cols-2 gap-2 pl-[3.25rem]">
-                          <button
-                            type="button"
-                            onClick={() => acceptFollowRequest(note)}
-                            className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white" : "rounded-full bg-slate-950 text-white hover:bg-slate-800"}`}
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => declineFollowRequest(note)}
-                            className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-white/5 text-[#f5f0de] hover:bg-white/10" : "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-                          >
-                            Decline
-                          </button>
+                          {note.followRequestState === "accepted" ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => followBack(note)}
+                                className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white" : "rounded-full bg-slate-950 text-white hover:bg-slate-800"}`}
+                              >
+                                Follow back
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeNotification(user.id, note.id)}
+                                className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-white/5 text-[#f5f0de] hover:bg-white/10" : "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => acceptFollowRequest(note)}
+                                className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white" : "rounded-full bg-slate-950 text-white hover:bg-slate-800"}`}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => declineFollowRequest(note)}
+                                className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-white/5 text-[#f5f0de] hover:bg-white/10" : "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                              >
+                                Decline
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
@@ -292,6 +240,15 @@ export default function NotificationBell({
                 })}
               </div>
               <div className={`p-3 ${isBrutalist ? "border-t border-white/10" : "border-t border-slate-100"}`}>
+                <Link
+                  href="/notifications"
+                  onClick={() => setOpen(false)}
+                  className={`mb-2 block w-full px-4 py-2 text-center text-sm font-bold transition ${
+                    isBrutalist ? "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10" : "rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  View all notifications
+                </Link>
                 <button
                   type="button"
                   onClick={clearNotifications}

@@ -86,9 +86,9 @@ export async function getFriendTasteProfile(
 }
 
 /**
- * Get full taste profile including taste list + masterpiece logs only.
- * This keeps the taste profile aligned with explicit taste picks and
- * optionally adds the user's masterpiece logs without mixing in other logs.
+ * Get full taste profile including explicit taste picks and all watched logs.
+ * Logs carry reaction/review context so the matcher can learn from positive
+ * and negative outcomes instead of only seeing masterpieces.
  */
 export async function getFullTasteProfile(
   userId: string
@@ -100,34 +100,31 @@ export async function getFullTasteProfile(
     const tasteProfile = await getUserTasteProfile(userId);
     console.log("getFullTasteProfile: Got", tasteProfile.length, "taste profile items");
 
-    // 2. Get logs but keep only masterpiece reactions.
+    // 2. Get logs and turn them into taste-like entries so reviews/reactions
+    // can influence the matcher. We keep the logs but prefer them over the
+    // explicit taste entry when a title exists in both.
     const allLogs = await getUserMovieLogs(userId, 500); // Get up to 500 logs
-    const masterpieceLogs = allLogs.filter((log) => log.reaction === 2);
-    console.log(
-      "getFullTasteProfile: Got",
-      masterpieceLogs.length,
-      "masterpiece logs (excluded",
-      allLogs.length - masterpieceLogs.length,
-      "non-masterpieces)"
-    );
+    console.log("getFullTasteProfile: Got", allLogs.length, "logs to merge");
 
     // 3. Create a set of content_ids from taste profile (to avoid duplication)
     const tasteContentIds = new Set(tasteProfile.map((t) => `${t.content_type}-${t.content_id}`));
 
-    // 4. Convert masterpiece logs to UserTasteWithContent format
-    // Only include logs that aren't already in taste profile
-    const logsAsUserTaste: UserTasteWithContent[] = masterpieceLogs
-      .filter((log) => !tasteContentIds.has(`${log.content_type}-${log.content_id}`))
-      .map((log) => ({
-        id: log.id,
-        user_id: log.user_id,
-        content_id: log.content_id,
-        content_type: log.content_type,
-        added_at: log.watched_date, // Use watched_date as added_at for consistency
-        content: log.content,
-      }));
+    // 4. Convert logs to UserTasteWithContent format.
+    const logsAsUserTaste: UserTasteWithContent[] = allLogs.map((log) => ({
+      id: `log-${log.id}`,
+      user_id: log.user_id,
+      content_id: log.content_id,
+      content_type: log.content_type,
+      added_at: log.watched_date || log.created_at,
+      content: log.content,
+      source: "log",
+      reaction: log.reaction,
+      notes: log.notes || null,
+      watched_date: log.watched_date,
+    }));
 
-    // 5. Merge and deduplicate
+    // 5. Merge and deduplicate. Logs are appended last so they win when the
+    // same title exists both in explicit taste and in watched history.
     const merged = [...tasteProfile, ...logsAsUserTaste];
     const deduped = Array.from(
       new Map(
@@ -135,7 +132,7 @@ export async function getFullTasteProfile(
     ).values()
     );
 
-    console.log("getFullTasteProfile: Returning", deduped.length, "total items (taste + masterpieces)");
+    console.log("getFullTasteProfile: Returning", deduped.length, "total items (taste + logs)");
     return deduped;
   } catch (error) {
     console.error("Error fetching full taste profile:", error);

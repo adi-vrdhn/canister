@@ -21,14 +21,14 @@ export default function StatsInsights({
   onStatClick,
 }: StatsInsightsProps) {
   const statCardClass =
-    "rounded-2xl border border-[#dbc9a7] bg-[#fffaf0] p-4 " +
-    (onStatClick ? "cursor-pointer hover:shadow-md transition-shadow" : "");
+    "rounded-[1.25rem] border border-white/10 bg-white/5 p-4 text-left transition " +
+    (onStatClick ? "cursor-pointer hover:bg-white/10" : "");
 
   return (
-    <div className="mb-12 rounded-[2rem] border border-[#d8c8a6]/70 bg-[#f8f4ec] p-6 shadow-[0_18px_45px_rgba(6,9,16,0.25)]">
+    <div className="mb-10 rounded-[1.75rem] border border-white/10 bg-gradient-to-b from-[#1b1b1b] to-[#111111] p-4 sm:p-6">
       <div className="flex items-center gap-2 mb-6">
-        <BarChart3 className="w-6 h-6 text-[#87631f]" />
-        <h2 className="text-2xl font-bold text-gray-900">Box Office Stats</h2>
+        <BarChart3 className="w-6 h-6 text-[#ff7a1a]" />
+        <h2 className="text-2xl font-black text-[#f5f0de]">Stats</h2>
       </div>
 
       {/* Overview Stats */}
@@ -38,38 +38,38 @@ export default function StatsInsights({
           onClick={() => onStatClick?.("total")}
           className={statCardClass}
         >
-          <p className="text-gray-600 text-sm font-medium mb-1">Total Movies</p>
-          <p className="text-3xl font-bold text-gray-900">{totalWatched}</p>
+          <p className="mb-1 text-sm font-medium text-white/55">Total Movies</p>
+          <p className="text-3xl font-black text-[#f5f0de]">{totalWatched}</p>
         </button>
         <button
           type="button"
           onClick={() => onStatClick?.("masterpiece")}
           className={statCardClass}
         >
-          <p className="text-gray-600 text-sm font-medium mb-1">Masterpiece</p>
-          <p className="text-3xl font-bold text-[#8d5c1f]">{masterpieceCount}</p>
+          <p className="mb-1 text-sm font-medium text-white/55">Masterpiece</p>
+          <p className="text-3xl font-black text-[#ffb36b]">{masterpieceCount}</p>
         </button>
         <button
           type="button"
           onClick={() => onStatClick?.("good")}
           className={statCardClass}
         >
-          <p className="text-gray-600 text-sm font-medium mb-1">Good</p>
-          <p className="text-3xl font-bold text-[#1f4f8d]">{goodCount}</p>
+          <p className="mb-1 text-sm font-medium text-white/55">Good</p>
+          <p className="text-3xl font-black text-[#f5f0de]">{goodCount}</p>
         </button>
         <button
           type="button"
           onClick={() => onStatClick?.("bad")}
           className={statCardClass}
         >
-          <p className="text-gray-600 text-sm font-medium mb-1">Bad</p>
-          <p className="text-3xl font-bold text-red-600">{badCount}</p>
+          <p className="mb-1 text-sm font-medium text-white/55">Bad</p>
+          <p className="text-3xl font-black text-rose-300">{badCount}</p>
         </button>
       </div>
 
       {/* Reaction Distribution */}
-      <div className="mb-8 rounded-2xl border border-[#dbc9a7] bg-[#fffaf0] p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Reaction Distribution</h3>
+      <div className="mb-8 rounded-[1.25rem] border border-white/10 bg-white/5 p-4 sm:p-5">
+        <h3 className="mb-4 text-lg font-black text-[#f5f0de]">Reaction Distribution</h3>
         <ReactionDistributionBar
           badCount={badCount}
           goodCount={goodCount}
@@ -80,18 +80,18 @@ export default function StatsInsights({
       </div>
 
       {/* Genre Breakdown */}
-      <div className="rounded-2xl border border-[#dbc9a7] bg-[#fffaf0] p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Top Genres</h3>
+      <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4 sm:p-5">
+        <h3 className="mb-4 text-lg font-black text-[#f5f0de]">Top Genres</h3>
         <div className="space-y-4">
           {genres.slice(0, 5).map((genre) => (
             <div key={genre.genre}>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">{genre.genre}</span>
-                <span className="text-sm font-bold text-gray-900">{genre.percentage}%</span>
+                <span className="text-sm font-medium text-white/75">{genre.genre}</span>
+                <span className="text-sm font-black text-[#f5f0de]">{genre.percentage}%</span>
               </div>
-              <div className="h-3 w-full rounded-full bg-[#f1e6cf]">
+              <div className="h-3 w-full rounded-full bg-white/10">
                 <div
-                  className="h-3 rounded-full bg-gradient-to-r from-[#d6b470] to-[#9b6f2a] transition-all"
+                  className="h-3 rounded-full bg-gradient-to-r from-[#ffb36b] to-[#ff7a1a] transition-all"
                   style={{ width: `${genre.percentage}%` }}
                 />
               </div>

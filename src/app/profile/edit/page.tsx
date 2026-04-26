@@ -78,6 +78,7 @@ export default function EditProfilePage() {
     email: "",
     bio: "",
     avatar_url: "",
+    avatar_scale: 1,
   });
 
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function EditProfilePage() {
             [0] || "user",
           name: userData?.name || firebaseUser.displayName || "User",
           avatar_url: userData?.avatar_url || null,
+          avatar_scale: typeof userData?.avatar_scale === "number" ? userData.avatar_scale : 1,
           created_at: userData?.createdAt || new Date().toISOString(),
           bio: userData?.bio || "",
         };
@@ -114,6 +116,7 @@ export default function EditProfilePage() {
           email: userData?.email || firebaseUser.email || "",
           bio: currentUser.bio || "",
           avatar_url: currentUser.avatar_url || "",
+          avatar_scale: currentUser.avatar_scale || 1,
         });
 
         setLoading(false);
@@ -215,6 +218,7 @@ export default function EditProfilePage() {
         email: cleanEmail,
         bio: cleanBio,
         avatar_url: formData.avatar_url,
+        avatar_scale: formData.avatar_scale,
       });
 
       router.push(`/profile/${cleanUsername}`);
@@ -279,9 +283,10 @@ export default function EditProfilePage() {
       try {
         await updateUserProfile(user.id, {
           avatar_url: downloadUrl,
+          avatar_scale: formData.avatar_scale,
         });
 
-        setUser((prev) => (prev ? { ...prev, avatar_url: downloadUrl } : prev));
+        setUser((prev) => (prev ? { ...prev, avatar_url: downloadUrl, avatar_scale: formData.avatar_scale } : prev));
       } catch (saveAvatarError) {
         console.error("Error saving avatar preview to profile:", saveAvatarError);
         setUploadError("Profile photo preview is ready, but saving it failed. Try saving your profile changes once more.");
@@ -298,9 +303,10 @@ export default function EditProfilePage() {
         try {
           await updateUserProfile(user.id, {
             avatar_url: fallbackDataUrl,
+            avatar_scale: formData.avatar_scale,
           });
 
-          setUser((prev) => (prev ? { ...prev, avatar_url: fallbackDataUrl } : prev));
+          setUser((prev) => (prev ? { ...prev, avatar_url: fallbackDataUrl, avatar_scale: formData.avatar_scale } : prev));
           setUploadError("Profile photo saved locally.");
         } catch (saveAvatarError) {
           console.error("Error saving fallback avatar to profile:", saveAvatarError);
@@ -324,27 +330,27 @@ export default function EditProfilePage() {
     <PageLayout user={user} onSignOut={handleSignOut}>
       {/* Re-authentication Modal */}
       {showReauthModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
           <form
             onSubmit={handleReauth}
-            className="bg-white rounded-xl shadow-lg p-6 w-full max-w-xs flex flex-col gap-4"
+            className="flex w-full max-w-xs flex-col gap-4 border border-white/10 bg-[#111111] p-6 text-[#f5f0de] shadow-2xl"
           >
-            <h2 className="text-lg font-semibold mb-2">Re-authenticate</h2>
-            <p className="text-sm text-neutral-700 mb-2">For security, please enter your password to change your email.</p>
+            <h2 className="mb-2 text-lg font-black text-[#f5f0de]">Re-authenticate</h2>
+            <p className="mb-2 text-sm leading-6 text-[#f5f0de]/60">For security, please enter your password to change your email.</p>
             <input
               type="password"
-              className="w-full rounded border border-neutral-300 px-3 py-2"
+              className="w-full border border-white/10 bg-black px-3 py-2 text-[#f5f0de] outline-none placeholder:text-white/30 focus:border-[#ff7a1a] focus:ring-1 focus:ring-[#ff7a1a]"
               placeholder="Password"
               value={reauthPassword}
               onChange={e => setReauthPassword(e.target.value)}
               required
               autoFocus
             />
-            {reauthError && <div className="text-xs text-red-600">{reauthError}</div>}
-            <div className="flex gap-2 mt-2">
+            {reauthError && <div className="text-xs text-[#ffb36b]">{reauthError}</div>}
+            <div className="mt-2 flex gap-2">
               <button
                 type="button"
-                className="flex-1 rounded border border-neutral-300 px-3 py-2 text-neutral-700 hover:bg-neutral-50"
+                className="flex-1 border border-white/10 px-3 py-2 text-[#f5f0de] transition hover:bg-white/5"
                 onClick={() => { setShowReauthModal(false); setReauthPassword(""); setPendingEmail(null); }}
                 disabled={saving}
               >
@@ -352,7 +358,7 @@ export default function EditProfilePage() {
               </button>
               <button
                 type="submit"
-                className="flex-1 rounded bg-neutral-900 px-3 py-2 text-white font-medium hover:bg-neutral-800 disabled:opacity-60"
+                className="flex-1 bg-[#ff7a1a] px-3 py-2 font-black text-black transition hover:bg-[#ff8d3b] disabled:opacity-60"
                 disabled={saving || !reauthPassword}
               >
                 Confirm
@@ -361,56 +367,64 @@ export default function EditProfilePage() {
           </form>
         </div>
       )}
-      <div className="min-h-screen bg-neutral-100 p-4 sm:p-8">
-        <div className="max-w-4xl mx-auto">
+      <div className="min-h-screen bg-[#0a0a0a] p-4 text-[#f5f0de] sm:p-8">
+        <div className="mx-auto max-w-4xl">
         <Link
           href={`/profile/${user.username}`}
-          className="inline-flex items-center gap-2 text-neutral-700 hover:text-neutral-900 mb-6"
+          className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-[#ffb36b] hover:text-[#ff7a1a]"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Profile
         </Link>
 
         {showVerifyMsg && (
-          <div className="mb-6 rounded-lg border border-yellow-300 bg-yellow-100 px-4 py-3 text-yellow-900">
-            <span className="font-semibold">You changed your email.</span> Please check your new inbox for a verification link.
+          <div className="mb-6 border border-[#ff7a1a]/30 bg-[#ff7a1a]/10 px-4 py-3 text-sm text-[#f5f0de]">
+            <span className="font-black text-[#ffb36b]">You changed your email.</span> Please check your new inbox for a verification link.
           </div>
         )}
 
-          <div className="bg-white rounded-3xl border border-neutral-200 shadow-xl overflow-hidden">
-            <div className="px-6 sm:px-8 py-5 border-b border-neutral-200 flex items-center justify-between">
-              <h1 className="text-2xl font-semibold text-neutral-900">Edit profile</h1>
+          <div className="overflow-hidden border border-white/10 bg-[#111111] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 sm:px-8">
+              <h1 className="text-2xl font-black text-[#f5f0de]">Edit profile</h1>
               <button
                 type="button"
                 onClick={() => router.push(`/profile/${user.username}`)}
-                className="text-neutral-500 hover:text-neutral-800"
+                className="text-white/45 transition hover:text-[#f5f0de]"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-[260px_minmax(0,1fr)] gap-8">
-              <div className="md:border-r md:border-dashed md:border-neutral-300 md:pr-8">
-                <div className="flex md:block items-start gap-4 md:gap-0">
-                  <div className="relative mx-auto md:mx-0 w-28 h-28 rounded-full overflow-hidden border border-neutral-300 bg-neutral-100 flex items-center justify-center">
-                    {formData.avatar_url ? (
-                      <img
-                        src={formData.avatar_url}
-                        alt={formData.name || "Profile picture"}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-neutral-400">
-                        <Camera className="w-8 h-8" />
-                      </div>
-                    )}
-
-                    <label className="absolute right-1 bottom-1 w-8 h-8 rounded-full bg-white border border-neutral-300 shadow-sm flex items-center justify-center cursor-pointer hover:bg-neutral-100 transition-colors">
-                      {uploadingAvatar ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-neutral-600" />
+            <div className="grid grid-cols-1 gap-8 p-6 sm:p-8 md:grid-cols-[260px_minmax(0,1fr)]">
+              <div className="md:border-r md:border-dashed md:border-white/10 md:pr-8">
+                <div className="flex items-start gap-4 md:block md:gap-0">
+                  <div className="relative mx-auto flex h-28 w-28 items-center justify-center overflow-hidden border border-white/10 bg-black md:mx-0">
+                    <div
+                      className="h-full w-full"
+                      style={{
+                        transform: `scale(${formData.avatar_scale || 1})`,
+                        transformOrigin: "center",
+                      }}
+                    >
+                      {formData.avatar_url ? (
+                        <img
+                          src={formData.avatar_url}
+                          alt={formData.name || "Profile picture"}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
-                        <Upload className="w-4 h-4 text-neutral-700" />
+                        <div className="flex h-full w-full items-center justify-center text-white/35">
+                          <Camera className="w-8 h-8" />
+                        </div>
+                      )}
+                    </div>
+
+                    <label className="absolute bottom-1 right-1 flex h-8 w-8 cursor-pointer items-center justify-center border border-white/10 bg-[#ff7a1a] text-black transition hover:bg-[#ff8d3b]">
+                      {uploadingAvatar ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-black" />
+                      ) : (
+                        <Upload className="w-4 h-4 text-black" />
                       )}
                       <input
                         type="file"
@@ -423,9 +437,9 @@ export default function EditProfilePage() {
                   </div>
 
                   <div className="mt-4 text-center md:text-left">
-                    <p className="text-base font-semibold text-neutral-900">Upload Image</p>
-                    <p className="text-sm text-neutral-500">Max file size: 5MB</p>
-                    <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50">
+                    <p className="text-base font-black text-[#f5f0de]">Upload Image</p>
+                    <p className="text-sm text-[#f5f0de]/55">Max file size: 5MB</p>
+                    <label className="mt-3 inline-flex cursor-pointer items-center gap-2 border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-[#f5f0de] transition hover:bg-white/10">
                       {uploadingAvatar ? "Uploading..." : "Add Image"}
                       <input
                         type="file"
@@ -435,74 +449,98 @@ export default function EditProfilePage() {
                         disabled={uploadingAvatar}
                       />
                     </label>
-                    {uploadError && <p className="text-xs text-red-600 mt-2">{uploadError}</p>}
+                    {uploadError && <p className="mt-2 text-xs text-[#ffb36b]">{uploadError}</p>}
+
+                    <div className="mt-5">
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                        <span className="font-semibold text-[#f5f0de]">Avatar size</span>
+                        <span className="text-[#ffb36b]">{Math.round((formData.avatar_scale || 1) * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.8"
+                        max="1.4"
+                        step="0.01"
+                        value={formData.avatar_scale}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            avatar_scale: Number(e.target.value),
+                          }))
+                        }
+                        className="w-full accent-[#ff7a1a]"
+                      />
+                      <p className="mt-1 text-xs text-[#f5f0de]/45">
+                        Smaller values zoom out. Larger values zoom in.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-5">
                 {saveError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <div className="border border-[#ff7a1a]/30 bg-[#ff7a1a]/10 px-3 py-2 text-sm text-[#f5f0de]">
                     {saveError}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-800 mb-1.5">Name *</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]">Name *</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20"
+                    className="w-full border border-white/10 bg-black px-4 py-2.5 text-[#f5f0de] outline-none placeholder:text-white/30 focus:border-[#ff7a1a] focus:ring-1 focus:ring-[#ff7a1a]"
                     placeholder="Your name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-800 mb-1.5">Username *</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]">Username *</label>
                   <input
                     type="text"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/\s+/g, "") })}
-                    className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20"
+                    className="w-full border border-white/10 bg-black px-4 py-2.5 text-[#f5f0de] outline-none placeholder:text-white/30 focus:border-[#ff7a1a] focus:ring-1 focus:ring-[#ff7a1a]"
                     placeholder="username"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-800 mb-1.5">Email *</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]">Email *</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20"
+                    className="w-full border border-white/10 bg-black px-4 py-2.5 text-[#f5f0de] outline-none placeholder:text-white/30 focus:border-[#ff7a1a] focus:ring-1 focus:ring-[#ff7a1a]"
                     placeholder="name@example.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-800 mb-1.5">Bio</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]">Bio</label>
                   <textarea
                     value={formData.bio}
                     onChange={(e) => setFormData({ ...formData, bio: e.target.value.slice(0, 500) })}
-                    className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 resize-none"
+                    className="w-full resize-none border border-white/10 bg-black px-4 py-2.5 text-[#f5f0de] outline-none placeholder:text-white/30 focus:border-[#ff7a1a] focus:ring-1 focus:ring-[#ff7a1a]"
                     rows={4}
                     placeholder="Tell people a little about yourself"
                   />
-                  <p className="mt-1 text-xs text-neutral-500">{formData.bio.length}/500</p>
+                  <p className="mt-1 text-xs text-white/45">{formData.bio.length}/500</p>
                 </div>
 
                 <div className="pt-2 flex items-center justify-end gap-3">
                   <Link
                     href={`/profile/${user.username}`}
-                    className="rounded-xl border border-neutral-300 px-5 py-2.5 text-neutral-700 hover:bg-neutral-50 transition-colors"
+                    className="border border-white/10 px-5 py-2.5 text-[#f5f0de] transition hover:bg-white/5"
                   >
                     Cancel
                   </Link>
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-900 px-5 py-2.5 text-white font-medium hover:bg-neutral-800 transition-colors disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 bg-[#ff7a1a] px-5 py-2.5 font-black text-black transition hover:bg-[#ff8d3b] disabled:opacity-60"
                   >
                     {saving ? (
                       <>

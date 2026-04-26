@@ -23,8 +23,8 @@ export default function ReactionDistributionBar({
   if (total === 0) {
     return (
       <div className="w-full flex items-center gap-3">
-        <div className="flex-1 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-          <span className="text-xs text-gray-400">No reactions yet</span>
+        <div className="flex-1 flex h-10 items-center justify-center rounded-lg border border-white/10 bg-white/5">
+          <span className="text-xs text-white/45">No reactions yet</span>
         </div>
       </div>
     );
@@ -63,9 +63,9 @@ export default function ReactionDistributionBar({
         <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
           <XAxis
             dataKey="name"
-            tick={{ fill: '#4b5563', fontSize: 12 }}
+            tick={{ fill: '#f5f0de', fontSize: 12 }}
             tickLine={false}
-            axisLine={{ stroke: '#e5e7eb' }}
+            axisLine={{ stroke: 'rgba(255,255,255,0.12)' }}
           />
           <YAxis
             allowDecimals={false}
@@ -83,21 +83,21 @@ export default function ReactionDistributionBar({
       {showLabels && (
         <div className="flex flex-wrap justify-center gap-4 text-sm mt-2">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500" />
+            <div className="h-3 w-3 rounded-full bg-rose-400" />
             <span className="text-gray-600">
-              Bad <span className="font-semibold">{badPercent}%</span>
+              <span className="text-white/65">Bad</span> <span className="font-semibold text-[#f5f0de]">{badPercent}%</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-400" />
+            <div className="h-3 w-3 rounded-full bg-[#ff7a1a]" />
             <span className="text-gray-600">
-              Good <span className="font-semibold">{goodPercent}%</span>
+              <span className="text-white/65">Good</span> <span className="font-semibold text-[#f5f0de]">{goodPercent}%</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500" />
+            <div className="h-3 w-3 rounded-full bg-emerald-400" />
             <span className="text-gray-600">
-              Masterpiece <span className="font-semibold">{masterpiecePercent}%</span>
+              <span className="text-white/65">Masterpiece</span> <span className="font-semibold text-[#f5f0de]">{masterpiecePercent}%</span>
             </span>
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
   remove,
 } from "firebase/database";
 import type { LogComment, LogCommentWithUser, User } from "@/types";
+import { shouldDeliverNotificationToUser } from "./settings";
 
 function fallbackUser(userId: string): User {
   return {
@@ -93,6 +94,8 @@ async function createLogCommentNotification(
   fromUser: User,
   commentId: string
 ): Promise<void> {
+  if (!(await shouldDeliverNotificationToUser(userId, type))) return;
+
   const notificationRef = push(ref(db, `notifications/${userId}`));
   await set(notificationRef, {
     type,

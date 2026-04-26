@@ -60,20 +60,20 @@ export default function SettingsSocialPage() {
           />
         </SettingLine>
 
-        <div className="border-b border-slate-200 py-3">
+        <div className="border-b border-white/10 py-3">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700">
+            <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[#ff7a1a]">
               <Ban className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-950">Blocked users</p>
-              <p className="text-xs text-slate-500">Keep usernames here if you want them out of the way.</p>
+              <p className="text-sm font-semibold text-[#ff7a1a]">Blocked users</p>
+              <p className="text-xs text-white/55">Keep usernames here if you want them out of the way.</p>
 
               <div className="mt-2 flex flex-wrap gap-2">
                 {settings.social.blockedUsers.map((username) => (
-                  <span key={username} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                  <span key={username} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-[#f5f0de]">
                     @{username}
-                    <button type="button" onClick={() => void removeBlockedUser(username)} className="text-slate-400 transition hover:text-rose-600" aria-label={`Remove ${username}`}>
+                    <button type="button" onClick={() => void removeBlockedUser(username)} className="text-white/45 transition hover:text-[#ff7a1a]" aria-label={`Remove ${username}`}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </span>
@@ -85,12 +85,12 @@ export default function SettingsSocialPage() {
                   value={blockedUserInput}
                   onChange={(event) => setBlockedUserInput(event.target.value)}
                   placeholder="username"
-                  className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none transition focus:border-slate-300"
+                  className="min-w-0 flex-1 rounded-full border border-white/10 bg-[#111111] px-3 py-1.5 text-xs text-[#f5f0de] outline-none transition focus:border-[#ff7a1a]"
                 />
                 <button
                   type="button"
                   onClick={() => void addBlockedUser()}
-                  className="rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+                  className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-semibold text-[#0a0a0a] transition hover:bg-[#ff8d3b]"
                 >
                   Add
                 </button>

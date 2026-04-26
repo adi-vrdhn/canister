@@ -5,6 +5,7 @@ export interface User {
   name: string;
   email?: string;
   avatar_url: string | null;
+  avatar_scale?: number;
   created_at: string;
   bio?: string;
   display_list_id?: string;
@@ -105,6 +106,22 @@ export interface ShareWithDetails extends Share {
   content?: Content; // New unified field
   sender?: User;
   receiver?: User;
+  reply_count?: number;
+}
+
+export interface ShareReply {
+  id: string;
+  share_id: string;
+  sender_id: string;
+  receiver_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShareReplyWithUser extends ShareReply {
+  user: User;
+  is_current_user?: boolean;
 }
 
 export interface FollowWithUser extends Follow {
@@ -234,6 +251,8 @@ export interface MovieLog {
     mood?: string; // Mood during watching
   };
 
+  ticket_image_url?: string | null; // Custom image/ticket uploaded for the log
+
   created_at: string;
   updated_at: string;
 }
@@ -345,6 +364,9 @@ export interface UserTaste {
 // Extended type for display
 export interface UserTasteWithContent extends UserTaste {
   content: Content;
+  source?: "taste" | "log";
+  notes?: string | null;
+  watched_date?: string;
 }
 
 // Taste Vector Types - for recommendation engine

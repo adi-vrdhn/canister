@@ -43,7 +43,7 @@ export default function CinePostPreviewList({
 }) {
   if (posts.length === 0) {
     return (
-      <div className={`rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 ${className}`}>
+      <div className={`border border-dashed border-white/10 bg-[#111111] p-6 text-center text-sm text-white/50 ${className}`}>
         {emptyText}
       </div>
     );
@@ -62,10 +62,10 @@ export default function CinePostPreviewList({
         return (
           <article
             key={post.id}
-            className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm"
+            className="grid grid-cols-[4.75rem_minmax(0,1fr)] gap-3 border-b border-white/10 py-3 sm:grid-cols-[5.25rem_minmax(0,1fr)] sm:gap-4 sm:py-4"
           >
             {contentHref ? (
-              <Link href={contentHref} className="relative aspect-[2/3] overflow-hidden rounded-2xl bg-slate-950">
+              <Link href={contentHref} className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
                 {post.poster_url ? (
                   <img
                     src={post.poster_url}
@@ -73,22 +73,22 @@ export default function CinePostPreviewList({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs font-bold text-slate-400">
+                  <div className="flex h-full w-full items-center justify-center bg-[#1a1a1a] text-xs font-bold text-white/35">
                     No poster
                   </div>
                 )}
               </Link>
             ) : (
-              <div className="aspect-[2/3] rounded-2xl bg-slate-100" />
+              <div className="aspect-[2/3] bg-[#1a1a1a]" />
             )}
             <div className="min-w-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex flex-wrap items-center gap-2">
-                  <Link href={profileHref(post.user)} className="font-black text-slate-950 hover:text-blue-600">
+                  <Link href={profileHref(post.user)} className="font-black text-[#f5f0de] hover:text-[#ffb36b]">
                     {post.user.name}
                   </Link>
-                  <span className="text-xs text-slate-400">{relativeTime(post.created_at)}</span>
-                  <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
+                  <span className="text-xs text-white/45">{relativeTime(post.created_at)}</span>
+                  <span className="rounded-full bg-[#ff7a1a] px-2 py-0.5 text-[10px] font-black text-black">
                     {formatPostType(post.type)}
                   </span>
                 </div>
@@ -102,9 +102,9 @@ export default function CinePostPreviewList({
                 )}
               </div>
               <Link href={`/posts/${post.id}`} className="mt-2 block">
-                <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{preview(post.body)}</p>
+                <p className="whitespace-pre-wrap text-sm leading-6 text-[#f5f0de]/80">{preview(post.body)}</p>
               </Link>
-              <div className="mt-2 flex gap-3 text-xs font-bold text-slate-500">
+              <div className="mt-2 flex gap-3 text-xs font-bold text-white/55">
                 <span>{post.likes_count} likes</span>
                 <span>{post.comments_count} comments</span>
               </div>

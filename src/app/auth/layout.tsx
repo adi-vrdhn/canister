@@ -17,7 +17,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   return (
-    <div className="min-h-dvh bg-[#eef1f6]">
+    <div className="min-h-dvh bg-[#090909] text-[#f5f0de]">
       <div
         key={pathname}
         className={`min-h-dvh transition-all duration-500 ease-out ${

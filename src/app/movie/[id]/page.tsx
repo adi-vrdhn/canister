@@ -15,6 +15,7 @@ import { signOut as authSignOut } from "@/lib/auth";
 import { getMovieDetails, getSimilarMovies } from "@/lib/tmdb";
 import { getMovieReviewFeed } from "@/lib/movie-reviews";
 import { getLogsForContent } from "@/lib/logs";
+import { buildLogUrl } from "@/lib/log-url";
 import { ArrowLeft, Share2, MessageCircle, Bookmark, LogsIcon, Users, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
@@ -628,7 +629,7 @@ export default function MoviePage() {
                     {friendLogs.map((log) => {
                       const label = getReactionLabelFromLogReaction(log.reaction);
                       return (
-                        <div key={log.id} className="flex flex-col items-center cursor-pointer group" onClick={() => router.push(`/logs/${log.id}`)} title={`View ${log.user.name}'s log`}>
+                        <div key={log.id} className="flex flex-col items-center cursor-pointer group" onClick={() => router.push(buildLogUrl(log))} title={`View ${log.user.name}'s log`}>
                           <div className="relative flex flex-col items-center">
                             {log.user.avatar_url ? (
                               <img src={log.user.avatar_url} alt={log.user.name} className="w-12 h-12 rounded-full border-2 border-white group-hover:scale-105 transition-transform" />
@@ -662,7 +663,7 @@ export default function MoviePage() {
                         const label = getReactionLabelFromLogReaction(log.reaction);
                         return (
                           <div key={log.id} className="flex items-center gap-4 p-4 sm:p-5">
-                            <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(`/logs/${log.id}`)} title={`View ${log.user.name}'s log`}>
+                            <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(log))} title={`View ${log.user.name}'s log`}>
                               {log.user.avatar_url ? (
                                 <img src={log.user.avatar_url} alt={log.user.name} className="w-10 h-10 rounded-full border-2 border-white" />
                               ) : (
@@ -673,14 +674,14 @@ export default function MoviePage() {
                               <span className={`mt-1 text-xs px-2 py-0.5 rounded-full border block ${getReactionBadgeClassFromLabel(label)}`}>{label}</span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-white/90 cursor-pointer hover:underline" onClick={() => router.push(`/logs/${log.id}`)}>{log.user.name}</span>
+                              <span className="font-semibold text-white/90 cursor-pointer hover:underline" onClick={() => router.push(buildLogUrl(log))}>{log.user.name}</span>
                               {log.notes && (
                                 <p className="text-white/80 mt-1 line-clamp-3">{log.notes}</p>
                               )}
                             </div>
                             <button
                               className="ml-2 px-3 py-1 rounded border border-white/20 text-xs text-white/70 hover:bg-white/10"
-                              onClick={() => router.push(`/logs/${log.id}`)}
+                              onClick={() => router.push(buildLogUrl(log))}
                             >
                               View Log
                             </button>

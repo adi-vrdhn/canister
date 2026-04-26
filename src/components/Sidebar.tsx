@@ -1,9 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Settings } from "lucide-react";
 import type { User } from "@/types";
 
 interface SidebarProps {
@@ -23,8 +23,34 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const isBrutalist = theme === "brutalist";
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   const isActive = (path: string) => pathname.startsWith(path);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      if (choice.outcome === "accepted") {
+        setShowInstallHelp(false);
+      }
+      setDeferredPrompt(null);
+      return;
+    }
+
+    setShowInstallHelp(true);
+  };
 
   if (!user) {
     return null;
@@ -154,23 +180,6 @@ export default function Sidebar({
         </Link>
 
         <Link
-          href="/profile/settings"
-          onClick={onCloseMobile}
-          className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
-            isActive("/profile/settings")
-              ? isBrutalist
-                ? "bg-[#f5f0de] text-[#0a0a0a] shadow-sm"
-                : "bg-slate-900 text-white shadow-sm"
-              : isBrutalist
-              ? "text-[#f5f0de] hover:bg-white/5"
-              : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <Settings className="h-4 w-4" />
-          Settings
-        </Link>
-
-        <Link
           href="/movie-matcher"
           onClick={onCloseMobile}
           className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
@@ -190,6 +199,17 @@ export default function Sidebar({
       {/* Sign Out */}
       <div className="border-t border-slate-200/80 p-5">
         <button
+          type="button"
+          onClick={handleInstallClick}
+          className={`mb-3 w-full rounded-full border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
+            isBrutalist
+              ? "border-[#ff7a1a]/30 bg-[#ff7a1a] text-[#0a0a0a] hover:bg-[#ff8d3b]"
+              : "border-[#ff7a1a]/30 bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
+          }`}
+        >
+          Download app
+        </button>
+        <button
           onClick={onSignOut}
           className={`w-full rounded-full border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
             isBrutalist
@@ -200,6 +220,72 @@ export default function Sidebar({
           Sign Out
         </button>
       </div>
+
+      {showInstallHelp && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+          <div className={`w-full max-w-md rounded-[1.5rem] border p-5 shadow-2xl ${
+            isBrutalist ? "border-white/10 bg-[#111111] text-[#f5f0de]" : "border-slate-200 bg-white text-slate-900"
+          }`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.28em] text-[#ffb36b]">Install app</p>
+                <h2 className="mt-2 text-2xl font-black">Add Canisterr to Home Screen</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInstallHelp(false)}
+                className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                  isBrutalist ? "bg-white/5 text-[#f5f0de] hover:bg-white/10" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm leading-6">
+              <p className={isBrutalist ? "text-[#f5f0de]/70" : "text-slate-600"}>
+                Use the browser menu and choose the install or add-to-home-screen option.
+              </p>
+
+              <ol className="space-y-2 pl-5">
+                <li>Open Canisterr in your browser.</li>
+                <li>Tap the browser menu.</li>
+                <li>Choose <span className="font-semibold text-[#ffb36b]">Add to Home Screen</span> or <span className="font-semibold text-[#ffb36b]">Install app</span>.</li>
+                <li>Confirm the install.</li>
+              </ol>
+
+              <p className={isBrutalist ? "text-[#f5f0de]/60" : "text-slate-500"}>
+                On iPhone: tap Share, then Add to Home Screen. On Android: tap the menu, then Install app.
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleInstallClick}
+                className="rounded-full bg-[#ff7a1a] px-4 py-2.5 text-sm font-black text-black transition hover:bg-[#ff8d3b]"
+              >
+                {deferredPrompt ? "Install now" : "Try install"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowInstallHelp(false)}
+                className={`rounded-full border px-4 py-2.5 text-sm font-semibold ${
+                  isBrutalist ? "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  prompt(): Promise<void>;
 }

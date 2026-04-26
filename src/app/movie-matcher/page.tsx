@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import MovieSwipeCard from "@/components/MovieSwipeCard";
 import CinematicLoading from "@/components/CinematicLoading";
+import MovieMatchAnalysisView from "@/components/MovieMatchAnalysisView";
 import { User, UserTasteWithContent, Content, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -14,8 +15,9 @@ import { getUserTasteProfile, addToUserTaste, removeFromUserTaste } from "@/lib/
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import { calculateMatchScore, generateMatchAnalysis } from "@/lib/match-score";
-import { getAvailableFriends, getFriendTasteProfile } from "@/lib/friends-match";
+import { getAvailableFriends, getFullTasteProfile } from "@/lib/friends-match";
 import { getMovieRecommendations, RecommendationFilters } from "@/lib/movie-recommendations";
+import { getSimilarMovies } from "@/lib/tmdb";
 import { quickRateMovie, addToWatchlist, getUserMovieLogs } from "@/lib/logs";
 import { ArrowLeft, Plus, Trash2, Loader2, Search, X, Sparkles, Zap, Users, Heart, ChevronLeft, ChevronRight, Flame, Clock, BarChart3, ChevronDown, Star } from "lucide-react";
 import Link from "next/link";
@@ -102,19 +104,9 @@ function FriendMatchCard({
 
     async function fetchCount() {
       try {
-        const tastes = await getFriendTasteProfile(friend.userId);
-        const logs = await getUserMovieLogs(friend.userId, 500);
-        const masterpieceKeys = new Set(
-          tastes.map((taste) => `${taste.content_type}-${taste.content_id}`)
-        );
-        const masterpieces = logs.filter(
-          (log) =>
-            log.reaction === 2 &&
-            !masterpieceKeys.has(`${log.content_type}-${log.content_id}`)
-        );
-
+        const tastes = await getFullTasteProfile(friend.userId);
         if (!cancelled) {
-          setCount(tastes.length + masterpieces.length);
+          setCount(tastes.length);
         }
       } catch {
         if (!cancelled) {
@@ -131,7 +123,7 @@ function FriendMatchCard({
   }, [friend.userId, friend.tasteCount]);
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:gap-4 sm:rounded-lg sm:p-4">
+    <div className="flex items-center gap-3 border-b border-white/10 py-3 sm:gap-4 sm:py-4">
       {friend.avatar_url ? (
         <img
           src={friend.avatar_url}
@@ -139,18 +131,18 @@ function FriendMatchCard({
           className="h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10"
         />
       ) : (
-        <div className="flex h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 items-center justify-center text-sm font-bold text-white sm:h-10 sm:w-10 sm:text-base">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#111111] text-sm font-bold text-[#f5f0de] sm:h-10 sm:w-10 sm:text-base">
           {friend.username[0]?.toUpperCase()}
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="truncate text-sm font-semibold text-gray-900 sm:text-base">{friend.name}</div>
-        <div className="text-xs text-gray-500 truncate">
+        <div className="truncate text-sm font-semibold text-[#f5f0de] sm:text-base">{friend.name}</div>
+        <div className="truncate text-xs text-white/55">
           @{friend.username} • {count === null ? "..." : count} movies
         </div>
       </div>
       <button
-        className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-indigo-700 sm:px-4 sm:text-sm"
+        className="shrink-0 rounded-full border border-white/10 bg-[#ff7a1a] px-3 py-2 text-xs font-semibold text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b] sm:px-4 sm:text-sm"
         onClick={onFindScore}
       >
         <span className="sm:hidden">Score</span>
@@ -174,6 +166,7 @@ export default function MovieMatcherPage() {
   const [removingContent, setRemovingContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastAddedMovie, setLastAddedMovie] = useState<MatcherContent | null>(null);
+  const [similarSuggestions, setSimilarSuggestions] = useState<MatcherContent[]>([]);
   const [friends, setFriends] = useState<FriendMatch[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<FriendMatch | null>(null);
@@ -188,6 +181,7 @@ export default function MovieMatcherPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [includeMasterpieces, setIncludeMasterpieces] = useState(true);
   const [masterpieceMovies, setMasterpieceMovies] = useState<TasteItem[]>([]);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   useEffect(() => {
     const fetchMasterpieces = async () => {
@@ -213,6 +207,18 @@ export default function MovieMatcherPage() {
     };
     fetchMasterpieces();
   }, [user]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsMobileViewport(media.matches);
+
+    update();
+    media.addEventListener("change", update);
+
+    return () => {
+      media.removeEventListener("change", update);
+    };
+  }, []);
 
   const handleSelectFriend = (friend: FriendMatch) => {
     setSelectedFriend(friend);
@@ -363,9 +369,29 @@ export default function MovieMatcherPage() {
 
       // Find the movie object for recommendations
       const selectedMovie = searchResults.find((r) => r.id === contentId);
-      if (selectedMovie) {
+      if (selectedMovie && selectedMovie.type === "movie") {
         setLastAddedMovie(selectedMovie);
         console.log("MovieMatcher: Saved movie for recommendations:", selectedMovie.title);
+
+        const similarMovies = await getSimilarMovies(selectedMovie.id, 12);
+        const mappedSimilar = similarMovies
+          .filter((movie) => movie.id !== selectedMovie.id)
+          .map((movie) => ({
+            ...movie,
+            title: movie.title || "Untitled",
+            poster_url: movie.poster_url || null,
+            genres: Array.isArray(movie.genres) ? movie.genres : [],
+            director: movie.director || null,
+            created_at: movie.created_at || new Date().toISOString(),
+            type: "movie" as const,
+            _suggestionScore: 0,
+          }))
+          .filter((movie) => {
+            const seen = new Set(tastes.map((t) => t.content_id));
+            return !seen.has(movie.id);
+          });
+
+        setSimilarSuggestions(mappedSimilar);
       }
 
       await addToUserTaste(user.id, contentId, contentType);
@@ -375,7 +401,7 @@ export default function MovieMatcherPage() {
       console.log("MovieMatcher: Updated tastes count:", updatedTastes.length);
       setTastes(updatedTastes);
 
-      // Clear search query but KEEP searchResults for recommendations
+      // Clear search query so the next view shows the similar-movies rail.
       setSearchQuery("");
       console.log("MovieMatcher: Ready to show recommendations");
     } catch (error) {
@@ -417,71 +443,62 @@ export default function MovieMatcherPage() {
     }
   };
 
+  const scoreByContentSimilarity = (candidate: MatcherContent, reference: MatcherContent) => {
+    let score = 0;
+
+    const candidateDirector = (candidate.director || "").toLowerCase();
+    const referenceDirector = (reference.director || "").toLowerCase();
+    if (candidateDirector && referenceDirector && candidateDirector === referenceDirector) {
+      score += 35;
+    }
+
+    const candidateGenres = Array.isArray(candidate.genres)
+      ? candidate.genres.map((genre) => genre.toLowerCase())
+      : [];
+    const referenceGenres = Array.isArray(reference.genres)
+      ? reference.genres.map((genre) => genre.toLowerCase())
+      : [];
+    const sharedGenres = candidateGenres.filter((genre) => referenceGenres.includes(genre));
+    score += sharedGenres.length * 18;
+
+    const candidateLanguage = (candidate.language || "").toLowerCase();
+    const referenceLanguage = (reference.language || "").toLowerCase();
+    if (candidateLanguage && referenceLanguage && candidateLanguage === referenceLanguage) {
+      score += 12;
+    }
+
+    const candidateYear = Number((candidate.release_date || candidate.premiered || "").split("-")[0]);
+    const referenceYear = Number((reference.release_date || reference.premiered || "").split("-")[0]);
+    if (Number.isFinite(candidateYear) && Number.isFinite(referenceYear)) {
+      const gap = Math.abs(candidateYear - referenceYear);
+      if (gap <= 2) score += 14;
+      else if (gap <= 5) score += 8;
+      else if (gap <= 10) score += 3;
+    }
+
+    const candidateTitle = (candidate.title || "").toLowerCase();
+    const referenceTitle = (reference.title || "").toLowerCase();
+    if (candidateTitle === referenceTitle) {
+      score -= 20;
+    }
+
+    return score;
+  };
+
   const getRecommendedMovies = () => {
     // If user just added a movie, show similar movies to that
     if (lastAddedMovie) {
-      console.log("=== RECOMMENDATIONS DEBUG ===");
-      console.log("lastAddedMovie:", {
-        title: lastAddedMovie.title,
-        director: lastAddedMovie.director,
-        genres: lastAddedMovie.genres,
-      });
-      console.log("searchResults count:", searchResults.length);
-      if (searchResults.length > 0) {
-        console.log("First searchResult:", {
-          title: searchResults[0].title,
-          director: searchResults[0].director,
-          genres: searchResults[0].genres,
-          keys: Object.keys(searchResults[0]).slice(0, 10),
-        });
-      }
-      console.log("tastes count:", tastes.length);
-
-      // Score all search results by similarity to lastAddedMovie
-      const recommendedByLastAdded = searchResults
-        .map((result) => {
-          let score = 0;
-
-          // Director match = +100 points
-          if (
-            result.director &&
-            lastAddedMovie.director &&
-            result.director.toLowerCase() === lastAddedMovie.director.toLowerCase()
-          ) {
-            score += 100;
-          }
-
-          // Genre matches = +20 points each
-          if (Array.isArray(result.genres) && Array.isArray(lastAddedMovie.genres)) {
-            result.genres.forEach((genre: string) => {
-              if (
-                (lastAddedMovie.genres ?? []).some(
-                  (g: string) => g.toLowerCase() === genre.toLowerCase()
-                )
-              ) {
-                score += 20;
-              }
-            });
-          }
-
-          // If no director/genre data, just use all results (they matched the search already)
-          if (score === 0) {
-            score = 1; // Give minimum score to all results
-          }
-
-          return { ...result, _score: score };
-        })
-        .sort((a, b) => b._score - a._score)
-        .slice(0, 5);
-
-      // Filter out already added movies and the movie itself
+      const source = similarSuggestions.length > 0 ? similarSuggestions : searchResults;
       const seen = new Set(tastes.map((t) => t.content_id));
-      const final = recommendedByLastAdded.filter((r) => r.id !== lastAddedMovie.id && !seen.has(r.id));
-      
-      console.log("Recommendations: Final count:", final.length);
-      console.log("Recommendations: Final movies:", final.map((r) => r.title));
-      
-      return final;
+
+      return source
+        .map((result) => ({
+          ...result,
+          _suggestionScore: scoreByContentSimilarity(result, lastAddedMovie),
+        }))
+        .filter((result) => result.id !== lastAddedMovie.id && !seen.has(result.id))
+        .sort((a, b) => (b._suggestionScore || 0) - (a._suggestionScore || 0))
+        .slice(0, 5);
     }
 
     // Otherwise, recommend based on taste profile
@@ -562,11 +579,28 @@ export default function MovieMatcherPage() {
           (movie.genres ?? []).some((mg: string) => mg.toLowerCase() === g.toLowerCase())
         );
         if (commonGenres.length > 0) {
-          reasons.push(`Both are ${commonGenres[0]}`);
+          reasons.push(`Same ${commonGenres[0]} energy`);
         }
       }
 
-      return reasons.length > 0 ? reasons[0] : "Similar to your selection";
+      if (
+        lastAddedMovie.language &&
+        movie.language &&
+        lastAddedMovie.language.toLowerCase() === movie.language.toLowerCase()
+      ) {
+        reasons.push("Same language");
+      }
+
+      if (lastAddedMovie.release_date && movie.release_date) {
+        const gap = Math.abs(
+          new Date(lastAddedMovie.release_date).getFullYear() - new Date(movie.release_date).getFullYear()
+        );
+        if (Number.isFinite(gap) && gap <= 5) {
+          reasons.push("Similar era");
+        }
+      }
+
+      return reasons.length > 0 ? reasons[0] : "Similar cinematic fit";
     }
 
     // Otherwise, show similarities to taste profile
@@ -613,7 +647,7 @@ export default function MovieMatcherPage() {
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            className="bg-[#ff7a1a] hover:bg-[#ff8d3b] text-black px-4 py-2 rounded-lg font-semibold"
           >
             Retry
           </button>
@@ -767,8 +801,8 @@ export default function MovieMatcherPage() {
             }}
             className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-6 sm:py-3 ${
               activeTab === "build"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-600 hover:text-gray-900"
+                ? "border-[#ff7a1a] text-[#f5f0de]"
+                : "border-transparent text-white/55 hover:text-[#f5f0de]"
             }`}
           >
             <span className="flex items-center gap-2">
@@ -780,15 +814,15 @@ export default function MovieMatcherPage() {
         {activeTab === "build" && (
         <div>
         {/* ===== YOUR TASTE SECTION ===== */}
-        <div className="mb-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 sm:mb-8 sm:p-6">
+        <div className="mb-8 border-b border-white/10 pb-6">
           <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
-            <Sparkles className="h-5 w-5 text-blue-600" />
-            <h2 className="text-base font-bold text-gray-900 sm:text-lg">Your Taste Profile</h2>
-            <span className="ml-auto rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700 sm:ml-2">{tasteProfileCount} items</span>
+            <Sparkles className="h-5 w-5 text-[#ff7a1a]" />
+            <h2 className="text-base font-bold text-[#f5f0de] sm:text-lg">Your Taste Profile</h2>
+            <span className="ml-auto rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs font-semibold text-white/70 sm:ml-2">{tasteProfileCount} items</span>
             {tastes.length > 0 && (
               <button
                 onClick={() => setShowEditTasteModal(true)}
-                className="w-full rounded-lg border border-blue-600 bg-white px-3 py-2 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50 sm:ml-2 sm:w-auto"
+                className="w-full rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-[#f5f0de] transition-colors hover:bg-white/10 sm:ml-2 sm:w-auto"
               >
                 Edit Taste
               </button>
@@ -805,15 +839,15 @@ export default function MovieMatcherPage() {
                 {/* Scroll Container */}
                 <div
                   ref={scrollContainerRef}
-                  className="-mx-4 overflow-x-auto px-4 scrollbar-hide sm:mx-0 sm:px-0"
+                  className="-mx-2 overflow-x-auto px-2 scrollbar-hide sm:mx-0 sm:px-0"
                 >
-                  <div className="flex w-fit gap-2.5 pb-2 sm:gap-3">
+                  <div className="flex w-fit gap-2 pb-2 sm:gap-2.5">
                     {tasteProfile
                       .filter((taste) => taste.content && taste.content.title)
                       .slice(0, showAllMovies ? undefined : 6)
                       .map((taste) => (
-                        <div key={taste.id} className="w-[28vw] min-w-[5.75rem] max-w-[7rem] flex-shrink-0 sm:w-32 sm:min-w-0 sm:max-w-none">
-                          <div className="group relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-gray-200 shadow-md transition-shadow hover:shadow-lg">
+                        <div key={taste.id} className="w-[4.75rem] flex-shrink-0 sm:w-20 md:w-24">
+                          <div className="group relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-none transition-shadow hover:border-[#ff7a1a]/35">
                             <img
                               src={taste.content?.poster_url || undefined}
                               alt={taste.content?.title || "Movie"}
@@ -821,11 +855,11 @@ export default function MovieMatcherPage() {
                             />
 
                             {/* Hover overlay with delete button */}
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
                               <button
                                 onClick={() => handleRemoveFromTaste(taste.id)}
                                 disabled={removingContent === taste.id}
-                                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white p-2 rounded-full transition-colors"
+                                className="rounded-full bg-[#ff7a1a] p-2 text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b] disabled:bg-white/20 disabled:text-white/35"
                                 title="Remove from taste"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -834,13 +868,13 @@ export default function MovieMatcherPage() {
 
                             {/* TV Badge */}
                             {taste.content?.type === "tv" && (
-                              <div className="absolute top-1 right-1 bg-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded text-[10px]">
+                              <div className="absolute right-1 top-1 rounded-full bg-[#ff7a1a] px-1.5 py-0.5 text-[9px] font-bold text-[#0a0a0a]">
                                 TV
                               </div>
                             )}
                             {/* Masterpiece Badge */}
                             {taste.isMasterpiece && (
-                              <div className="absolute bottom-1 right-1 bg-yellow-500 text-white text-xs font-bold px-1.5 py-0.5 rounded text-[10px] shadow">
+                              <div className="absolute bottom-1 right-1 rounded-full bg-[#ff7a1a] px-1.5 py-0.5 text-[9px] font-bold text-[#0a0a0a] shadow">
                                 Masterpiece
                               </div>
                             )}
@@ -851,48 +885,15 @@ export default function MovieMatcherPage() {
                 </div>
 
                 {/* Left Arrow - Only show if not at start */}
-                {tasteProfile.length > 6 && (
-                  <button
-                    onClick={() => {
-                      if (scrollContainerRef.current) {
-                        scrollContainerRef.current.scrollBy({
-                          left: -150,
-                          behavior: "smooth",
-                        });
-                      }
-                    }}
-                    className="absolute left-0 top-1/2 z-10 hidden -translate-x-4 -translate-y-1/2 transform rounded-full bg-white p-2 text-gray-700 shadow-lg transition-colors hover:bg-gray-100 sm:block"
-                    title="Scroll left"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                )}
-
-                {/* Right Arrow - Only show if more movies and not all shown */}
-                {tasteProfile.length > 6 && !showAllMovies && (
-                  <button
-                    onClick={() => {
-                      if (scrollContainerRef.current) {
-                        scrollContainerRef.current.scrollBy({
-                          left: 150,
-                          behavior: "smooth",
-                        });
-                      }
-                    }}
-                    className="absolute right-0 top-1/2 z-10 hidden translate-x-4 -translate-y-1/2 transform rounded-full bg-white p-2 text-gray-700 shadow-lg transition-colors hover:bg-gray-100 sm:block"
-                    title="Scroll right"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                )}
+                {/* Arrows removed to keep the rail clean */}
               </div>
 
               {/* View More Option */}
               {tasteProfile.length > 6 && (
-                <div className="mt-3 flex justify-center">
+                <div className="mt-3 flex justify-start">
                   <button
                     onClick={() => setShowAllMovies(!showAllMovies)}
-                    className="rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#f5f0de] transition-colors hover:bg-white/10"
                   >
                     {showAllMovies ? "Show Less" : `View All (${tasteProfile.length})`}
                   </button>
@@ -900,9 +901,9 @@ export default function MovieMatcherPage() {
               )}
             </div>
           ) : (
-            <div className="rounded-lg border-2 border-dashed border-gray-200 bg-white py-6 text-center">
-              <Plus className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-600 text-sm mb-3">No movies yet</p>
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] py-6 text-center">
+              <Plus className="mx-auto mb-2 h-8 w-8 text-white/35" />
+              <p className="mb-3 text-sm text-white/55">No movies yet</p>
             </div>
           )}
 
@@ -923,7 +924,7 @@ export default function MovieMatcherPage() {
           {/* Add Movie Button */}
           <button
             onClick={() => setShowSearchModal(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-4 py-2.5 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b]"
           >
             <Plus className="w-4 h-4" />
             {tasteProfile.length > 0 ? "Add Another" : "Add Your First Movie"}
@@ -931,28 +932,27 @@ export default function MovieMatcherPage() {
         </div>
 
         {/* ===== FRIENDS MATCH SECTION ===== */}
-        <div className="mt-5 sm:mt-8">
-          <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-4 sm:p-8">
+        <div className="mt-10 border-t border-white/10 pt-6 sm:mt-12 sm:pt-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <div className="hidden rounded-lg bg-purple-600 p-3 text-white sm:block">
+              <div className="hidden rounded-full border border-white/10 bg-white/5 p-3 text-[#f5f0de] sm:block">
                 <Users className="h-6 w-6" />
               </div>
               <div className="flex-1">
                 <div className="mb-2 flex items-center gap-2 sm:hidden">
-                  <Users className="h-5 w-5 text-purple-600" />
-                  <h3 className="text-lg font-bold text-gray-900">Match With Friends</h3>
+                  <Users className="h-5 w-5 text-[#ff7a1a]" />
+                  <h3 className="text-lg font-bold text-[#f5f0de]">Match With Friends</h3>
                 </div>
-                <h3 className="mb-2 hidden text-xl font-bold text-gray-900 sm:block">Match With Friends</h3>
-                <p className="mb-4 text-sm text-gray-600 sm:text-base">
+                <h3 className="mb-2 hidden text-xl font-bold text-[#f5f0de] sm:block">Match With Friends</h3>
+                <p className="mb-5 max-w-2xl text-sm text-white/60 sm:text-base">
                   Instantly see your compatibility with friends who have built their taste profile.
                 </p>
                 {loadingFriends ? (
-                  <div className="py-8 text-center text-sm text-gray-500 sm:text-base">
+                  <div className="py-8 text-center text-sm text-white/55 sm:text-base">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Loading friends...
                   </div>
                 ) : friends.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-purple-200 bg-white/60 px-4 py-8 text-center text-sm text-gray-500 sm:text-base">
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-center text-sm text-white/55 sm:text-base">
                     No friends with complete taste profiles yet.
                   </div>
                 ) : (
@@ -964,6 +964,11 @@ export default function MovieMatcherPage() {
                           key={friend.userId}
                           friend={friend}
                           onFindScore={async () => {
+                            if (isMobileViewport) {
+                              router.push(`/movie-matcher/${friend.username}`);
+                              return;
+                            }
+
                             setSelectedFriend(friend);
                             setMatchScore(null);
                             setMatchAnalysis(null);
@@ -976,7 +981,7 @@ export default function MovieMatcherPage() {
                                     ...masterpieceMovies.filter((m) => !tastes.some((t) => t.content_id === m.content_id)),
                                   ]
                                 : tastes.map((t) => ({ ...t, isMasterpiece: false }));
-                              const theirTastes = await getFriendTasteProfile(friend.userId);
+                              const theirTastes = await getFullTasteProfile(friend.userId);
                               const analysis = await generateMatchAnalysis(myTastes, theirTastes, user!.id, friend.userId);
                               setMatchScore({
                                 totalScore: analysis.totalScore,
@@ -1003,61 +1008,60 @@ export default function MovieMatcherPage() {
             </div>
           </div>
         </div>
-        </div>
         )}
 
         {/* ===== MATCH MOVIES TAB ===== */}
         {activeTab === "match" && (
           <div className="space-y-6">
             {/* Intro Section */}
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 border border-indigo-100">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
               <div className="flex items-center gap-3 mb-3">
-                <Zap className="w-5 h-5 text-indigo-600" />
-                <h2 className="text-lg font-bold text-gray-900">Find Your Movie Match</h2>
+                <Zap className="w-5 h-5 text-[#ff7a1a]" />
+                <h2 className="text-lg font-bold text-[#f5f0de]">Find Your Movie Match</h2>
               </div>
-              <p className="text-gray-600 text-sm">
+              <p className="text-white/60 text-sm">
                 Compare your movie taste with friends and discover how compatible you are. See what movies you both love and get personalized recommendations!
               </p>
             </div>
 
             {/* Friend Selection */}
             {!selectedFriend ? (
-              <div className="bg-white rounded-2xl p-6 border border-gray-200">
-                <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-indigo-600" />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-[#f5f0de]">
+                  <Users className="w-4 h-4 text-[#ff7a1a]" />
                   Select a Friend
                 </h3>
 
                 <div className="relative">
                   <button
                     onClick={() => setShowFriendsDropdown(!showFriendsDropdown)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-left font-medium text-gray-900 hover:bg-gray-100 transition-colors flex items-center justify-between"
+                    className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-left font-medium text-[#f5f0de] transition-colors hover:bg-white/5"
                   >
                     <span>Choose a friend...</span>
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                    <ChevronDown className="w-4 h-4 text-white/45" />
                   </button>
 
                   {/* Friends Dropdown */}
                   {showFriendsDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-40 max-h-60 overflow-y-auto">
+                    <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-60 overflow-y-auto rounded-xl border border-white/10 bg-[#111111] shadow-2xl">
                       {loadingFriends ? (
-                        <div className="p-4 text-center text-gray-500">
+                        <div className="p-4 text-center text-white/55">
                           <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                         </div>
                       ) : friends.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
+                        <div className="p-4 text-center text-white/55 text-sm">
                           No friends with complete profiles yet
                         </div>
                       ) : (
                         <div>
                           {/* Search input within dropdown */}
-                          <div className="sticky top-0 p-2 border-b bg-white">
+                          <div className="sticky top-0 border-b border-white/10 bg-[#111111] p-2">
                             <input
                               type="text"
                               placeholder="Filter friends..."
                               value={friendSearchQuery}
                               onChange={(e) => setFriendSearchQuery(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              className="w-full rounded-lg border border-white/10 bg-[#0d0d0d] px-3 py-2 text-sm text-[#f5f0de] outline-none focus:border-[#ff7a1a] focus:ring-2 focus:ring-[#ff7a1a]/25"
                             />
                           </div>
 
@@ -1071,7 +1075,7 @@ export default function MovieMatcherPage() {
                               <button
                                 key={friend.userId}
                                 onClick={() => handleSelectFriend(friend)}
-                                className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b last:border-b-0 transition-colors flex items-center gap-3"
+                                className="flex w-full items-center gap-3 border-b border-white/10 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-white/5"
                               >
                                 {friend.avatar_url && (
                                   <img
@@ -1081,8 +1085,8 @@ export default function MovieMatcherPage() {
                                   />
                                 )}
                                 <div className="flex-1">
-                                  <p className="font-medium text-gray-900">{friend.name}</p>
-                                  <p className="text-xs text-gray-500">
+                                  <p className="font-medium text-[#f5f0de]">{friend.name}</p>
+                                  <p className="text-xs text-white/55">
                                     @{friend.username} • {friend.tasteCount} movies
                                   </p>
                                 </div>
@@ -1096,8 +1100,8 @@ export default function MovieMatcherPage() {
 
                 {/* Prerequisites Check */}
                 {tasteProfileCount < 7 && (
-                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-sm text-amber-800">
+                  <div className="mt-4 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-4">
+                    <p className="text-sm text-[#ffb36b]">
                       ⚠️ Complete your taste profile first (at least 7 movies) to see matches!
                     </p>
                   </div>
@@ -1106,7 +1110,7 @@ export default function MovieMatcherPage() {
             ) : (
               <>
                 {/* Selected Friend Info */}
-                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-6 border border-indigo-200 flex items-center justify-between">
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
                   <div className="flex items-center gap-4">
                     {selectedFriend.avatar_url && (
                       <img
@@ -1116,8 +1120,8 @@ export default function MovieMatcherPage() {
                       />
                     )}
                     <div>
-                      <p className="font-bold text-gray-900">{selectedFriend.name}</p>
-                      <p className="text-sm text-gray-600">@{selectedFriend.username}</p>
+                      <p className="font-bold text-[#f5f0de]">{selectedFriend.name}</p>
+                      <p className="text-sm text-white/60">@{selectedFriend.username}</p>
                     </div>
                   </div>
                   <button
@@ -1126,7 +1130,7 @@ export default function MovieMatcherPage() {
                       setMatchScore(null);
                       setShowFriendsDropdown(false);
                     }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-white/45 hover:text-[#f5f0de]"
                     title="Deselect friend"
                   >
                     <X className="w-5 h-5" />
@@ -1135,16 +1139,16 @@ export default function MovieMatcherPage() {
 
                 {/* Match Score Display */}
                 {matchScore ? (
-                  <div className="bg-white rounded-2xl p-6 border border-gray-200">
-                    <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <Heart className="w-4 h-4 text-rose-600" />
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                    <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-[#f5f0de]">
+                      <Heart className="w-4 h-4 text-[#ff7a1a]" />
                       Your Compatibility
                     </h3>
 
                     {/* Overall Score */}
                     <div className="mb-6 text-center">
-                      <div className="text-5xl font-bold text-rose-600">{matchScore.totalScore}%</div>
-                      <p className="text-sm text-gray-600 mt-1">Movie Taste Match</p>
+                      <div className="text-5xl font-bold text-[#ff7a1a]">{matchScore.totalScore}%</div>
+                      <p className="mt-1 text-sm text-white/60">Movie Taste Match</p>
                     </div>
 
                     {/* Compatibility Breakdown */}
@@ -1152,14 +1156,14 @@ export default function MovieMatcherPage() {
                       {/* Genre Match */}
                       <div>
                         <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-700">Genre Compatibility</span>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-medium text-white/70">Genre Compatibility</span>
+                          <span className="text-sm font-semibold text-[#f5f0de]">
                             {Math.round(matchScore.genreSim)}%
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-full rounded-full bg-white/10">
                           <div
-                            className={`bg-blue-500 h-2 rounded-full transition-all`}
+                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
                             style={{ width: `${matchScore.genreSim}%` }}
                           ></div>
                         </div>
@@ -1168,14 +1172,14 @@ export default function MovieMatcherPage() {
                       {/* Creator Match */}
                       <div>
                         <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-700">Creator Compatibility</span>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-medium text-white/70">Creator Compatibility</span>
+                          <span className="text-sm font-semibold text-[#f5f0de]">
                             {Math.round(matchScore.creatorSim)}%
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-full rounded-full bg-white/10">
                           <div
-                            className={`bg-purple-500 h-2 rounded-full transition-all`}
+                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
                             style={{ width: `${matchScore.creatorSim}%` }}
                           ></div>
                         </div>
@@ -1184,14 +1188,14 @@ export default function MovieMatcherPage() {
                       {/* Rating Match */}
                       <div>
                         <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-700">Rating Compatibility</span>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-medium text-white/70">Rating Compatibility</span>
+                          <span className="text-sm font-semibold text-[#f5f0de]">
                             {Math.round(matchScore.ratingSim)}%
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-full rounded-full bg-white/10">
                           <div
-                            className={`bg-amber-500 h-2 rounded-full transition-all`}
+                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
                             style={{ width: `${matchScore.ratingSim}%` }}
                           ></div>
                         </div>
@@ -1200,14 +1204,14 @@ export default function MovieMatcherPage() {
                       {/* Vibe Match */}
                       <div>
                         <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-700">Vibe Match</span>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-medium text-white/70">Vibe Match</span>
+                          <span className="text-sm font-semibold text-[#f5f0de]">
                             {Math.round(matchScore.vibeSim)}%
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-full rounded-full bg-white/10">
                           <div
-                            className={`bg-rose-500 h-2 rounded-full transition-all`}
+                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
                             style={{ width: `${matchScore.vibeSim}%` }}
                           ></div>
                         </div>
@@ -1216,14 +1220,14 @@ export default function MovieMatcherPage() {
                       {/* Era Match */}
                       <div>
                         <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-700">Era Match</span>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-medium text-white/70">Era Match</span>
+                          <span className="text-sm font-semibold text-[#f5f0de]">
                             {Math.round(matchScore.eraSim)}%
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-full rounded-full bg-white/10">
                           <div
-                            className={`bg-green-500 h-2 rounded-full transition-all`}
+                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
                             style={{ width: `${matchScore.eraSim}%` }}
                           ></div>
                         </div>
@@ -1232,14 +1236,14 @@ export default function MovieMatcherPage() {
                       {/* Language Match */}
                       <div>
                         <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-700">Language Match</span>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-medium text-white/70">Language Match</span>
+                          <span className="text-sm font-semibold text-[#f5f0de]">
                             {Math.round(matchScore.languageSim)}%
                           </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-full rounded-full bg-white/10">
                           <div
-                            className={`bg-indigo-500 h-2 rounded-full transition-all`}
+                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
                             style={{ width: `${matchScore.languageSim}%` }}
                           ></div>
                         </div>
@@ -1247,19 +1251,19 @@ export default function MovieMatcherPage() {
                     </div>
 
                     {/* Match Status Message */}
-                    <div className="text-center pt-4 border-t mt-4">
+                    <div className="mt-4 border-t border-white/10 pt-4 text-center">
                       {matchScore.totalScore >= 75 && (
-                        <p className="text-sm font-semibold text-green-600">
+                        <p className="text-sm font-semibold text-[#ffb36b]">
                           Perfect match! You both love the same kind of movies!
                         </p>
                       )}
                       {matchScore.totalScore >= 50 && matchScore.totalScore < 75 && (
-                        <p className="text-sm font-semibold text-amber-600">
+                        <p className="text-sm font-semibold text-[#ffb36b]">
                           Great match! Lots in common!
                         </p>
                       )}
                       {matchScore.totalScore < 50 && (
-                        <p className="text-sm font-semibold text-gray-600">
+                        <p className="text-sm font-semibold text-white/60">
                           Different tastes = great movie convos!
                         </p>
                       )}
@@ -1268,15 +1272,15 @@ export default function MovieMatcherPage() {
                     {/* Analysis Button */}
                     <button
                       onClick={() => setShowAnalysisModal(true)}
-                      className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                      className="mt-4 w-full rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b]"
                     >
                       View Full Analysis
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl p-8 border border-gray-200 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-3" />
-                    <p className="text-gray-600">Calculating your compatibility...</p>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
+                    <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-[#ff7a1a]" />
+                    <p className="text-white/60">Calculating your compatibility...</p>
                   </div>
                 )}
               </>
@@ -1325,7 +1329,7 @@ export default function MovieMatcherPage() {
                   placeholder="Search your taste movies..."
                   value={tasteSearchQuery}
                   onChange={(e) => setTasteSearchQuery(e.target.value)}
-                  className="w-full rounded-2xl border border-gray-300 py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:rounded-lg"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-sm text-[#f5f0de] placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-[#ff7a1a]/25 sm:rounded-lg"
                 />
               </div>
             </div>
@@ -1378,12 +1382,12 @@ export default function MovieMatcherPage() {
                     {tasteSearchQuery ? "No matching movies found" : "No taste movies yet"}
                   </p>
                   {tasteSearchQuery && (
-                    <button
-                      onClick={() => setTasteSearchQuery("")}
-                      className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700"
-                    >
-                      Clear search
-                    </button>
+                  <button
+                    onClick={() => setTasteSearchQuery("")}
+                    className="mt-3 text-sm font-medium text-[#ffb36b] hover:text-[#ff7a1a]"
+                  >
+                    Clear search
+                  </button>
                   )}
                 </div>
               )}
@@ -1421,8 +1425,8 @@ export default function MovieMatcherPage() {
                 }}
                 className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none ${
                   contentType === "movie"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    ? "bg-[#ff7a1a] text-black"
+                    : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                 }`}
               >
                 Movies
@@ -1434,8 +1438,8 @@ export default function MovieMatcherPage() {
                 }}
                 className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none ${
                   contentType === "tv"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    ? "bg-[#ff7a1a] text-black"
+                    : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                 }`}
               >
                 TV Shows
@@ -1445,7 +1449,7 @@ export default function MovieMatcherPage() {
             {/* Search Input */}
             <div className="flex gap-2 mb-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/35 w-5 h-5" />
                   <input
                     type="text"
                     placeholder={`Search ${contentType === "movie" ? "movies" : "TV shows"}...`}
@@ -1453,7 +1457,7 @@ export default function MovieMatcherPage() {
                     onChange={(e) => {
                       void handleSearch(e.target.value);
                     }}
-                    className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:py-2"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-[#f5f0de] placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-[#ff7a1a]/25 sm:py-2"
                   />
               </div>
             </div>
@@ -1462,7 +1466,7 @@ export default function MovieMatcherPage() {
             <div className="flex-1 overflow-y-auto">
               {searching && (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <Loader2 className="w-6 h-6 animate-spin text-[#ff7a1a]" />
                 </div>
               )}
 
@@ -1487,7 +1491,7 @@ export default function MovieMatcherPage() {
                       return (
                         <div
                           key={`${contentType}-${result.id}`}
-                          className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 transition-colors hover:bg-amber-100"
+                        className="flex gap-3 rounded-lg border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10"
                         >
                           <img
                             src={
@@ -1501,10 +1505,10 @@ export default function MovieMatcherPage() {
                             className="h-16 w-12 flex-shrink-0 rounded object-cover"
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-gray-900 text-sm line-clamp-1">
+                            <p className="line-clamp-1 text-sm font-semibold text-[#f5f0de]">
                               {result.title}
                             </p>
-                            <p className="text-xs text-gray-500 mb-1">
+                            <p className="mb-1 text-xs text-[#f5f0de]/55">
                               {result.release_date || result.premiered
                                 ? new Date(
                                     result.release_date ?? result.premiered ?? ""
@@ -1512,7 +1516,7 @@ export default function MovieMatcherPage() {
                                 : "N/A"}
                             </p>
                             {matchReason && (
-                              <p className="text-xs text-amber-700 font-medium">{matchReason}</p>
+                              <p className="text-xs font-medium text-[#ffb36b]">{matchReason}</p>
                             )}
                           </div>
                           <button
@@ -1520,10 +1524,10 @@ export default function MovieMatcherPage() {
                             disabled={isAlreadyAdded || addingContent === `${contentType}-${result.id}`}
                             className={`self-center rounded px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
                               isAlreadyAdded
-                                ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                                ? "cursor-not-allowed bg-white/10 text-white/35"
                                 : addingContent === `${contentType}-${result.id}`
-                                ? "bg-blue-500 text-white"
-                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                                ? "bg-[#ffb36b] text-black"
+                                : "bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
                             }`}
                           >
                             {isAlreadyAdded ? "Added" : "Add"}
@@ -1545,7 +1549,7 @@ export default function MovieMatcherPage() {
                       return (
                         <div
                           key={`${contentType}-${result.id}`}
-                          className="flex gap-3 rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100"
+                        className="flex gap-3 rounded-lg border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10"
                         >
                           <img
                             src={
@@ -1559,10 +1563,10 @@ export default function MovieMatcherPage() {
                             className="h-16 w-12 flex-shrink-0 rounded object-cover"
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-gray-900 text-sm line-clamp-1">
+                            <p className="line-clamp-1 text-sm font-semibold text-[#f5f0de]">
                               {result.title}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-[#f5f0de]/55">
                               {result.release_date || result.premiered
                                 ? new Date(
                                     result.release_date ?? result.premiered ?? ""
@@ -1575,10 +1579,10 @@ export default function MovieMatcherPage() {
                             disabled={isAlreadyAdded || addingContent === `${contentType}-${result.id}`}
                             className={`self-center rounded px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
                               isAlreadyAdded
-                                ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                                ? "cursor-not-allowed bg-white/10 text-white/35"
                                 : addingContent === `${contentType}-${result.id}`
-                                ? "bg-blue-500 text-white"
-                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                                ? "bg-[#ffb36b] text-black"
+                                : "bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
                             }`}
                           >
                             {isAlreadyAdded ? "Added" : "Add"}
@@ -1596,275 +1600,16 @@ export default function MovieMatcherPage() {
 
       {/* Analysis Modal */}
       {showAnalysisModal && matchAnalysis && selectedFriend && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
-          <div className="max-h-[88dvh] w-full max-w-3xl overflow-y-auto rounded-b-none rounded-t-3xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-lg">
-            {/* Header */}
-            <div className="sticky top-0 z-10 border-b border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50 px-4 py-3 sm:px-6 sm:py-4">
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-rose-200 sm:hidden" />
-              <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold text-gray-900 sm:text-2xl">Movie Blend Analysis</h2>
-                <p className="text-sm text-gray-600 mt-1">{matchAnalysis.blendPersonality}</p>
-              </div>
-              <button
-                onClick={() => setShowAnalysisModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-                title="Close analysis modal"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
-              {/* Core Overview */}
-              <div className="bg-gradient-to-br from-rose-50 to-orange-50 rounded-lg p-4 border border-rose-200">
-                <h3 className="font-bold text-gray-900 mb-3">Compatibility Score</h3>
-                <div className="text-center mb-3">
-                  <div className="text-5xl font-bold text-rose-600 sm:text-6xl">{matchAnalysis.totalScore}</div>
-                  <p className="text-sm text-gray-600">% Match</p>
-                </div>
-                <p className="text-sm text-gray-700 text-center italic">{matchAnalysis.tasteInsight}</p>
-              </div>
-
-              {/* Taste Similarity */}
-              <div>
-                <h3 className="font-bold text-gray-900 mb-3">Taste Similarity</h3>
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                    <p className="text-xs text-gray-600 mb-1">Genre Match</p>
-                    <p className="text-xl font-bold text-blue-600 sm:text-2xl">{matchAnalysis.genreSim}%</p>
-                    {matchAnalysis.sharedGenres.length > 0 && (
-                      <p className="text-xs text-gray-700 mt-2">
-                        <span className="font-semibold">Shared:</span> {matchAnalysis.sharedGenres.slice(0, 3).join(", ")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                    <p className="text-xs text-gray-600 mb-1">Creator Match</p>
-                    <p className="text-xl font-bold text-purple-600 sm:text-2xl">{matchAnalysis.creatorSim}%</p>
-                    <p className="text-xs text-gray-700 mt-2">
-                      {matchAnalysis.commonActors.length > 0 || matchAnalysis.commonDirectors.length > 0
-                        ? `${matchAnalysis.commonActors.length} actors, ${matchAnalysis.commonDirectors.length} directors`
-                        : "No shared creators yet"}
-                    </p>
-                  </div>
-                </div>
-                {matchAnalysis.genreMismatch && (
-                  <p className="text-sm text-gray-700 mt-3 bg-gray-50 p-2 rounded">
-                    <span className="font-semibold">Unique to you:</span> {matchAnalysis.genreMismatch}
-                  </p>
-                )}
-              </div>
-
-              {/* Creators */}
-              <div>
-                <h3 className="font-bold text-gray-900 mb-3">Shared Creators</h3>
-                {matchAnalysis.commonActors.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Common Actors:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {matchAnalysis.commonActors.slice(0, 5).map((actor: string, idx: number) => (
-                        <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-                          {actor}
-                        </span>
-                      ))}
-                      {matchAnalysis.commonActors.length > 5 && (
-                        <span className="text-gray-600 text-xs">+{matchAnalysis.commonActors.length - 5} more</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {matchAnalysis.commonDirectors.length > 0 && (
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Common Directors:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {matchAnalysis.commonDirectors.slice(0, 5).map((dir: string, idx: number) => (
-                        <span key={idx} className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-medium">
-                          {dir}
-                        </span>
-                      ))}
-                      {matchAnalysis.commonDirectors.length > 5 && (
-                        <span className="text-gray-600 text-xs">+{matchAnalysis.commonDirectors.length - 5} more</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {matchAnalysis.commonActors.length === 0 && matchAnalysis.commonDirectors.length === 0 && (
-                  <p className="text-sm text-gray-600 italic">No common creators yet - discover new favorites together!</p>
-                )}
-              </div>
-
-              {/* Taste DNA */}
-              <div>
-                <h3 className="font-bold text-gray-900 mb-3">Taste DNA</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Your Top Genres:</p>
-                    <div className="space-y-1">
-                      {matchAnalysis.genreDistributionA.slice(0, 4).map((g: GenreStat, idx: number) => (
-                        <div key={idx} className="flex justify-between text-xs">
-                          <span className="text-gray-700">{g.genre}</span>
-                          <span className="font-semibold text-gray-900">{g.count} movies</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">
-                      {selectedFriend.name}&apos;s Top Genres:
-                    </p>
-                    <div className="space-y-1">
-                      {matchAnalysis.genreDistributionB.slice(0, 4).map((g: GenreStat, idx: number) => (
-                        <div key={idx} className="flex justify-between text-xs">
-                          <span className="text-gray-700">{g.genre}</span>
-                          <span className="font-semibold text-gray-900">{g.count} movies</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Preferences */}
-              <div>
-                <h3 className="font-bold text-gray-900 mb-3">Preferences</h3>
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                    <p className="text-xs text-gray-600">Your Avg Movie Year</p>
-                    <p className="text-xl font-bold text-amber-600 sm:text-2xl">{matchAnalysis.avgYearA}</p>
-                  </div>
-                  <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                    <p className="text-xs text-gray-600">{selectedFriend.name}&apos;s Avg Year</p>
-                    <p className="text-xl font-bold text-amber-600 sm:text-2xl">{matchAnalysis.avgYearB}</p>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Language Preferences:</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {matchAnalysis.sharedLanguages.length > 0 && (
-                      <>
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">
-                          Shared: {matchAnalysis.sharedLanguages.join(", ")}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Shared Watching */}
-              <div>
-                <h3 className="font-bold text-gray-900 mb-3">Shared Watching</h3>
-                <div className="space-y-4">
-                  {/* Common Taste Movies */}
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <p className="text-sm text-gray-700 mb-3 font-semibold">
-                      <span className="text-blue-600">Your Taste Overlap</span>
-                      <span className="text-gray-500 text-xs ml-2">({matchAnalysis.commonTasteMovieCount})</span>
-                    </p>
-                    {matchAnalysis.commonTasteMovies && matchAnalysis.commonTasteMovies.length > 0 ? (
-                      <div className="overflow-x-auto pb-2">
-                        <div className="flex gap-2 w-fit">
-                          {matchAnalysis.commonTasteMovies.map((movie) => (
-                            <div key={`taste-${movie.type}-${movie.id}`} className="flex-shrink-0">
-                              <div className="relative w-24 h-36 bg-gray-300 rounded-lg overflow-hidden group">
-                                <img
-                                  src={
-                                    movie.poster_url
-                                      ? `https://image.tmdb.org/t/p/w154${movie.poster_url}`
-                                      : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='144'%3E%3Crect fill='%23ccc' width='96' height='144'/%3E%3C/svg%3E"
-                                  }
-                                  alt={movie.title}
-                                  className="w-full h-full object-cover"
-                                />
-                                {movie.type === "tv" && (
-                                  <div className="absolute top-1 right-1 bg-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded">
-                                    TV
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-1">
-                                  <p className="text-white text-xs text-center line-clamp-2 font-medium">
-                                    {movie.title}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">No movies in your taste overlap yet</p>
-                    )}
-                  </div>
-
-                  {/* Common Masterpiece Movies */}
-                  <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                    <p className="text-sm text-gray-700 mb-3 font-semibold">
-                      <span className="text-amber-600">Both Loved (Masterpiece)</span>
-                      <span className="text-gray-500 text-xs ml-2">({matchAnalysis.commonMasterpieceMovieCount})</span>
-                    </p>
-                    {matchAnalysis.commonMasterpieceMovies && matchAnalysis.commonMasterpieceMovies.length > 0 ? (
-                      <div className="overflow-x-auto pb-2">
-                        <div className="flex gap-2 w-fit">
-                          {matchAnalysis.commonMasterpieceMovies.map((movie) => (
-                            <div key={`masterpiece-${movie.type}-${movie.id}`} className="flex-shrink-0">
-                              <div className="relative w-24 h-36 bg-gray-300 rounded-lg overflow-hidden group ring-2 ring-amber-400">
-                                <img
-                                  src={
-                                    movie.poster_url
-                                      ? `https://image.tmdb.org/t/p/w154${movie.poster_url}`
-                                      : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='144'%3E%3Crect fill='%23ccc' width='96' height='144'/%3E%3C/svg%3E"
-                                  }
-                                  alt={movie.title}
-                                  className="w-full h-full object-cover"
-                                />
-                                {movie.type === "tv" && (
-                                  <div className="absolute top-1 right-1 bg-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded">
-                                    TV
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-1">
-                                  <p className="text-white text-xs text-center line-clamp-2 font-medium">
-                                    {movie.title}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">No masterpiece movies in common yet</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Other Metrics */}
-              <div>
-                <h3 className="font-bold text-gray-900 mb-3">📈 Other Metrics</h3>
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-xs text-gray-600 mb-1">Rating Match</p>
-                    <p className="text-xl font-bold text-gray-900">{matchAnalysis.ratingSim}%</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-xs text-gray-600 mb-1">Vibe Match</p>
-                    <p className="text-xl font-bold text-gray-900">{matchAnalysis.vibeSim}%</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-xs text-gray-600 mb-1">Era Match</p>
-                    <p className="text-xl font-bold text-gray-900">{matchAnalysis.eraSim}%</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-xs text-gray-600 mb-1">Language Match</p>
-                    <p className="text-xl font-bold text-gray-900">{matchAnalysis.languageSim}%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[90dvh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-t-3xl border border-white/10 bg-[#090909] shadow-2xl sm:rounded-3xl">
+            <MovieMatchAnalysisView
+              embedded
+              analysis={matchAnalysis}
+              viewerName={user?.name || "You"}
+              subjectName={selectedFriend.name}
+              subjectUsername={selectedFriend.username}
+              onClose={() => setShowAnalysisModal(false)}
+            />
           </div>
         </div>
       )}

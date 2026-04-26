@@ -56,12 +56,16 @@ export default function ProfileCinePostsPanel({
         : "No liked posts yet.";
 
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-6">
-      <h2 className="mb-4 text-lg font-black text-slate-950">{title}</h2>
+    <section className="space-y-4">
+      <div className="flex items-end justify-between gap-3 border-b border-white/10 pb-3">
+        <div>
+          <h2 className="text-lg font-black text-[#f5f0de]">{title}</h2>
+        </div>
+      </div>
       {loading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((item) => (
-            <div key={item} className="h-32 animate-pulse rounded-3xl bg-slate-100" />
+            <div key={item} className="h-28 animate-pulse border-b border-white/10 bg-white/5" />
           ))}
         </div>
       ) : (

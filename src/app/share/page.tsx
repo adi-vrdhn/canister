@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import SearchBar from "@/components/SearchBar";
 import CinematicLoading from "@/components/CinematicLoading";
+import ShareModal from "@/components/ShareModal";
 import { Content, ShareWithDetails, TMDBMovie, User } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -13,6 +14,7 @@ import { signOut as authSignOut } from "@/lib/auth";
 import { getMovieDetails, searchMovies } from "@/lib/tmdb";
 import { getShowDetails, searchShows, ShowDetails } from "@/lib/tvmaze";
 import { hasUserWatchedContent } from "@/lib/watched-movies";
+import { isUsernameBlocked, mergeSettings } from "@/lib/settings";
 import { ChevronLeft, ChevronRight, SendHorizontal, Trash2 } from "lucide-react";
 
 type SearchResultItem = {
@@ -57,11 +59,15 @@ function SharePageContent() {
   const showIdParam = searchParams.get("show_id");
   const contentIdParam = searchParams.get("content_id");
   const typeParam = searchParams.get("type");
+  const shareIdParam = searchParams.get("share_id");
+  const panelParam = searchParams.get("panel");
 
   const [sharedSearchQuery, setSharedSearchQuery] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activePanel, setActivePanel] = useState<"share" | "history">("share");
+  const [activePanel, setActivePanel] = useState<"share" | "history">(() =>
+    panelParam === "history" ? "history" : "share"
+  );
 
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
@@ -73,6 +79,7 @@ function SharePageContent() {
   const [yearFilter, setYearFilter] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [sentShares, setSentShares] = useState<ShareWithDetails[]>([]);
+  const [selectedShare, setSelectedShare] = useState<ShareWithDetails | null>(null);
   const [showWatchConflictModal, setShowWatchConflictModal] = useState(false);
   const [pendingShareRecipients, setPendingShareRecipients] = useState<User[]>([]);
   const [watchConflictRecipients, setWatchConflictRecipients] = useState<User[]>([]);
@@ -91,6 +98,7 @@ function SharePageContent() {
       try {
         const userRef = ref(db, `users/${firebaseUser.uid}`);
         const userSnapshot = await get(userRef);
+        const latestCurrentUserSettings = mergeSettings(userSnapshot.exists() ? userSnapshot.val()?.settings : null);
 
         let currentUser: User;
 
@@ -219,7 +227,16 @@ function SharePageContent() {
             const followersList = Object.values(followsData)
               .filter((follow) => follow.follower_id === currentUser.id && follow.status === "accepted")
               .map((follow) => resolveUserById(follow.following_id))
-              .filter(Boolean) as User[];
+              .filter((friend): friend is User => {
+                if (!friend) return false;
+                const rawFriend = usersData[friend.id];
+                const friendSettings = mergeSettings((rawFriend as any)?.settings);
+                return (
+                  friendSettings.account.status === "active" &&
+                  !isUsernameBlocked(latestCurrentUserSettings, friend.username) &&
+                  !isUsernameBlocked(friendSettings, currentUser.username)
+                );
+              });
 
             setFollowers(followersList);
           } catch (error) {
@@ -275,6 +292,44 @@ function SharePageContent() {
     contentIdParam,
     typeParam,
   ]);
+
+  useEffect(() => {
+    if (!user || !shareIdParam) return;
+
+    const loadShareFromId = async () => {
+      const existing = sentShares.find((share) => share.id === shareIdParam);
+      if (existing) {
+        setSelectedShare(existing);
+        setActivePanel("history");
+        return;
+      }
+
+      try {
+        const shareSnapshot = await get(ref(db, `shares/${shareIdParam}`));
+        if (!shareSnapshot.exists()) return;
+
+        const shareData = shareSnapshot.val() as ShareRecord;
+        const usersSnapshot = await get(ref(db, "users"));
+        const usersData = usersSnapshot.val() || {};
+        const resolveUserById = (userId: string): User | undefined =>
+          Object.values(usersData).find((entry: any) => entry?.id === userId) as User | undefined;
+
+        setSelectedShare({
+          id: shareIdParam,
+          ...shareData,
+          movie: shareData.movie || null,
+          content: shareData.content || shareData.movie || null,
+          sender: resolveUserById(shareData.sender_id),
+          receiver: resolveUserById(shareData.receiver_id),
+        } as ShareWithDetails);
+        setActivePanel("history");
+      } catch (error) {
+        console.error("Error loading share from URL:", error);
+      }
+    };
+
+    void loadShareFromId();
+  }, [sentShares, shareIdParam, user]);
 
   const progressPercentage = (currentStep / 2) * 100;
 
@@ -495,6 +550,11 @@ function SharePageContent() {
     } catch (error) {
       console.error("Error removing share:", error);
     }
+  };
+
+  const openShareDetails = (share: ShareWithDetails) => {
+    setSelectedShare(share);
+    setActivePanel("history");
   };
 
   const handleSignOut = async () => {
@@ -896,7 +956,16 @@ function SharePageContent() {
                       return (
                         <div
                           key={share.id}
-                          className="group flex items-start gap-3 py-3"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openShareDetails(share)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openShareDetails(share);
+                            }
+                          }}
+                          className="group flex w-full items-start gap-3 py-3 text-left"
                         >
                           {item?.poster_url && (
                             <img
@@ -928,7 +997,10 @@ function SharePageContent() {
                           </div>
 
                           <button
-                            onClick={() => handleRemoveShare(share.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemoveShare(share.id);
+                            }}
                             className="rounded-md p-1 text-white/45 transition-colors hover:bg-white/5 hover:text-[#ff7a1a]"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -948,6 +1020,17 @@ function SharePageContent() {
           )}
         </div>
       </div>
+
+      {selectedShare && user && (
+        <ShareModal
+          key={selectedShare.id}
+          share={selectedShare}
+          currentUserId={user.id}
+          onClose={() => setSelectedShare(null)}
+          user={user}
+          theme="brutalist"
+        />
+      )}
 
       {showWatchConflictModal && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center">

@@ -78,8 +78,8 @@ export default function CinematicLoading({
   }, [recentPosters]);
 
   return (
-    <div className="relative flex min-h-dvh w-screen items-center justify-center overflow-hidden bg-[#090b12] px-4 text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(214,180,112,0.22),_transparent_34%),linear-gradient(180deg,_rgba(9,11,18,0.18),_rgba(9,11,18,0.96))]" />
+    <div className="relative flex min-h-dvh w-screen items-center justify-center overflow-hidden bg-[#0a0a0a] px-4 text-[#f5f0de]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,122,26,0.18),_transparent_34%),linear-gradient(180deg,_rgba(10,10,10,0.12),_rgba(10,10,10,0.96))]" />
 
       <div className="relative z-10 w-full max-w-3xl">
         <div className="mb-8 overflow-hidden">
@@ -87,7 +87,7 @@ export default function CinematicLoading({
             {posters.map((poster, index) => (
               <div
                 key={`${poster.title}-${index}`}
-                className="h-40 w-28 flex-shrink-0 overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-2xl shadow-black/40 sm:h-56 sm:w-36"
+                className="h-40 w-28 flex-shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl shadow-black/40 sm:h-56 sm:w-36"
               >
                 <img
                   src={poster.url}
@@ -99,18 +99,18 @@ export default function CinematicLoading({
           </div>
         </div>
 
-        <div className="mx-auto max-w-md rounded-[2rem] border border-white/10 bg-white/10 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur-md">
+        <div className="mx-auto max-w-md rounded-[2rem] border border-white/10 bg-[#111111]/95 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur-md">
           <p className="brand-wordmark text-4xl font-bold tracking-tight text-[#f8e9c8] sm:text-5xl">
             Canisterr
           </p>
-          <p className="mt-4 text-base font-semibold text-white">{message}</p>
-          <p className="mt-2 text-sm text-zinc-300">
+          <p className="mt-4 text-base font-semibold text-[#f5f0de]">{message}</p>
+          <p className="mt-2 text-sm text-white/65">
             Setting up your cinema room with recent posters.
           </p>
-          <div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-white/15">
-            <div className="cinematic-loading-bar h-full w-1/2 rounded-full bg-[#d6b470]" />
+          <div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-white/10">
+            <div className="cinematic-loading-bar h-full w-1/2 rounded-full bg-[#ff7a1a]" />
           </div>
-          <p className="mt-5 text-[11px] text-zinc-400">
+          <p className="mt-5 text-[11px] text-white/40">
             Poster imagery supplied by TMDB. This product uses TMDB data but is not endorsed or certified by TMDB.
           </p>
         </div>

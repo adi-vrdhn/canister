@@ -189,7 +189,7 @@ export default function MovieSwipeCard({
                     </div>
                   )}
                   {translateY > 20 && (
-                    <div className="absolute bottom-4 left-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
+                    <div className="absolute bottom-4 left-4 bg-[#ff7a1a] text-black px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
                       <Clock size={16} /> Watch Later
                     </div>
                   )}
@@ -212,9 +212,9 @@ export default function MovieSwipeCard({
 
         {/* Instructions */}
         <div className="mt-8 text-center text-gray-400 text-xs space-y-1">
-          <p>👉 Swipe <span className="text-green-400">right</span> for good</p>
-          <p>👈 Swipe <span className="text-red-400">left</span> for bad</p>
-          <p>👇 Swipe <span className="text-blue-400">down</span> for watchlist</p>
+          <p>👉 Swipe <span className="text-[#ffb36b]">right</span> for good</p>
+          <p>👈 Swipe <span className="text-white">left</span> for bad</p>
+          <p>👇 Swipe <span className="text-[#ffb36b]">down</span> for watchlist</p>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -235,7 +235,7 @@ export default function MovieSwipeCard({
           <button
             type="button"
             onClick={onSwipeDown}
-            className="rounded-lg bg-blue-600 text-white text-sm font-medium py-2 hover:bg-blue-700"
+            className="rounded-lg bg-[#ff7a1a] text-black text-sm font-medium py-2 hover:bg-[#ff8d3b]"
           >
             Watchlist
           </button>

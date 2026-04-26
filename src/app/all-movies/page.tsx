@@ -12,6 +12,7 @@ import ShareModal from "@/components/ShareModal";
 import { signOut as authSignOut } from "@/lib/auth";
 import { auth, db } from "@/lib/firebase";
 import { getFriendLogs } from "@/lib/friend-logs";
+import { buildLogUrl } from "@/lib/log-url";
 import { MovieLogWithContent, ShareWithDetails, User } from "@/types";
 
 type ActivityFilter = "all" | "shared" | "logged";
@@ -198,7 +199,7 @@ export default function AllMoviesPage() {
     if (item.kind === "shared") {
       setSelectedShare(item.share);
     } else {
-      router.push(`/logs/${item.log.id}`);
+      router.push(buildLogUrl(item.log));
     }
   };
 

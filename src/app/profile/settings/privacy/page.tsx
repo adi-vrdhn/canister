@@ -6,7 +6,7 @@ import { SettingLine } from "../settings-ui";
 import { Shield, Eye, ListChecks, Lock, Users } from "lucide-react";
 
 const selectClass =
-  "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-slate-300";
+  "rounded-full border border-white/10 bg-[#111111] px-3 py-1.5 text-xs font-semibold text-[#f5f0de] outline-none transition focus:border-[#ff7a1a]";
 
 export default function SettingsPrivacyPage() {
   const { user, loading, settings, updateSection, handleSignOut } = useSettingsUser();

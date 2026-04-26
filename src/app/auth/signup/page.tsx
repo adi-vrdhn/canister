@@ -78,33 +78,33 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#eef1f6]">
-      <div className="px-4 py-6 sm:px-6 md:hidden">
+    <div className="min-h-dvh bg-[#090909] px-4 py-6 text-[#f5f0de] sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-dvh w-full max-w-6xl items-center justify-center">
         <AuthMobileCard
           mode="signup"
-          title="Sign up"
-          subtitle="Create your account and start building your movie trail."
+          title="Register"
+          subtitle="Create your Canisterr account."
           footer={
             <>
               Already have an account?{" "}
-              <Link href="/auth/login" className="font-semibold text-blue-600">
-                Log in
+              <Link href="/auth/login" className="font-semibold text-[#ffb36b] hover:text-[#ff8d3b]">
+                Sign in
               </Link>
             </>
           }
         >
           {verificationSent ? (
             <div className="text-center">
-              <h2 className="text-xl font-black text-slate-950">Verify your email</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                A verification link has been sent to <span className="font-semibold text-slate-950">{email}</span>.
+              <h2 className="text-xl font-black text-[#f5f0de] sm:text-2xl">Verify your email</h2>
+              <p className="mt-3 text-sm leading-6 text-[#f5f0de]/65">
+                A verification link has been sent to <span className="font-semibold text-[#ffb36b]">{email}</span>.
                 {" "}You can use the app now, but please verify within 7 days.
               </p>
               <div className="mt-4 flex items-center justify-center gap-4 text-sm font-semibold">
-                <Link href="/dashboard" className="text-blue-600">
+                <Link href="/dashboard" className="text-[#ff7a1a] hover:text-[#ff8d3b]">
                   Continue
                 </Link>
-                <Link href="/auth/login" className="text-blue-600">
+                <Link href="/auth/login" className="text-[#ff7a1a] hover:text-[#ff8d3b]">
                   Log in
                 </Link>
               </div>
@@ -112,30 +112,30 @@ export default function SignUpPage() {
           ) : (
             <>
               {error && (
-                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
-                  <p className="text-sm text-red-700">{error}</p>
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-4">
+                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#ffb36b]" />
+                  <p className="text-sm text-[#f5f0de]">{error}</p>
                 </div>
               )}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Email</label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
                       required
-                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
+                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Username</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Username</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
                       type="text"
                       value={username}
@@ -143,39 +143,39 @@ export default function SignUpPage() {
                       placeholder="@username"
                       minLength={3}
                       required
-                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-sm outline-none transition focus:border-slate-400"
+                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-10 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                     {username.length >= 3 && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         {checkingUsername ? (
-                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-950" />
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/15 border-t-[#ff7a1a]" />
                         ) : usernameAvailable ? (
-                          <CheckCircle className="h-5 w-5 text-emerald-600" />
+                          <CheckCircle className="h-5 w-5 text-[#ff7a1a]" />
                         ) : (
-                          <AlertCircle className="h-5 w-5 text-red-600" />
+                          <AlertCircle className="h-5 w-5 text-[#ffb36b]" />
                         )}
                       </div>
                     )}
                   </div>
                   {username.length > 0 && username.length < 3 && (
-                    <p className="mt-1 text-xs text-slate-500">At least 3 characters</p>
+                    <p className="mt-1 text-xs text-[#f5f0de]/45">At least 3 characters</p>
                   )}
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Full Name</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Full Name</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your name"
                     required
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                    className="w-full rounded-2xl border border-white/10 bg-[#151515] px-4 py-3 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Password</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
                       type="password"
                       value={password}
@@ -183,14 +183,14 @@ export default function SignUpPage() {
                       placeholder="••••••••"
                       minLength={6}
                       required
-                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
+                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Confirm Password</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Confirm Password</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
                       type="password"
                       value={confirmPassword}
@@ -198,14 +198,14 @@ export default function SignUpPage() {
                       placeholder="••••••••"
                       minLength={6}
                       required
-                      className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
+                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                   </div>
                 </div>
                 <button
                   type="submit"
                   disabled={loading || !usernameAvailable}
-                  className="w-full rounded-2xl bg-slate-950 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:opacity-60"
+                  className="w-full rounded-2xl bg-[#ff7a1a] py-3 text-sm font-black text-[#0a0a0a] transition hover:bg-[#ff8d3b] disabled:opacity-60"
                 >
                   {loading ? "Creating account..." : "Sign up"}
                 </button>
@@ -213,142 +213,6 @@ export default function SignUpPage() {
             </>
           )}
         </AuthMobileCard>
-      </div>
-
-      <div className="hidden min-h-screen items-center justify-center p-4 md:flex">
-        <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center mt-12 mb-10">
-            <h1 className="brand-wordmark text-4xl font-bold tracking-tight text-zinc-900">Canisterr</h1>
-          </div>
-          <p className="text-gray-600">Join the movie community</p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          {verificationSent ? (
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Verify your email</h2>
-              <p className="mb-4 text-gray-700">
-                A verification link has been sent to <span className="font-semibold">{email}</span>.
-                {" "}You can use the app now, but please verify within 7 days.
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <Link href="/dashboard" className="text-blue-600 hover:underline font-medium">Continue to App</Link>
-                <Link href="/auth/login" className="text-blue-600 hover:underline font-medium">Go to Login</Link>
-              </div>
-            </div>
-          ) : (
-            <>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Create account</h2>
-              {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
-              )}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      required
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="@username"
-                      minLength={3}
-                      required
-                      className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    {username.length >= 3 && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        {checkingUsername ? (
-                          <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-                        ) : usernameAvailable ? (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                        ) : (
-                          <AlertCircle className="w-5 h-5 text-red-600" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {username.length > 0 && username.length < 3 && (
-                    <p className="text-xs text-gray-500 mt-1">At least 3 characters</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name"
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      minLength={6}
-                      required
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      minLength={6}
-                      required
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading || !usernameAvailable}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 rounded-lg transition-colors"
-                >
-                  {loading ? "Creating account..." : "Sign up"}
-                </button>
-              </form>
-            </>
-          )}
-          <div className="mt-6 text-center text-sm text-gray-600">
-            Already have an account?{" "}
-            <Link href="/auth/login" className="text-blue-600 hover:underline font-medium">
-              Sign in
-            </Link>
-          </div>
-        </div>
-      </div>
       </div>
     </div>
   );
