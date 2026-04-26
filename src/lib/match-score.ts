@@ -482,6 +482,18 @@ export function calculateMatchScore(
   userATastes: MatchTaste[],
   userBTastes: MatchTaste[]
 ): MatchScoreBreakdown {
+  if (userATastes.length === 0 || userBTastes.length === 0) {
+    return {
+      genreSim: 0,
+      ratingSim: 0,
+      vibeSim: 0,
+      creatorSim: 0,
+      eraSim: 0,
+      languageSim: 0,
+      totalScore: 0,
+    };
+  }
+
   const genreSim = calculateGenreSim(userATastes, userBTastes);
   const ratingSim = calculateRatingSim(userATastes, userBTastes);
   const vibeSim = calculateVibeSim(userATastes, userBTastes);
@@ -676,6 +688,8 @@ export async function generateMatchAnalysis(
   userAId: string,
   userBId: string
 ): Promise<MatchAnalysis> {
+  const hasInsufficientTasteData = userATastes.length === 0 || userBTastes.length === 0;
+
   // Basic score
   const score = calculateMatchScore(userATastes, userBTastes);
 
@@ -715,7 +729,9 @@ export async function generateMatchAnalysis(
 
   // Insight
   const tasteInsight =
-    score.totalScore >= 75
+    hasInsufficientTasteData
+      ? "Not enough taste data yet"
+      : score.totalScore >= 75
       ? "You're cinematic soulmates!"
       : score.totalScore >= 50
       ? "Great taste overlap with some unique differences"

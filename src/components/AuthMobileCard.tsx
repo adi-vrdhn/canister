@@ -13,9 +13,10 @@ interface AuthMobileCardProps {
 }
 
 export default function AuthMobileCard({ title, subtitle, mode, footer, children }: AuthMobileCardProps) {
-  const linkBase = "text-sm font-bold transition";
-  const activeLink = "text-[#ff7a1a]";
-  const inactiveLink = "text-[#f5f0de]/55 hover:text-[#f5f0de]";
+  const linkBase =
+    "inline-flex w-full items-center justify-center rounded-2xl border px-4 py-3 text-lg font-black tracking-wide transition sm:text-xl";
+  const activeLink = "border-[#ff7a1a] bg-[#ff7a1a] text-[#0a0a0a]";
+  const inactiveLink = "border-white/10 bg-white/[0.04] text-[#f5f0de] hover:bg-white/[0.08]";
 
   return (
     <div className="mx-auto w-full max-w-[34rem] overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#111111] shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
@@ -33,7 +34,7 @@ export default function AuthMobileCard({ title, subtitle, mode, footer, children
             Canisterr
           </p>
         </div>
-        <div className="mt-4 flex flex-col gap-2">
+        <div className="mt-4 flex flex-col gap-3">
           <Link
             href="/auth/login"
             className={`${linkBase} ${mode === "login" ? activeLink : inactiveLink}`}
@@ -51,7 +52,7 @@ export default function AuthMobileCard({ title, subtitle, mode, footer, children
 
       <div className="bg-[#111111] px-5 pb-5 pt-5 text-[#f5f0de] sm:px-6 sm:pb-6 sm:pt-6">
         <div className="max-w-[18rem]">
-          <p className="text-2xl font-black leading-tight text-[#f5f0de] sm:text-3xl">{title}</p>
+          <p className="text-3xl font-black leading-tight text-[#f5f0de] sm:text-4xl">{title}</p>
           <p className="mt-2 text-sm leading-6 text-[#f5f0de]/65 sm:text-[0.95rem]">{subtitle}</p>
         </div>
 

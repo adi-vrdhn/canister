@@ -420,13 +420,19 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                 </div>
 
                 {anchorResults.length > 0 && (
-                  <div className="mt-2 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+                  <div className={`mt-2 max-h-72 overflow-y-auto rounded-2xl shadow-xl ${
+                    isBrutalist ? "border border-white/10 bg-[#0d0d0d]" : "border border-slate-200 bg-white"
+                  }`}>
                     {anchorResults.map((item) => (
                       <button
                         key={`${item.type || anchorType}-${item.id}`}
                         type="button"
                         onClick={() => handleSelectContent(item)}
-                        className="flex w-full items-center gap-3 border-b border-slate-100 p-3 text-left transition last:border-b-0 hover:bg-slate-50"
+                        className={`flex w-full items-center gap-3 border-b p-3 text-left transition last:border-b-0 ${
+                          isBrutalist
+                            ? "border-white/10 hover:bg-white/[0.04]"
+                            : "border-slate-100 hover:bg-slate-50"
+                        }`}
                       >
                         {item.poster_url ? (
                           <img
@@ -434,16 +440,20 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                             alt={item.title}
                             className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
                           />
-                        ) : (
-                          <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                            {anchorType === "movie" ? <Film className="h-5 w-5" /> : <Tv className="h-5 w-5" />}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-slate-950">{item.title}</p>
-                          <p className="text-xs text-slate-500">
+                          ) : (
+                            <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                              {anchorType === "movie" ? <Film className="h-5 w-5" /> : <Tv className="h-5 w-5" />}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                          <p className={`truncate text-sm font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>
+                            {item.title}
+                          </p>
+                          <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
                             {item.release_date ? item.release_date.slice(0, 4) : "Unknown year"}
-                            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 font-bold uppercase">
+                            <span className={`ml-2 rounded-full px-2 py-0.5 font-bold uppercase ${
+                              isBrutalist ? "bg-white/10 text-[#f5f0de]" : "bg-slate-100 text-slate-700"
+                            }`}>
                               {anchorType}
                             </span>
                           </p>
@@ -469,8 +479,8 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                         <CheckCircle2 className="h-3 w-3" />
                         selected
                       </div>
-                      <p className="truncate font-black text-slate-950">{selectedContent.title}</p>
-                      <p className="text-xs text-slate-600">
+                      <p className="truncate font-black text-[#f5f0de]">{selectedContent.title}</p>
+                      <p className="text-xs text-white/55">
                         This poster will become the tap target on the post.
                       </p>
                     </div>
