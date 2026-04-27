@@ -19,6 +19,7 @@ import {
   onValue,
 } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
+import { createFollowRequestNotification } from "@/lib/notifications";
 import { Users, Heart } from "lucide-react";
 
 type TabType = "search" | "following" | "followers" | "requests";
@@ -230,13 +231,16 @@ export default function FriendsPage() {
 
       // Create new follow request
       const followId = `${user.id}-${userId}-${Date.now()}`;
+      const createdAt = new Date().toISOString();
       await set(ref(db, `follows/${followId}`), {
         id: followId,
         follower_id: user.id,
         following_id: userId,
         status: "pending",
-        createdAt: new Date().toISOString(),
+        createdAt,
       });
+
+      await createFollowRequestNotification(userId, followId, user, createdAt);
 
       setSentRequests(new Set([...sentRequests, userId]));
     } catch (error) {
