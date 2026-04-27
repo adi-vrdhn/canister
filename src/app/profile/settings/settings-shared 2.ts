@@ -107,7 +107,8 @@ export function mergeSettings(raw: any): SettingsData {
   };
 }
 
-export function normalizeUsername(value: string) {
+export function normalizeUsername(value: string | null | undefined) {
+  if (typeof value !== "string") return "";
   return value.trim().replace(/^@/, "").toLowerCase();
 }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bookmark, ChevronRight, Heart, MessageCircle, Sparkles, X } from "lucide-react";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
+import CinePostArtwork from "@/components/CinePostArtwork";
 import { CinePostEngagementType, CinePostWithDetails, User } from "@/types";
 import {
   getCinePostEngagementUsers,
@@ -452,19 +453,14 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                       title={`Open ${post.content_title || post.anchor_label}`}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      {post.poster_url ? (
-                        <img
-                          src={post.poster_url}
-                          alt={post.content_title || post.anchor_label}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className={`flex h-full w-full items-center justify-center text-xs font-bold ${
-                          isBrutalist ? "bg-[#1a1a1a] text-white/35" : "bg-slate-100 text-slate-400"
-                        }`}>
-                          No poster
-                        </div>
-                      )}
+                      <CinePostArtwork
+                        src={post.poster_url}
+                        collageImages={post.list_cover_images}
+                        alt={post.content_title || post.anchor_label}
+                        className="h-full w-full"
+                        mediaClassName="transition duration-300 group-hover:scale-105"
+                        theme={theme}
+                      />
                     </Link>
                   ) : (
                     <div className={`aspect-[2/3] sm:rounded-[1.75rem] ${isBrutalist ? "bg-[#1a1a1a]" : "rounded-[1.4rem] bg-slate-100"}`} />

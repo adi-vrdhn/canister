@@ -42,6 +42,13 @@ export type NotificationItem = {
   contentType?: string;
 };
 
+type NotificationActor = {
+  id: string;
+  username: string;
+  name: string;
+  avatar_url?: string | null;
+};
+
 function fallbackUser(userId: string): User {
   return {
     id: userId,
@@ -114,7 +121,7 @@ export function notificationHref(note: NotificationItem): string {
 export function notificationText(note: NotificationItem): string {
   switch (note.type) {
     case "follow_request":
-      if (note.followRequestState === "accepted") return "follow request accepted.";
+      if (note.followRequestState === "accepted") return "is now following you.";
       return "requested to follow you.";
     case "collaboration_request":
       return `sent you a collaboration request${note.listName ? ` for ${note.listName}` : ""}.`;
@@ -171,7 +178,7 @@ export async function clearSelectedNotifications(userId: string, notificationIds
 export async function acceptFollowRequest(
   userId: string,
   note: NotificationItem,
-  options?: { keepNotification?: boolean }
+  options?: { keepNotification?: boolean; actorUser?: NotificationActor }
 ): Promise<void> {
   const followRef = ref(db, `follows/${note.id}`);
   const followSnapshot = await get(followRef);
@@ -194,10 +201,35 @@ export async function acceptFollowRequest(
         seen: true,
       })
     );
+  } else {
+    await removeNotification(userId, note.id);
+  }
+
+  if (!options?.actorUser || !note.fromUser || options.actorUser.id === note.fromUser.id) {
     return;
   }
 
-  await removeNotification(userId, note.id);
+  if (!(await shouldDeliverNotificationToUser(note.fromUser.id, "follow_request"))) {
+    return;
+  }
+
+  const acceptedAt = new Date().toISOString();
+  await set(
+    ref(db, `notifications/${note.fromUser.id}/${note.id}`),
+    stripUndefinedFields({
+      type: "follow_request",
+      seen: false,
+      followRequestState: "accepted",
+      fromUser: {
+        id: options.actorUser.id,
+        username: options.actorUser.username,
+        name: options.actorUser.name,
+        avatar_url: options.actorUser.avatar_url || null,
+      },
+      created_at: acceptedAt,
+      createdAt: acceptedAt,
+    })
+  );
 }
 
 export async function declineFollowRequest(userId: string, note: NotificationItem): Promise<void> {

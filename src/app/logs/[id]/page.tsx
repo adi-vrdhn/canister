@@ -214,7 +214,7 @@ function CommentThread({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Link href={onJumpToProfile(comment.user)} className="text-sm font-black text-slate-950 hover:text-[#f5f0de]">
+            <Link href={onJumpToProfile(comment.user)} className="text-sm font-black text-[#f5f0de] transition hover:text-[#ffb36b]">
               {comment.user.name}
             </Link>
             <span className="text-xs text-slate-400">{relativeTime(comment.created_at)}</span>

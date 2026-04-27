@@ -108,7 +108,8 @@ export function getSettingsFromUserRecord(rawUser: any): SettingsData {
   return mergeSettings(rawUser?.settings);
 }
 
-export function normalizeUsername(value: string) {
+export function normalizeUsername(value: string | null | undefined) {
+  if (typeof value !== "string") return "";
   return value.trim().replace(/^@/, "").toLowerCase();
 }
 
@@ -123,10 +124,13 @@ export function resolveThemePreference(theme: ThemePreference): "light" | "dark"
   return "light";
 }
 
-export function isUsernameBlocked(settings: SettingsData | null | undefined, username: string): boolean {
+export function isUsernameBlocked(
+  settings: SettingsData | null | undefined,
+  username: string | null | undefined
+): boolean {
   const normalized = normalizeUsername(username);
   if (!normalized) return false;
-  return Boolean(settings?.social.blockedUsers.includes(normalized));
+  return Boolean(settings?.social.blockedUsers.some((blockedUser) => normalizeUsername(blockedUser) === normalized));
 }
 
 export function canReceiveFollowRequest(

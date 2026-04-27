@@ -9,6 +9,7 @@ import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreVertical, Pencil, Send, 
 import CinematicLoading from "@/components/CinematicLoading";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import PageLayout from "@/components/PageLayout";
+import CinePostArtwork from "@/components/CinePostArtwork";
 import {
   CinePostCommentWithUser,
   CinePostEngagementType,
@@ -577,17 +578,13 @@ export default function CinePostPage() {
                 href={href}
                 className="group relative mx-auto aspect-[2/3] w-full max-w-48 overflow-hidden rounded-[2rem] bg-slate-950 shadow-sm sm:mx-0"
               >
-                {post.poster_url ? (
-                  <img
-                    src={post.poster_url}
-                    alt={post.content_title || post.anchor_label}
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs font-bold text-slate-400">
-                    No poster
-                  </div>
-                )}
+                <CinePostArtwork
+                  src={post.poster_url}
+                  collageImages={post.list_cover_images}
+                  alt={post.content_title || post.anchor_label}
+                  className="h-full w-full"
+                  mediaClassName="transition duration-300 group-hover:scale-105"
+                />
               </Link>
             ) : (
               <div className="mx-auto aspect-[2/3] w-full max-w-48 rounded-[2rem] bg-slate-100 sm:mx-0" />

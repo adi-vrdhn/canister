@@ -140,7 +140,7 @@ export default function NotificationsPage() {
 
     setBusyId(note.id);
     try {
-      await acceptFollowRequest(user.id, note, { keepNotification: true });
+      await acceptFollowRequest(user.id, note, { keepNotification: true, actorUser: user });
     } catch (error) {
       console.error("Error accepting follow request:", error);
     } finally {

@@ -158,7 +158,7 @@ export default function SettingsAccountPage() {
         </SettingLine>
 
         <SettingLine icon={LifeBuoy} title="Help" description="If something feels off, contact support.">
-          <a href="mailto:support@cineparte.app" className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+          <a href="mailto:support@canisterr.com" className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
             Email support
           </a>
         </SettingLine>

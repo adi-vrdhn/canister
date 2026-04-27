@@ -12,6 +12,7 @@ import {
   MovieLog,
   User,
 } from "@/types";
+import { getListCoverImages } from "./lists";
 import { shouldDeliverNotificationToUser } from "./settings";
 
 type CreateCinePostInput = {
@@ -244,7 +245,21 @@ export async function getCinePosts(
   const commentsRaw = commentsSnapshot.val() || {};
   const engagementRaw = engagementSnapshot.val() || {};
 
-  return Object.values(postsSnapshot.val() as Record<string, CinePost>)
+  const posts = Object.values(postsSnapshot.val() as Record<string, CinePost>);
+  const listPosts = posts.filter((post) => post.list_id && post.content_type === "list");
+  const listCoverImagesByPostId = new Map<string, string[]>();
+
+  await Promise.all(
+    listPosts.map(async (post) => {
+      if (!post.list_id) return;
+      const images = await getListCoverImages(post.list_id);
+      if (images.length > 0) {
+        listCoverImagesByPostId.set(post.id, images);
+      }
+    })
+  );
+
+  return posts
     .filter((post) => {
       if (options.type && options.type !== "all" && post.type !== options.type) return false;
       if (options.anchorType && options.anchorType !== "all" && post.anchor_type !== options.anchorType) return false;
@@ -261,6 +276,7 @@ export async function getCinePosts(
 
       return {
         ...post,
+        list_cover_images: listCoverImagesByPostId.get(post.id),
         user: usersById[post.user_id] || fallbackUser(post.user_id),
         comments: nestComments(postComments, usersById),
         comments_count: postComments.length,
@@ -304,6 +320,8 @@ export async function getCinePost(
   if (!postSnapshot.exists()) return null;
 
   const post = postSnapshot.val() as CinePost;
+  const listCoverImages =
+    post.list_id && post.content_type === "list" ? await getListCoverImages(post.list_id) : [];
   const postComments = commentsSnapshot.exists()
     ? (Object.values(commentsSnapshot.val()) as CinePostComment[])
     : [];
@@ -318,6 +336,7 @@ export async function getCinePost(
 
   return {
     ...post,
+    list_cover_images: listCoverImages.length > 0 ? listCoverImages : undefined,
     user: usersById[post.user_id] || fallbackUser(post.user_id),
     comments: nestComments(postComments, usersById),
     comments_count: postComments.length,

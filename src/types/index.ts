@@ -310,6 +310,7 @@ export interface CinePost {
   content_type?: "movie" | "tv" | "list";
   content_title?: string;
   poster_url?: string | null;
+  list_cover_images?: string[];
   body: string;
   tags: string[];
   log_id?: string;

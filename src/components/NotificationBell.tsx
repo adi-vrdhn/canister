@@ -97,7 +97,7 @@ export default function NotificationBell({
 
   const acceptFollowRequest = async (note: NotificationItem) => {
     if (!user) return;
-    await acceptFollowRequestAction(user.id, note, { keepNotification: true });
+    await acceptFollowRequestAction(user.id, note, { keepNotification: true, actorUser: user });
   };
 
   const declineFollowRequest = async (note: NotificationItem) => {

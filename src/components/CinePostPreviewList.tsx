@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
+import CinePostArtwork from "@/components/CinePostArtwork";
 import { CinePostWithDetails, User } from "@/types";
 
 const PREVIEW_LIMIT = 130;
@@ -76,17 +77,14 @@ export default function CinePostPreviewList({
           >
             {contentHref ? (
               <Link href={contentHref} className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
-                {post.poster_url ? (
-                  <img
-                    src={post.poster_url}
-                    alt={post.content_title || post.anchor_label}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-[#1a1a1a] text-xs font-bold text-white/35">
-                    No poster
-                  </div>
-                )}
+                <CinePostArtwork
+                  src={post.poster_url}
+                  collageImages={post.list_cover_images}
+                  alt={post.content_title || post.anchor_label}
+                  className="h-full w-full"
+                  mediaClassName=""
+                  theme={theme}
+                />
               </Link>
             ) : (
               <div className="aspect-[2/3] bg-[#1a1a1a]" />
