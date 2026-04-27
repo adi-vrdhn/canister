@@ -216,7 +216,7 @@ export default function AllMoviesPage() {
           <div className="min-w-0">
             <Link
               href="/dashboard"
-              className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 sm:gap-2 sm:text-base"
+              className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-[#f5f0de] hover:text-[#f5f0de] sm:gap-2 sm:text-base"
             >
               <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               Back
@@ -245,7 +245,7 @@ export default function AllMoviesPage() {
                     setShowViewMenu(false);
                   }}
                   className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium ${
-                    viewMode === "grid" ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                    viewMode === "grid" ? "bg-blue-50 text-[#f5f0de]" : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   <Grid3x3 className="h-4 w-4" />
@@ -258,7 +258,7 @@ export default function AllMoviesPage() {
                     setShowViewMenu(false);
                   }}
                   className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium ${
-                    viewMode === "list" ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                    viewMode === "list" ? "bg-blue-50 text-[#f5f0de]" : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   <List className="h-4 w-4" />
@@ -298,7 +298,7 @@ export default function AllMoviesPage() {
                 onClick={() => setShareFilter("recent")}
                 className={`px-2 pb-2 text-sm font-bold transition-colors sm:px-4 ${
                   shareFilter === "recent"
-                    ? "border-b-2 border-blue-600 text-blue-600"
+                    ? "border-b-2 border-blue-600 text-[#f5f0de]"
                     : "text-slate-500 hover:text-slate-900"
                 }`}
               >
@@ -309,7 +309,7 @@ export default function AllMoviesPage() {
                 onClick={() => setShareFilter("watched")}
                 className={`px-2 pb-2 text-sm font-bold transition-colors sm:px-4 ${
                   shareFilter === "watched"
-                    ? "border-b-2 border-blue-600 text-blue-600"
+                    ? "border-b-2 border-blue-600 text-[#f5f0de]"
                     : "text-slate-500 hover:text-slate-900"
                 }`}
               >

@@ -297,7 +297,7 @@ export default function FriendsPage() {
             onClick={() => setActiveTab("search")}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               activeTab === "search"
-                ? "text-blue-600 border-blue-600"
+                ? "text-[#f5f0de] border-blue-600"
                 : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
@@ -308,7 +308,7 @@ export default function FriendsPage() {
             onClick={() => setActiveTab("following")}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               activeTab === "following"
-                ? "text-blue-600 border-blue-600"
+                ? "text-[#f5f0de] border-blue-600"
                 : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
@@ -319,7 +319,7 @@ export default function FriendsPage() {
             onClick={() => setActiveTab("followers")}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               activeTab === "followers"
-                ? "text-blue-600 border-blue-600"
+                ? "text-[#f5f0de] border-blue-600"
                 : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
@@ -330,7 +330,7 @@ export default function FriendsPage() {
             onClick={() => setActiveTab("requests")}
             className={`px-4 py-2 font-medium border-b-2 transition-colors relative ${
               activeTab === "requests"
-                ? "text-blue-600 border-blue-600"
+                ? "text-[#f5f0de] border-blue-600"
                 : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
@@ -396,7 +396,7 @@ export default function FriendsPage() {
                             </span>
                           )}
                           {isFollowingMe && !isAlreadyFollowing && (
-                            <span className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                            <span className="px-3 py-1 text-xs font-medium bg-blue-100 text-[#f5f0de] rounded">
                               Follows You
                             </span>
                           )}

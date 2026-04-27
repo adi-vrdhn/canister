@@ -87,7 +87,7 @@ export default function SignUpPage() {
           footer={
             <>
               Already have an account?{" "}
-              <Link href="/auth/login" className="font-semibold text-blue-600">
+              <Link href="/auth/login" className="font-semibold text-[#f5f0de]">
                 Log in
               </Link>
             </>
@@ -101,10 +101,10 @@ export default function SignUpPage() {
                 {" "}You can use the app now, but please verify within 7 days.
               </p>
               <div className="mt-4 flex items-center justify-center gap-4 text-sm font-semibold">
-                <Link href="/dashboard" className="text-blue-600">
+                <Link href="/dashboard" className="text-[#f5f0de]">
                   Continue
                 </Link>
-                <Link href="/auth/login" className="text-blue-600">
+                <Link href="/auth/login" className="text-[#f5f0de]">
                   Log in
                 </Link>
               </div>
@@ -233,8 +233,8 @@ export default function SignUpPage() {
                 {" "}You can use the app now, but please verify within 7 days.
               </p>
               <div className="flex items-center justify-center gap-4">
-                <Link href="/dashboard" className="text-blue-600 hover:underline font-medium">Continue to App</Link>
-                <Link href="/auth/login" className="text-blue-600 hover:underline font-medium">Go to Login</Link>
+                <Link href="/dashboard" className="text-[#f5f0de] hover:underline font-medium">Continue to App</Link>
+                <Link href="/auth/login" className="text-[#f5f0de] hover:underline font-medium">Go to Login</Link>
               </div>
             </div>
           ) : (
@@ -343,7 +343,7 @@ export default function SignUpPage() {
           )}
           <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{" "}
-            <Link href="/auth/login" className="text-blue-600 hover:underline font-medium">
+            <Link href="/auth/login" className="text-[#f5f0de] hover:underline font-medium">
               Sign in
             </Link>
           </div>

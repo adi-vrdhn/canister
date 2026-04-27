@@ -106,7 +106,7 @@ function getReactionLabel(log: MovieLogWithContent): string {
 
 function getReactionClasses(log: MovieLogWithContent): string {
   if (log.reaction === 2) return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  if (log.reaction === 1) return "bg-sky-50 text-sky-700 border border-sky-200";
+  if (log.reaction === 1) return "bg-sky-50 text-[#f5f0de] border border-sky-200";
   return "bg-rose-50 text-rose-700 border border-rose-200";
 }
 

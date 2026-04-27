@@ -67,7 +67,7 @@ export default function PageLayout({
         {/* Hamburger menu for mobile */}
         <button
           className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center transition lg:hidden ${
-            isBrutalist ? "text-[#f5f0de] hover:text-[#ff7a1a]" : "text-slate-900 hover:text-blue-600"
+            isBrutalist ? "text-[#f5f0de] hover:text-[#ff7a1a]" : "text-slate-900 hover:text-[#f5f0de]"
           }`}
           aria-label="Open menu"
           onClick={() => setSidebarOpen(true)}

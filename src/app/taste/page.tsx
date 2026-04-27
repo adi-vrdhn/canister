@@ -264,7 +264,7 @@ export default function TastePage() {
         <div className="mb-8">
           <Link
             href="/profile"
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4 font-medium"
+            className="flex items-center gap-2 text-[#f5f0de] hover:text-[#f5f0de] mb-4 font-medium"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Profile
@@ -428,7 +428,7 @@ export default function TastePage() {
               <div className="flex-1 overflow-y-auto space-y-2">
                 {searching ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                    <Loader2 className="w-6 h-6 animate-spin text-[#f5f0de]" />
                   </div>
                 ) : searchResults.length > 0 ? (
                   searchResults.map((result) => {

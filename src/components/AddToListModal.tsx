@@ -118,7 +118,7 @@ export default function AddToListModal({ isOpen, onClose, content, user }: AddTo
         <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
+              <Loader2 className="w-8 h-8 animate-spin text-[#f5f0de] mb-2" />
               <p className="text-slate-500">Loading lists...</p>
             </div>
           ) : lists.length > 0 ? (

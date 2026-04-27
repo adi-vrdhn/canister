@@ -58,7 +58,7 @@ function linkify(text: string) {
           href={part}
           target="_blank"
           rel="noreferrer"
-          className="font-semibold text-blue-600 underline-offset-2 hover:underline"
+          className="font-semibold text-[#f5f0de] underline-offset-2 hover:underline"
         >
           {part}
         </a>
@@ -214,12 +214,12 @@ function CommentThread({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Link href={onJumpToProfile(comment.user)} className="text-sm font-black text-slate-950 hover:text-blue-600">
+            <Link href={onJumpToProfile(comment.user)} className="text-sm font-black text-slate-950 hover:text-[#f5f0de]">
               {comment.user.name}
             </Link>
             <span className="text-xs text-slate-400">{relativeTime(comment.created_at)}</span>
             {comment.user_id === logOwnerId && (
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#f5f0de]">
                 owner
               </span>
             )}
@@ -253,7 +253,7 @@ function CommentThread({
                   setReplyingTo(replyingTo === comment.id ? null : comment.id);
                   setReplyText("");
                 }}
-                className="text-blue-600 hover:text-blue-700"
+                className="text-[#f5f0de] hover:text-[#f5f0de]"
               >
                 Reply{comment.replies.length > 0 ? ` (${comment.replies.length})` : ""}
               </button>
@@ -680,7 +680,7 @@ export default function LogDetailPage() {
       case 1:
         return {
           label: "Good",
-          textClass: "text-sky-700",
+          textClass: "text-[#f5f0de]",
           badgeClass: "bg-sky-50 border-sky-200",
           icon: Heart,
         };
@@ -809,7 +809,7 @@ export default function LogDetailPage() {
       <PageLayout user={user} onSignOut={() => router.push("/auth/login")}>
         <div className="p-8 text-center">
           <p className="text-gray-600">Log not found</p>
-          <Link href="/logs" className="text-blue-600 hover:underline mt-4 inline-block">
+          <Link href="/logs" className="text-[#f5f0de] hover:underline mt-4 inline-block">
             Back to logs
           </Link>
         </div>

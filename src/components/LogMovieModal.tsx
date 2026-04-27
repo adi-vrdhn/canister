@@ -418,7 +418,7 @@ export default function LogMovieModal({
                 type="checkbox"
                 checked={shareAsPost}
                 onChange={(e) => setShareAsPost(e.target.checked)}
-                className={`mt-1 h-4 w-4 rounded focus:ring-blue-500 ${isBrutalist ? "border-white/20 text-[#ff7a1a]" : "border-slate-300 text-blue-600"}`}
+                className={`mt-1 h-4 w-4 rounded focus:ring-blue-500 ${isBrutalist ? "border-white/20 text-[#ff7a1a]" : "border-slate-300 text-[#f5f0de]"}`}
               />
               <div className="min-w-0">
                 <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Share as post</p>

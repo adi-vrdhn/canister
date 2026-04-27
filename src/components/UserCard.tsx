@@ -19,7 +19,7 @@ export default function UserCard({
   showSubtitle = false,
 }: UserCardProps) {
   const badges = {
-    following: { bg: "bg-blue-100", text: "text-blue-700", label: "Following" },
+    following: { bg: "bg-blue-100", text: "text-[#f5f0de]", label: "Following" },
     pending: { bg: "bg-yellow-100", text: "text-yellow-700", label: "Pending" },
     friend: { bg: "bg-green-100", text: "text-green-700", label: "Friends" },
   };

@@ -325,7 +325,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
         }`}>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Sparkles className={`h-4 w-4 ${isBrutalist ? "text-[#ff7a1a]" : "text-blue-600"}`} />
+              <Sparkles className={`h-4 w-4 ${isBrutalist ? "text-[#ff7a1a]" : "text-[#f5f0de]"}`} />
               <h3 className={`text-sm font-black sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Trending lists</h3>
             </div>
             <p className={`mt-0.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Global picks worth checking out</p>
@@ -480,7 +480,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                             <Link
                               href={profileHref(post.user)}
                               onClick={(event) => event.stopPropagation()}
-                              className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-blue-600"}`}
+                              className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-[#f5f0de]"}`}
                             >
                               {post.user.name}
                             </Link>
@@ -510,7 +510,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                         <Link
                           href={postHref}
                           className={`mt-1 inline-flex text-[11px] font-black sm:mt-2 sm:text-sm ${
-                            isBrutalist ? "text-[#ffb36b]" : "text-blue-600"
+                            isBrutalist ? "text-[#ffb36b]" : "text-[#f5f0de]"
                           }`}
                           onClick={(event) => event.stopPropagation()}
                         >
@@ -570,7 +570,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                         post.saved_by_current_user
                           ? isBrutalist
                             ? "text-[#ff7a1a]"
-                            : "bg-blue-50 text-blue-600"
+                            : "bg-blue-50 text-[#f5f0de]"
                           : isBrutalist
                           ? "text-white/65 hover:text-[#ffb36b]"
                           : "bg-slate-50 text-slate-600 hover:bg-slate-100"

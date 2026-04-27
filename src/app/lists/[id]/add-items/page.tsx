@@ -172,7 +172,7 @@ export default function AddItemsToListPage() {
         {/* Header */}
         <Link
           href={`/lists/${listId}`}
-          className="mb-4 flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 sm:mb-6 sm:text-base"
+          className="mb-4 flex items-center gap-2 text-sm font-medium text-[#f5f0de] hover:text-[#f5f0de] sm:mb-6 sm:text-base"
         >
           <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           Back to {list.name}
@@ -305,7 +305,7 @@ export default function AddItemsToListPage() {
           <div className="py-10 text-center sm:py-12">
             {searching ? (
               <>
-                <Loader2 className="mx-auto mb-3 h-7 w-7 animate-spin text-blue-600 sm:h-8 sm:w-8" />
+                <Loader2 className="mx-auto mb-3 h-7 w-7 animate-spin text-[#f5f0de] sm:h-8 sm:w-8" />
                 <p className="text-sm text-gray-600 sm:text-base">Searching...</p>
               </>
             ) : (

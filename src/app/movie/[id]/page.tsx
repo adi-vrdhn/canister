@@ -47,7 +47,7 @@ function getReactionLabelFromLogReaction(reaction: 0 | 1 | 2): "Bad" | "Good" | 
 
 function getReactionBadgeClassFromLabel(label: "Bad" | "Good" | "Masterpiece"): string {
   if (label === "Masterpiece") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
-  if (label === "Good") return "bg-blue-500/20 text-blue-300 border-blue-400/30";
+  if (label === "Good") return "bg-blue-500/20 text-[#f5f0de] border-blue-400/30";
   return "bg-rose-500/20 text-rose-300 border-rose-400/30";
 }
 
@@ -197,7 +197,7 @@ export default function MoviePage() {
       <PageLayout user={user} onSignOut={handleSignOut}>
         <div className="p-8 text-center">
           <p className="text-gray-600 text-lg">Movie not found</p>
-          <Link href="/dashboard" className="text-blue-600 mt-4 inline-block">
+          <Link href="/dashboard" className="text-[#f5f0de] mt-4 inline-block">
             Back to Home
           </Link>
         </div>

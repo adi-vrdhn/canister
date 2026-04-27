@@ -89,7 +89,7 @@ export default function TVShowPage() {
       <PageLayout user={user}>
         <div className="p-8 text-center">
           <p className="text-gray-600 text-lg">TV Show not found</p>
-          <Link href="/dashboard" className="text-blue-600 mt-4 inline-block">
+          <Link href="/dashboard" className="text-[#f5f0de] mt-4 inline-block">
             Back to Home
           </Link>
         </div>

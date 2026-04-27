@@ -105,7 +105,7 @@ export default function UserProfilePage() {
         {/* Back Button */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6"
+          className="flex items-center gap-2 text-[#f5f0de] hover:text-[#f5f0de] mb-6"
         >
           <ArrowLeft className="w-5 h-5" />
           Back
@@ -158,7 +158,7 @@ export default function UserProfilePage() {
             onClick={() => setActiveTab("overview")}
             className={`px-4 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "overview"
-                ? "text-blue-600 border-blue-600"
+                ? "text-[#f5f0de] border-blue-600"
                 : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
@@ -168,7 +168,7 @@ export default function UserProfilePage() {
             onClick={() => setActiveTab("stats")}
             className={`px-4 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "stats"
-                ? "text-blue-600 border-blue-600"
+                ? "text-[#f5f0de] border-blue-600"
                 : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
@@ -178,7 +178,7 @@ export default function UserProfilePage() {
             onClick={() => setActiveTab("logs")}
             className={`px-4 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "logs"
-                ? "text-blue-600 border-blue-600"
+                ? "text-[#f5f0de] border-blue-600"
                 : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
@@ -201,12 +201,12 @@ export default function UserProfilePage() {
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm text-blue-600 font-medium">Movies Logged</p>
-                  <p className="text-3xl font-bold text-blue-900 mt-1">{stats.totalLogged}</p>
+                  <p className="text-sm text-[#f5f0de] font-medium">Movies Logged</p>
+                  <p className="text-3xl font-bold text-[#f5f0de] mt-1">{stats.totalLogged}</p>
                 </div>
-                <Film className="w-8 h-8 text-blue-400" />
+                <Film className="w-8 h-8 text-[#f5f0de]" />
               </div>
-              <p className="text-xs text-blue-700">All-time total</p>
+              <p className="text-xs text-[#f5f0de]">All-time total</p>
             </div>
 
             {/* Avg Rating Card */}
@@ -292,7 +292,7 @@ export default function UserProfilePage() {
                           {log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad"}
                         </span>
                         {log.mood && (
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                          <span className="px-2 py-1 bg-blue-100 text-[#f5f0de] rounded text-xs">
                             {log.mood}
                           </span>
                         )}

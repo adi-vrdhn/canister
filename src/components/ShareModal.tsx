@@ -369,7 +369,7 @@ export default function ShareModal({
                   <button
                     onClick={handleNavigateToProfile}
                     className={`line-clamp-1 cursor-pointer border-0 bg-none p-0 text-base font-semibold transition-colors sm:text-xl ${
-                      isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-900 hover:text-blue-600"
+                      isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-900 hover:text-[#f5f0de]"
                     }`}
                   >
                     {counterpart?.name || counterpart?.username || 'Unknown'}

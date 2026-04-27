@@ -41,7 +41,7 @@ export default function ListsSidebar({ user, onCreateClick }: ListsSidebarProps)
   if (loading) {
     return (
       <div className="p-4 text-center">
-        <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" />
+        <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#f5f0de]" />
       </div>
     );
   }
@@ -87,7 +87,7 @@ export default function ListsSidebar({ user, onCreateClick }: ListsSidebarProps)
 
                 {/* List Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">
+                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-[#f5f0de]">
                     {list.name}
                   </p>
                   <p className="text-xs text-gray-500">
@@ -103,7 +103,7 @@ export default function ListsSidebar({ user, onCreateClick }: ListsSidebarProps)
       </div>
 
       {/* View All Lists Link */}
-      <Link href="/lists" className="block px-4 py-2 mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium">
+      <Link href="/lists" className="block px-4 py-2 mt-4 text-sm text-[#f5f0de] hover:text-[#f5f0de] font-medium">
         View all lists →
       </Link>
     </div>

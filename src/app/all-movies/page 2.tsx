@@ -159,7 +159,7 @@ export default function AllMoviesPage() {
         <div className="mb-5 flex items-center gap-3 sm:mb-8 sm:gap-4">
           <Link
             href="/dashboard"
-            className="flex shrink-0 items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 sm:gap-2 sm:text-base"
+            className="flex shrink-0 items-center gap-1 text-sm font-medium text-[#f5f0de] hover:text-[#f5f0de] sm:gap-2 sm:text-base"
           >
             <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             Back
@@ -175,7 +175,7 @@ export default function AllMoviesPage() {
             onClick={() => setActiveTab("recent")}
             className={`px-2 pb-2 text-sm font-medium transition-colors sm:px-4 sm:text-base ${
               activeTab === "recent"
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-[#f5f0de] border-b-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -185,7 +185,7 @@ export default function AllMoviesPage() {
             onClick={() => setActiveTab("watched")}
             className={`px-2 pb-2 text-sm font-medium transition-colors sm:px-4 sm:text-base ${
               activeTab === "watched"
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-[#f5f0de] border-b-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -318,7 +318,7 @@ export default function AllMoviesPage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="mt-4 text-blue-600 hover:text-blue-700 font-medium text-sm"
+                  className="mt-4 text-[#f5f0de] hover:text-[#f5f0de] font-medium text-sm"
                 >
                   Clear search
                 </button>

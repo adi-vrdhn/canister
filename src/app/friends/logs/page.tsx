@@ -98,7 +98,7 @@ export default function FriendLogsPage() {
         <div className="mb-5 flex items-center gap-3 sm:mb-8 sm:gap-4">
           <button
             onClick={() => router.back()}
-            className="rounded-lg border border-blue-600 px-3 py-1.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:px-4 sm:py-2"
+            className="rounded-lg border border-blue-600 px-3 py-1.5 text-sm font-medium text-[#f5f0de] transition-colors hover:bg-blue-50 hover:text-[#f5f0de] sm:px-4 sm:py-2"
           >
             Back
           </button>

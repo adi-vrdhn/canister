@@ -108,7 +108,7 @@ export default function MovieMatcherReportPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-indigo-600" />
+                <Sparkles className="h-5 w-5 text-[#f5f0de]" />
                 <h1 className="text-xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
                   Movie Match Report
                 </h1>
@@ -119,8 +119,8 @@ export default function MovieMatcherReportPage() {
             </div>
 
             <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-left sm:text-right">
-              <p className="text-xs font-medium uppercase tracking-wide text-indigo-700">Match Score</p>
-              <p className="text-2xl font-bold text-indigo-900">{analysis.totalScore}%</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-[#f5f0de]">Match Score</p>
+              <p className="text-2xl font-bold text-[#f5f0de]">{analysis.totalScore}%</p>
             </div>
           </div>
         </section>
@@ -128,7 +128,7 @@ export default function MovieMatcherReportPage() {
         <section className="mb-4 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4 xl:grid-cols-4">
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-600">
-              <BarChart3 className="h-4 w-4 text-sky-600" />
+              <BarChart3 className="h-4 w-4 text-[#f5f0de]" />
               Shared Movies
             </div>
             <p className="mt-2 text-2xl font-bold text-zinc-900 sm:mt-3 sm:text-3xl">{analysis.commonTasteMovieCount}</p>
@@ -162,7 +162,7 @@ export default function MovieMatcherReportPage() {
           <div className="space-y-4 sm:space-y-6">
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-indigo-600" />
+                <Sparkles className="h-4 w-4 text-[#f5f0de]" />
                 <h2 className="text-lg font-bold text-zinc-900">Taste Insight</h2>
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-700">{analysis.tasteInsight}</p>
@@ -188,7 +188,7 @@ export default function MovieMatcherReportPage() {
                 {analysis.sharedLanguages?.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {analysis.sharedLanguages.map((language: string) => (
-                      <span key={language} className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
+                      <span key={language} className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-[#f5f0de]">
                         {language}
                       </span>
                     ))}
@@ -220,7 +220,7 @@ export default function MovieMatcherReportPage() {
               <div className="mt-4 grid gap-3">
                 <Link
                   href={`/profile/${profileUser.username}/shared-movies`}
-                  className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+                  className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-[#f5f0de] transition hover:bg-sky-100"
                 >
                   Open shared movies list
                 </Link>
@@ -237,8 +237,8 @@ export default function MovieMatcherReportPage() {
               <h2 className="text-lg font-bold text-zinc-900">Common Watching</h2>
               <div className="mt-4 space-y-5">
                 <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
-                  <p className="text-sm font-semibold text-sky-800">
-                    Your Taste Overlap <span className="text-xs text-sky-600">({analysis.commonTasteMovieCount})</span>
+                  <p className="text-sm font-semibold text-[#f5f0de]">
+                    Your Taste Overlap <span className="text-xs text-[#f5f0de]">({analysis.commonTasteMovieCount})</span>
                   </p>
                   {commonTasteMovies.length > 0 ? (
                     <div className="-mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">

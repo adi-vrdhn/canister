@@ -87,7 +87,7 @@ export default function MoviePersonalityPage() {
 
         <section className="mb-6 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-indigo-600" />
+            <Sparkles className="h-5 w-5 text-[#f5f0de]" />
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
               {profileUser.name}&apos;s Movie Personality
             </h1>
