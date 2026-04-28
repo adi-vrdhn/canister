@@ -845,9 +845,6 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
               {(index + 1) % 3 === 0 && (
                 <AdTerraTopAd
                   key={`ad-${post.id}`}
-                  placementKey={post.id}
-                  label="Sponsored"
-                  className={isBrutalist ? "px-0 py-2 sm:py-3" : "px-0 py-2 sm:py-3"}
                 />
               )}
 
