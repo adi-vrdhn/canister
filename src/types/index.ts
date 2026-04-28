@@ -135,6 +135,7 @@ export interface TMDBMovie {
   title: string;
   poster_path: string | null;
   genres: number[];
+  genre_ids?: number[];
   director: string | null;
   release_date: string;
   overview: string;

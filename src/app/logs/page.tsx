@@ -271,6 +271,15 @@ export default function LogsPage() {
   const listSectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const targetUsername = new URLSearchParams(window.location.search).get("user")?.trim();
+    if (!targetUsername) return;
+
+    router.replace(`/user/${encodeURIComponent(targetUsername)}/logs`);
+  }, [router]);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         router.push("/auth/login");

@@ -1,8 +1,47 @@
 import { db } from "@/lib/firebase";
 import { ref, get } from "firebase/database";
-import { MovieLogWithContent, User, Follow } from "@/types";
+import { Content, MovieLog, MovieLogWithContent, User } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
+
+function createFallbackContentForLog(log: MovieLog): Content {
+  if (log.content_type === "tv") {
+    return {
+      id: log.content_id,
+      title: "Unknown Show",
+      name: "Unknown Show",
+      poster_url: null,
+      genres: [],
+      actors: [],
+      language: null,
+      status: null,
+      release_date: null,
+      overview: "Show details are unavailable right now.",
+      runtime: null,
+      rating: null,
+      created_at: new Date().toISOString(),
+      type: "tv",
+    };
+  }
+
+  return {
+    id: log.content_id,
+    title: "Unknown Movie",
+    poster_url: null,
+    backdrop_url: null,
+    genres: [],
+    platforms: [],
+    director: null,
+    actors: [],
+    language: null,
+    release_date: null,
+    overview: "Movie details are unavailable right now.",
+    runtime: null,
+    rating: null,
+    created_at: new Date().toISOString(),
+    type: "movie",
+  };
+}
 
 /**
  * Get logs from users that current user is following (last 14 days)
@@ -74,11 +113,11 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
       friendLogs.map(async (log: any) => {
         try {
           // Fetch content
-          let content;
+          let content: Content | null;
           if (log.content_type === "tv") {
-            content = await getShowDetails(log.content_id);
+            content = (await getShowDetails(log.content_id)) as unknown as Content | null;
           } else {
-            content = await getMovieDetails(log.content_id);
+            content = (await getMovieDetails(log.content_id)) as unknown as Content | null;
           }
 
           // Fetch friend user info
@@ -95,7 +134,7 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
 
           return {
             ...log,
-            content,
+            content: content || createFallbackContentForLog(log),
             friend,
           };
         } catch (error) {

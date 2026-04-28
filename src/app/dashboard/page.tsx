@@ -415,8 +415,8 @@ export default function DashboardPage() {
     ...friendLogs.slice(0, 8).map((log) => ({
       id: `log-${log.id}`,
       kind: "logged" as const,
-      poster_url: log.content.poster_url,
-      title: log.content.title,
+      poster_url: log.content?.poster_url || null,
+      title: log.content?.title || "Unknown",
       byline: `by ${log.friend.name}`,
       reaction: log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad",
       createdAt: log.created_at,

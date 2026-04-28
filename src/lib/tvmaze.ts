@@ -1,7 +1,6 @@
-const TVMAZE_API_KEY = "8jC46lnuAQlcFbodm34yIf-8MstRiTZI";
+import { fetchTmdb } from "./tmdb-transport";
+
 const TVMAZE_BASE_URL = "https://api.tvmaze.com";
-const TMDB_BASE_URL = "https://api.themoviedb.org/3";
-const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
 
 export interface TVMazeShow {
   id: number;
@@ -160,13 +159,14 @@ export async function searchShows(query: string): Promise<ShowDetails[]> {
     });
 
     const shouldUseFallback = trimmedQuery.length <= 2 || tvmazeShows.length < 5;
-    if (!shouldUseFallback || !TMDB_API_KEY) {
+    if (!shouldUseFallback) {
       return rankShows(dedupeShows(tvmazeShows), trimmedQuery);
     }
 
-    const tmdbResponse = await fetch(
-      `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(trimmedQuery)}&page=1`
-    );
+    const tmdbResponse = await fetchTmdb("search/tv", {
+      query: trimmedQuery,
+      page: 1,
+    });
 
     if (!tmdbResponse.ok) {
       return rankShows(dedupeShows(tvmazeShows), trimmedQuery);

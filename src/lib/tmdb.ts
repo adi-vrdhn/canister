@@ -1,8 +1,6 @@
 import { TMDBMovie, TMDBSearchResponse } from "@/types";
 import { ParsedIntent } from "./nlp-parser";
-
-const TMDB_BASE_URL = "https://api.themoviedb.org/3";
-const API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+import { fetchTmdb } from "./tmdb-transport";
 
 // Genre ID mappings for TMDB discover API
 const GENRE_MAP: Record<string, number> = {
@@ -25,6 +23,53 @@ const GENRE_MAP: Record<string, number> = {
   war: 10752,
   western: 37,
 };
+
+function getMovieGenreIds(movie: TMDBMovie): number[] {
+  if (Array.isArray(movie.genres) && movie.genres.length > 0) {
+    return movie.genres;
+  }
+
+  const genreIds = (movie as TMDBMovie & { genre_ids?: number[] }).genre_ids;
+  return Array.isArray(genreIds) ? genreIds : [];
+}
+
+export function getGenreIdsForNames(genres: string[]): number[] {
+  return Array.from(
+    new Set(
+      genres
+        .map((genre) => GENRE_MAP[genre.toLowerCase()])
+        .filter((genreId): genreId is number => typeof genreId === "number")
+    )
+  );
+}
+
+function rankDiscoverResults(movies: TMDBMovie[], preferredGenreIds: number[]): TMDBMovie[] {
+  if (movies.length === 0) {
+    return [];
+  }
+
+  const preferredSet = new Set(preferredGenreIds);
+
+  return movies.slice().sort((a, b) => {
+    const score = (movie: TMDBMovie) => {
+      const movieGenres = getMovieGenreIds(movie);
+      const genreHits = preferredSet.size > 0 ? movieGenres.filter((genreId) => preferredSet.has(genreId)).length : 0;
+      let value = genreHits * 500;
+
+      value += Math.min(movie.popularity || 0, 200) * 2.25;
+      value += Math.min(movie.vote_count || 0, 5000) * 0.02;
+      value += (movie.vote_average || 0) * 14;
+
+      if (preferredSet.size > 0 && genreHits > 0) {
+        value += 60;
+      }
+
+      return value;
+    };
+
+    return score(b) - score(a);
+  });
+}
 
 interface TMDBDetailedMovie {
   id: number;
@@ -128,9 +173,10 @@ function uniqueMovies(movies: TMDBMovie[]): TMDBMovie[] {
 
 async function fetchMovieSearch(query: string, page: number): Promise<TMDBMovie[]> {
   if (!query.trim()) return [];
-  const response = await fetch(
-    `${TMDB_BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&page=${page}`
-  );
+  const response = await fetchTmdb("search/movie", {
+    query,
+    page,
+  });
 
   if (!response.ok) {
     throw new Error("Failed to search movies");
@@ -142,16 +188,12 @@ async function fetchMovieSearch(query: string, page: number): Promise<TMDBMovie[
 
 async function fetchMovieSearchForYear(query: string, year: number): Promise<TMDBMovie[]> {
   if (!query.trim()) return [];
-
-  const params = new URLSearchParams({
-    api_key: API_KEY || "",
+  const response = await fetchTmdb("search/movie", {
     query,
-    page: "1",
-    year: String(year),
-    primary_release_year: String(year),
+    page: 1,
+    year,
+    primary_release_year: year,
   });
-
-  const response = await fetch(`${TMDB_BASE_URL}/search/movie?${params.toString()}`);
 
   if (!response.ok) {
     throw new Error("Failed to search movies by year");
@@ -183,9 +225,10 @@ async function findPeopleInQuery(query: string): Promise<Array<{ id: number; nam
   await Promise.all(
     chunks.map(async (chunk) => {
       try {
-        const response = await fetch(
-          `${TMDB_BASE_URL}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(chunk)}&page=1`
-        );
+        const response = await fetchTmdb("search/person", {
+          query: chunk,
+          page: 1,
+        });
         if (!response.ok) return;
 
         const data: TMDBPersonSearchResponse = await response.json();
@@ -229,9 +272,7 @@ async function getPersonMovieIds(people: Array<{ id: number }>): Promise<Set<num
   await Promise.all(
     people.map(async (person) => {
       try {
-        const response = await fetch(
-          `${TMDB_BASE_URL}/person/${person.id}/movie_credits?api_key=${API_KEY}`
-        );
+        const response = await fetchTmdb(`person/${person.id}/movie_credits`);
         if (!response.ok) return;
 
         const data: TMDBPersonMovieCreditsResponse = await response.json();
@@ -375,6 +416,22 @@ export async function searchMovies(query: string, page: number = 1) {
   }
 }
 
+export async function getPopularMovies(page: number = 1, limit: number = 12): Promise<TMDBMovie[]> {
+  try {
+    const response = await fetchTmdb("movie/popular", { page });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch popular movies");
+    }
+
+    const data: TMDBSearchResponse = await response.json();
+    return data.results.slice(0, limit);
+  } catch (error) {
+    console.error("TMDB popular movies error:", error);
+    return [];
+  }
+}
+
 /**
  * Enhanced search using TMDB discover endpoint with genre filtering
  * More powerful than basic search - allows filtering by genre, rating, year, etc.
@@ -391,31 +448,24 @@ export async function discoverMoviesByGenre(
 ) {
   try {
     const results: Map<number, TMDBMovie> = new Map();
+    const preferredGenreIds = getGenreIdsForNames(genres);
 
     // Search for each genre separately to use OR logic instead of AND
     for (const genre of genres) {
       const genreId = GENRE_MAP[genre.toLowerCase()];
       if (!genreId) continue;
 
-      let url = `${TMDB_BASE_URL}/discover/movie?api_key=${API_KEY}&with_genres=${genreId}`;
-
-      if (options?.minRating) {
-        url += `&vote_average.gte=${options.minRating}`;
-      }
-      if (options?.minYear) {
-        url += `&release_date.gte=${options.minYear}-01-01`;
-      }
-      if (options?.maxYear) {
-        url += `&release_date.lte=${options.maxYear}-12-31`;
-      }
-
-      url += `&sort_by=${options?.sortBy || "vote_average.desc"}`;
-      url += `&page=${options?.page || 1}`;
-      url += "&vote_count.gte=100"; // Only highly-rated movies with enough votes
-      url += "&language=en";
-
       try {
-        const response = await fetch(url);
+        const response = await fetchTmdb("discover/movie", {
+          with_genres: genreId,
+          ...(options?.minRating ? { "vote_average.gte": options.minRating } : {}),
+          ...(options?.minYear ? { "release_date.gte": `${options.minYear}-01-01` } : {}),
+          ...(options?.maxYear ? { "release_date.lte": `${options.maxYear}-12-31` } : {}),
+          sort_by: options?.sortBy || "popularity.desc",
+          page: options?.page || 1,
+          "vote_count.gte": 150,
+          language: "en",
+        });
         if (!response.ok) continue;
 
         const data: TMDBSearchResponse = await response.json();
@@ -430,7 +480,7 @@ export async function discoverMoviesByGenre(
       }
     }
 
-    return Array.from(results.values());
+    return rankDiscoverResults(Array.from(results.values()), preferredGenreIds);
   } catch (error) {
     console.error("TMDB discover error:", error);
     return [];
@@ -445,9 +495,12 @@ export async function discoverMoviesByGenre(
  */
 export async function enhancedMovieSearch(intent: ParsedIntent): Promise<TMDBMovie[]> {
   const allResults: Map<number, TMDBMovie> = new Map(); // Use Map to deduplicate by ID
+  const preferredGenres = Array.from(new Set(intent.genres));
+  const preferredGenreIds = getGenreIdsForNames(preferredGenres);
 
   console.log("[Enhanced Search] Intent Analysis:", {
     effectiveMood: intent.mood,
+    styles: intent.styleTags,
     genres: intent.genres,
     minRating: intent.minRating,
     minYear: intent.minYear,
@@ -457,13 +510,13 @@ export async function enhancedMovieSearch(intent: ParsedIntent): Promise<TMDBMov
   });
 
   // Strategy 1: Genre-based discover (most precise)
-  if (intent.genres && intent.genres.length > 0) {
-    console.log("[Enhanced Search] Strategy 1: Genre-based discover with genres:", intent.genres);
-    const discoverResults = await discoverMoviesByGenre(intent.genres, {
-      minRating: intent.minRating || 5,
+  if (preferredGenres.length > 0) {
+    console.log("[Enhanced Search] Strategy 1: Genre-based discover with genres:", preferredGenres);
+    const discoverResults = await discoverMoviesByGenre(preferredGenres, {
+      minRating: intent.minRating || undefined,
       minYear: intent.minYear || undefined,
       maxYear: intent.maxYear || undefined,
-      sortBy: "vote_average.desc",
+      sortBy: "popularity.desc",
     });
 
     console.log(`[Enhanced Search] ✅ Genre discover returned ${discoverResults.length} movies`);
@@ -475,11 +528,22 @@ export async function enhancedMovieSearch(intent: ParsedIntent): Promise<TMDBMov
   }
 
   // Strategy 2: Keyword search (if genres didn't return enough results)
-  if (allResults.size < 12 && (intent.keywords.length > 0 || intent.mood)) {
-    let searchQuery = intent.keywords.join(" ");
+  const shouldUseTextSearch =
+    Boolean(intent.cast || intent.director) ||
+    (intent.keywords.length > 0 && preferredGenres.length === 0);
+
+  if (allResults.size < 12 && shouldUseTextSearch) {
+    let searchQuery = [intent.keywords.join(" "), intent.cast, intent.director]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
 
     if (!searchQuery && intent.mood) {
       searchQuery = intent.mood;
+    }
+
+    if (intent.minYear && intent.maxYear && intent.minYear === intent.maxYear) {
+      searchQuery = `${searchQuery} ${intent.minYear}`.trim();
     }
 
     if (searchQuery) {
@@ -488,6 +552,15 @@ export async function enhancedMovieSearch(intent: ParsedIntent): Promise<TMDBMov
       console.log(`[Enhanced Search] ✅ Keyword search returned ${searchResults.length} results`);
 
       searchResults.forEach((movie) => {
+        const movieGenreIds = getMovieGenreIds(movie);
+
+        if (preferredGenreIds.length > 0) {
+          const genreMatch = movieGenreIds.some((genreId) => preferredGenreIds.includes(genreId));
+          if (!genreMatch) {
+            return;
+          }
+        }
+
         // Apply additional filters
         if (intent.minRating && movie.vote_average < intent.minRating) {
           console.log(
@@ -518,11 +591,7 @@ export async function enhancedMovieSearch(intent: ParsedIntent): Promise<TMDBMov
   }
 
   // Convert map back to array and sort by rating + popularity
-  const results = Array.from(allResults.values()).sort((a, b) => {
-    const ratingDiff = (b.vote_average || 0) - (a.vote_average || 0);
-    if (ratingDiff !== 0) return ratingDiff;
-    return (b.popularity || 0) - (a.popularity || 0);
-  });
+  const results = rankDiscoverResults(Array.from(allResults.values()), preferredGenreIds);
 
   console.log(`[Enhanced Search] Final results: ${results.length} movies matched your request`);
   console.log(
@@ -551,9 +620,9 @@ export async function getMovieDetails(movieId: number) {
 
   const request = (async () => {
   try {
-    const response = await fetch(
-      `${TMDB_BASE_URL}/movie/${movieId}?api_key=${API_KEY}&append_to_response=credits`
-    );
+    const response = await fetchTmdb(`movie/${movieId}`, {
+      append_to_response: "credits",
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -583,7 +652,7 @@ export async function getMovieDetails(movieId: number) {
 
 export async function getSimilarMovies(movieId: number, limit: number = 10) {
   try {
-    const response = await fetch(`${TMDB_BASE_URL}/movie/${movieId}/similar?api_key=${API_KEY}`);
+    const response = await fetchTmdb(`movie/${movieId}/similar`);
 
     if (!response.ok) {
       throw new Error("Failed to fetch similar movies");

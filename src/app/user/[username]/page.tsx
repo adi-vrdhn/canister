@@ -186,7 +186,7 @@ export default function UserProfilePage() {
           </button>
           {/* Link to full calendar/logs page for this user */}
           <a
-            href={`/logs?user=${profileUser.username}`}
+            href={`/user/${encodeURIComponent(profileUser.username)}/logs`}
             className="ml-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
             title={`View ${profileUser.name}'s full calendar`}
           >

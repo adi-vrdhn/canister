@@ -1,6 +1,6 @@
 import { getUserMovieLogs, getUserWatchlist } from "./logs";
 import { getUserTasteProfile } from "./user-taste";
-import { getMovieDetails, searchMovies } from "./tmdb";
+import { discoverMoviesByGenre, getPopularMovies, getMovieDetails, searchMovies } from "./tmdb";
 import { Content, MovieLogWithContent, TMDBMovie, UserTasteWithContent } from "@/types";
 
 export interface RecommendationFilters {
@@ -27,6 +27,13 @@ function createScoreMaps(): ScoreMaps {
 
 function norm(s: string | null | undefined): string {
   return (s || "").trim().toLowerCase();
+}
+
+function getContentGenreNames(content: any): string[] {
+  if (!content || !Array.isArray(content.genres)) return [];
+  return content.genres
+    .map((genre: unknown) => norm(typeof genre === "string" ? genre : null))
+    .filter(Boolean);
 }
 
 function addWeight(map: Map<string, number>, key: string | null | undefined, value: number) {
@@ -290,6 +297,70 @@ async function buildPreferenceSignals(userId: string) {
   };
 }
 
+type TastePopularitySignals = {
+  genreWeights: Map<string, number>;
+  directorWeights: Map<string, number>;
+  castWeights: Map<string, number>;
+  watchedIds: Set<number>;
+  knownTitles: string[];
+};
+
+function buildTastePopularitySignals(logs: MovieLogWithContent[]): TastePopularitySignals {
+  const movieLogs = logs.filter((log) => log.content_type === "movie");
+  const positiveLogs = movieLogs.filter((log) => !log.watch_later && (log.reaction === 1 || log.reaction === 2));
+  const genreWeights = new Map<string, number>();
+  const directorWeights = new Map<string, number>();
+  const castWeights = new Map<string, number>();
+  const watchedIds = new Set<number>();
+  const knownTitles: string[] = [];
+
+  movieLogs.forEach((log) => {
+    watchedIds.add(log.content_id);
+  });
+
+  positiveLogs.forEach((log) => {
+    const content = log.content;
+    if (!content) return;
+
+    watchedIds.add(log.content_id);
+    knownTitles.push(content.title || "");
+
+    const weight = log.reaction === 2 ? 3.25 : 2.25;
+    getContentGenreNames(content).forEach((genre) => addWeight(genreWeights, genre, weight));
+    addWeight(directorWeights, (content as any).director, weight);
+    addArrayWeight(castWeights, (content as any).actors, weight);
+  });
+
+  return {
+    genreWeights,
+    directorWeights,
+    castWeights,
+    watchedIds,
+    knownTitles: knownTitles.filter(Boolean),
+  };
+}
+
+function topKeys(map: Map<string, number>, limit: number): string[] {
+  return Array.from(map.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([key]) => key);
+}
+
+function scoreTasteMatch(movie: any, signals: TastePopularitySignals): number {
+  const movieGenres = Array.isArray(movie.genres) ? movie.genres.map((genre: unknown) => norm(typeof genre === "string" ? genre : null)) : [];
+  const genreScore = movieGenres.reduce((sum: number, genre: string) => sum + (signals.genreWeights.get(genre) || 0), 0);
+  const directorScore = signals.directorWeights.get(norm(movie.director)) || 0;
+  const actorScore = Array.isArray(movie.actors)
+    ? movie.actors.reduce((sum: number, actor: unknown) => sum + (signals.castWeights.get(norm(typeof actor === "string" ? actor : null)) || 0), 0)
+    : 0;
+
+  const popularity = Math.min(movie.popularity || 0, 250);
+  const rating = Math.min(movie.rating || 0, 10);
+
+  return genreScore * 2.5 + directorScore * 1.75 + actorScore * 1.35 + popularity * 0.18 + rating * 2.15;
+}
+
 export async function getMovieRecommendations(
   userId: string,
   filters?: RecommendationFilters,
@@ -367,4 +438,62 @@ export async function getNextRecommendationBatch(
   // Pagination is intentionally simple for now; we fetch a larger set and slice by offset.
   const all = await getMovieRecommendations(userId, filters, Math.max(offset + 10, 30));
   return all.slice(offset, offset + 10);
+}
+
+export async function getTasteBasedPopularMovies(userId: string, limit: number = 10): Promise<Content[]> {
+  try {
+    const logs = await getUserMovieLogs(userId, 400);
+    const signals = buildTastePopularitySignals(logs);
+    const topGenres = topKeys(signals.genreWeights, 4);
+    const candidateMap = new Map<number, TMDBMovie>();
+
+    if (topGenres.length > 0) {
+      const discoverResults = await discoverMoviesByGenre(topGenres, {
+        minRating: 7,
+        sortBy: "popularity.desc",
+      });
+
+      discoverResults.forEach((movie) => {
+        if (!signals.watchedIds.has(movie.id)) {
+          candidateMap.set(movie.id, movie);
+        }
+      });
+    }
+
+    const fallbackPopular = await getPopularMovies(1, 30);
+    fallbackPopular.forEach((movie) => {
+      if (!signals.watchedIds.has(movie.id)) {
+        candidateMap.set(movie.id, movie);
+      }
+    });
+
+    const shortlisted = Array.from(candidateMap.values())
+      .filter((movie) => (movie.vote_average || 0) >= 7)
+      .sort((a, b) => scoreTasteMatch(b, signals) - scoreTasteMatch(a, signals))
+      .slice(0, Math.max(limit * 2, 20));
+
+    const detailed = await Promise.all(
+      shortlisted.map(async (movie) => {
+        const details = await getMovieDetails(movie.id);
+        if (!details) return null;
+
+        if (signals.watchedIds.has(details.id)) return null;
+        if ((details.rating || 0) < 7) return null;
+
+        return {
+          ...details,
+          rating: details.rating ?? movie.vote_average ?? null,
+        };
+      })
+    );
+
+    return detailed
+      .filter((movie): movie is NonNullable<typeof movie> => Boolean(movie))
+      .sort((a, b) => scoreTasteMatch(b, signals) - scoreTasteMatch(a, signals))
+      .slice(0, limit)
+      .map((movie) => toMovieContent(movie));
+  } catch (error) {
+    console.error("Error getting taste-based popular movies:", error);
+    return [];
+  }
 }

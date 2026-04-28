@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, ChevronRight, Heart, MessageCircle, Sparkles, X } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight, Heart, MessageCircle, Sparkles, X } from "lucide-react";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import CinePostArtwork from "@/components/CinePostArtwork";
-import { CinePostEngagementType, CinePostWithDetails, User } from "@/types";
+import { CinePostEngagementType, CinePostWithDetails, TMDBMovie, User, Content } from "@/types";
 import {
   getCinePostEngagementUsers,
   getCinePosts,
   setCinePostEngagement,
 } from "@/lib/cineposts";
 import { getListWithDetails, getPublicLists } from "@/lib/lists";
+import { getPopularMovies } from "@/lib/tmdb";
+import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
 import { db } from "@/lib/firebase";
 import { get, ref } from "firebase/database";
+import GoogleAdSlot from "./GoogleAdSlot";
 
 interface CinePostsFeedProps {
   currentUser: User | null;
@@ -88,6 +91,16 @@ type TrendingList = {
   engagementScore: number;
 };
 
+type PosterItem = {
+  id: number;
+  title: string;
+  poster_url: string | null;
+  release_date?: string | null;
+  rating?: number | null;
+  type: "movie" | "tv";
+  href: string;
+};
+
 function buildTrendingScore(list: {
   item_count: number;
   collaborators: Array<{ user_id: string }>;
@@ -96,6 +109,83 @@ function buildTrendingScore(list: {
   const collaboratorCount = list.collaborators.filter((collab) => Boolean(collab.user_id)).length;
   const watchSignal = list.items.reduce((sum, item) => sum + (item.watched_by?.length || 0), 0);
   return list.item_count * 2 + collaboratorCount * 3 + watchSignal;
+}
+
+function toPosterItemFromMovie(movie: TMDBMovie): PosterItem {
+  return {
+    id: movie.id,
+    title: movie.title,
+    poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+    release_date: movie.release_date || null,
+    rating: movie.vote_average ?? null,
+    type: "movie",
+    href: `/movie/${movie.id}`,
+  };
+}
+
+function toPosterItemFromContent(content: Content): PosterItem {
+  return {
+    id: content.id,
+    title: content.title,
+    poster_url: content.poster_url || null,
+    release_date: content.release_date || null,
+    rating: content.rating ?? null,
+    type: content.type || "movie",
+    href: content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`,
+  };
+}
+
+function PosterTile({
+  item,
+  onClick,
+  compact = false,
+  clickableLabel,
+}: {
+  item: PosterItem;
+  onClick: () => void;
+  compact?: boolean;
+  clickableLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group block text-left ${compact ? "min-w-0 flex-none snap-start" : ""}`}
+      aria-label={clickableLabel || item.title}
+    >
+      <div
+        className={`overflow-hidden border border-white/10 bg-[#0a0a0a] transition hover:border-[#ff7a1a]/35 hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)] ${
+          compact ? "rounded-[0.9rem]" : "rounded-[1.1rem]"
+        } ${
+          compact
+            ? "w-[5.35rem] sm:w-[6.1rem] md:w-[7rem] lg:w-[calc((100%-1rem)/5)]"
+            : ""
+        }`}
+      >
+        <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
+          {item.poster_url ? (
+            <img
+              src={item.poster_url}
+              alt={item.title}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] text-white/35">
+              No poster
+            </div>
+          )}
+        </div>
+      </div>
+      {!compact && (
+        <div className="mt-2">
+          <p className="truncate text-[11px] font-black text-[#f5f0de]">{item.title}</p>
+          {item.release_date && (
+            <p className="text-[10px] text-white/45">{item.release_date.split("-")[0]}</p>
+          )}
+        </div>
+      )}
+    </button>
+  );
 }
 
 function PeopleModal({
@@ -177,11 +267,17 @@ function PeopleModal({
 export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "default" }: CinePostsFeedProps) {
   const isBrutalist = theme === "brutalist";
   const router = useRouter();
+  const popularRailRef = useRef<HTMLDivElement | null>(null);
+  const tasteRailRef = useRef<HTMLDivElement | null>(null);
   const [posts, setPosts] = useState<CinePostWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [peopleModalTitle, setPeopleModalTitle] = useState("");
   const [peopleModalUsers, setPeopleModalUsers] = useState<User[]>([]);
   const [peopleModalLoading, setPeopleModalLoading] = useState(false);
+  const [popularMovies, setPopularMovies] = useState<PosterItem[]>([]);
+  const [popularMoviesLoading, setPopularMoviesLoading] = useState(true);
+  const [tasteMovies, setTasteMovies] = useState<PosterItem[]>([]);
+  const [tasteMoviesLoading, setTasteMoviesLoading] = useState(true);
   const [trendingLists, setTrendingLists] = useState<TrendingList[]>([]);
   const [trendingListsLoading, setTrendingListsLoading] = useState(true);
 
@@ -225,14 +321,26 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   useEffect(() => {
     let cancelled = false;
 
-    const loadTrendingLists = async () => {
+    const loadFeedExtras = async () => {
       try {
+        setPopularMoviesLoading(true);
+        setTasteMoviesLoading(true);
         setTrendingListsLoading(true);
 
         const [publicListsBase, usersSnapshot] = await Promise.all([
           getPublicLists(8),
           get(ref(db, "users")),
         ]);
+
+        const [popular, taste] = await Promise.all([
+          getPopularMovies(1, 10),
+          currentUser?.id ? getTasteBasedPopularMovies(currentUser.id, 10) : Promise.resolve([]),
+        ]);
+
+        if (!cancelled) {
+          setPopularMovies(popular.slice(0, 10).map(toPosterItemFromMovie));
+          setTasteMovies(taste.slice(0, 10).map(toPosterItemFromContent));
+        }
 
         const allUsers = usersSnapshot.exists() ? usersSnapshot.val() : {};
         const publicListsWithDetails = await Promise.all(
@@ -263,17 +371,19 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
         console.error("Error loading trending lists:", error);
       } finally {
         if (!cancelled) {
+          setPopularMoviesLoading(false);
+          setTasteMoviesLoading(false);
           setTrendingListsLoading(false);
         }
       }
     };
 
-    loadTrendingLists();
+    loadFeedExtras();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentUser?.id]);
 
   const handleEngagement = async (
     post: CinePostWithDetails,
@@ -299,6 +409,159 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     } finally {
       setPeopleModalLoading(false);
     }
+  };
+
+  const scrollRail = (ref: { current: HTMLDivElement | null }, direction: -1 | 1) => {
+    const node = ref.current;
+    if (!node) return;
+
+    const amount = Math.max(node.clientWidth * 0.92, 360);
+    node.scrollBy({ left: amount * direction, behavior: "smooth" });
+  };
+
+  const renderPopularMoviesSection = () => {
+    if (popularMoviesLoading || popularMovies.length === 0) return null;
+
+    return (
+      <article
+        className={`overflow-hidden ${
+          isBrutalist
+            ? "border border-white/10 bg-[#111111] text-[#f5f0de]"
+            : "rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
+        }`}
+      >
+        <div className={`flex items-center justify-between gap-3 px-3 py-3 sm:px-4 ${
+          isBrutalist ? "border-b border-white/10" : "border-b border-slate-100"
+        }`}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Sparkles className={`h-4 w-4 ${isBrutalist ? "text-[#ff7a1a]" : "text-[#f5f0de]"}`} />
+              <h3 className={`text-sm font-black sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Popular movies</h3>
+            </div>
+            <p className={`mt-0.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Top 10 trending picks on TMDB</p>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-black ${
+              isBrutalist
+                ? "border-white/10 bg-[#0a0a0a] text-[#ffb36b]"
+                : "border-slate-200 bg-white text-slate-700"
+            }`}
+          >
+            Top 10
+          </span>
+        </div>
+
+        <div className="relative px-2.5 py-3 sm:px-3">
+          <button
+            type="button"
+            onClick={() => scrollRail(popularRailRef, -1)}
+            className={`absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
+              isBrutalist
+                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+            aria-label="Scroll popular movies left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollRail(popularRailRef, 1)}
+            className={`absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
+              isBrutalist
+                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+            aria-label="Scroll popular movies right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+
+          <div
+            ref={popularRailRef}
+            className="flex gap-2 overflow-x-auto scroll-smooth pb-1 pr-10 pl-1 snap-x snap-mandatory sm:gap-3"
+          >
+            {popularMovies.map((item) => (
+              <PosterTile
+              key={item.id}
+              item={item}
+              compact
+              onClick={() => router.push(item.href)}
+              clickableLabel={`Open ${item.title}`}
+            />
+          ))}
+          </div>
+        </div>
+      </article>
+    );
+  };
+
+  const renderSuggestionsSection = () => {
+    if (tasteMoviesLoading || tasteMovies.length === 0) return null;
+
+    return (
+      <article
+        className={`overflow-hidden ${
+          isBrutalist
+            ? "border border-white/10 bg-[#111111] text-[#f5f0de]"
+            : "rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
+        }`}
+      >
+        <div className={`flex items-center justify-between gap-3 px-3 py-3 sm:px-4 ${
+          isBrutalist ? "border-b border-white/10" : "border-b border-slate-100"
+        }`}>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Sparkles className={`h-4 w-4 ${isBrutalist ? "text-[#ff7a1a]" : "text-[#f5f0de]"}`} />
+              <h3 className={`text-sm font-black sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Suggestions</h3>
+            </div>
+            <p className={`mt-0.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Good and masterpiece picks from your watched taste</p>
+          </div>
+        </div>
+
+        <div className="relative px-2.5 py-3 sm:px-3">
+          <button
+            type="button"
+            onClick={() => scrollRail(tasteRailRef, -1)}
+            className={`absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
+              isBrutalist
+                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+            aria-label="Scroll suggestions left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollRail(tasteRailRef, 1)}
+            className={`absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
+              isBrutalist
+                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+            aria-label="Scroll suggestions right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+
+          <div
+            ref={tasteRailRef}
+            className="flex gap-2 overflow-x-auto scroll-smooth pb-1 pr-10 pl-1 snap-x snap-mandatory sm:gap-3"
+          >
+            {tasteMovies.map((item) => (
+              <PosterTile
+                key={item.id}
+                item={item}
+                compact
+                onClick={() => router.push(item.href)}
+                clickableLabel={`Open ${item.title}`}
+              />
+            ))}
+          </div>
+        </div>
+      </article>
+    );
   };
 
   const renderTrendingListsSection = () => {
@@ -579,7 +842,17 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                 </div>
               </article>
 
-              {index === 1 && renderTrendingListsSection()}
+              {(index + 1) % 3 === 0 && (
+                <GoogleAdSlot
+                  key={`ad-${post.id}`}
+                  label="Sponsored"
+                  className={isBrutalist ? "px-0 py-2 sm:py-3" : "px-0 py-2 sm:py-3"}
+                />
+              )}
+
+              {index === 2 && renderPopularMoviesSection()}
+              {index === 5 && renderSuggestionsSection()}
+              {index === 8 && renderTrendingListsSection()}
             </div>
           );
         })}

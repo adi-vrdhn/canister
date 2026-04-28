@@ -5,6 +5,7 @@
 
 export interface ParsedIntent {
   mood: string | null; // "happy", "sad", "excited", "relaxed", "scary", etc.
+  styleTags: string[]; // "mind-bending", "cerebral", "surreal", etc.
   genres: string[]; // ["action", "comedy", "drama"]
   minRating: number | null; // 1-10
   maxYear: number | null; // Release year filter
@@ -17,15 +18,100 @@ export interface ParsedIntent {
   confidence: number; // 0-1 confidence score
 }
 
+type StylePreset = {
+  label: string;
+  phrases: string[];
+  genres: string[];
+};
+
 // Mood detection keywords
 const MOOD_KEYWORDS: Record<string, string[]> = {
-  happy: ["happy", "cheerful", "cheer", "laugh", "funny", "comedy", "uplifting", "positive", "good mood", "fun"],
+  happy: ["happy", "cheerful", "cheer", "laugh", "funny", "comedy", "uplifting", "positive", "good mood", "feel good", "feel-good", "fun", "heartwarming", "wholesome"],
   sad: ["sad", "depressed", "cry", "emotional", "drama", "tear", "melancholy", "gloomy", "down"],
   excited: ["excited", "thrilled", "action", "adventure", "intense", "adrenaline", "fast-paced", "explosive"],
   relaxed: ["relax", "chill", "calm", "peaceful", "slow", "meditative", "comfort", "cozy", "laid back", "easy"],
   scary: ["scary", "horror", "terrifying", "suspense", "thriller", "creepy", "spooky", "dark"],
   romantic: ["romantic", "love", "romance", "couple", "relationship", "sweet"],
-  thoughtful: ["thought", "intelligent", "deep", "philosophical", "meaningful", "inspiring", "motivate"],
+  thoughtful: ["thought", "thought-provoking", "intelligent", "deep", "philosophical", "meaningful", "inspiring", "motivate"],
+};
+
+const STYLE_PRESETS: Record<string, StylePreset> = {
+  mind_bending: {
+    label: "mind-bending",
+    phrases: [
+      "mind-bending",
+      "mind bending",
+      "mindbending",
+      "mind blowing",
+      "mind-blowing",
+      "brain bending",
+      "brain-bending",
+      "mindfuck",
+      "reality bending",
+      "reality-bending",
+    ],
+    genres: ["scifi", "mystery", "thriller"],
+  },
+  cerebral: {
+    label: "cerebral",
+    phrases: [
+      "cerebral",
+      "thought-provoking",
+      "thought provoking",
+      "philosophical",
+      "intellectual",
+      "brainy",
+      "complex",
+      "layered",
+      "probing",
+      "existential",
+    ],
+    genres: ["scifi", "mystery", "thriller", "drama"],
+  },
+  surreal: {
+    label: "surreal",
+    phrases: [
+      "surreal",
+      "dreamlike",
+      "dream like",
+      "trippy",
+      "psychedelic",
+      "abstract",
+      "hallucinatory",
+      "hypnotic",
+      "unreal",
+    ],
+    genres: ["fantasy", "scifi", "mystery", "drama"],
+  },
+  twisty: {
+    label: "twisty",
+    phrases: [
+      "twisty",
+      "twisted",
+      "plot twist",
+      "plot-twist",
+      "unpredictable",
+      "intricate",
+      "devious",
+      "revelation-heavy",
+      "revelation heavy",
+      "convoluted",
+    ],
+    genres: ["thriller", "mystery", "crime", "drama"],
+  },
+  eerie: {
+    label: "eerie",
+    phrases: [
+      "eerie",
+      "haunting",
+      "uncanny",
+      "atmospheric",
+      "ominous",
+      "nightmarish",
+      "haunted",
+    ],
+    genres: ["horror", "mystery", "thriller", "drama"],
+  },
 };
 
 // Genre keyword mapping
@@ -44,23 +130,25 @@ const GENRE_KEYWORDS: Record<string, string[]> = {
   mystery: ["mystery", "puzzle", "detective", "secret"],
 };
 
-// Filter keywords
-const FILTER_KEYWORDS = {
-  rating: /(?:imdb|rating|score)[\s:]*(\d+(?:\.\d+)?)/gi,
-  year: /(\d{4})|(?:recent|latest|new|old|classic)/gi,
-  language: /(?:english|spanish|french|german|hindi|japanese|korean|chinese|language)[\s:]*(\w+)?/gi,
-  minRating: /(?:at least|minimum|above|over)[\s:]*(\d+(?:\.\d+)?)/gi,
-};
+function matchesPhrase(query: string, phrase: string): boolean {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = escaped.replace(/\s+/g, "[\\s-]+");
+  return new RegExp(`\\b${pattern}\\b`, "i").test(query);
+}
 
 /**
  * Parse natural language query for movie recommendation intent
  */
 export function parseMovieIntent(query: string): ParsedIntent {
-  const lowerQuery = query.toLowerCase();
+  const rawQuery = query.trim();
+  const lowerQuery = rawQuery.toLowerCase();
   const words = lowerQuery.split(/\s+/);
+  const currentYear = new Date().getFullYear();
 
   let mood: string | null = null;
   let requestedMood: string | null = null; // The mood for MOVIES to watch
+  const styleTags: string[] = [];
+  const styleGenres: string[] = [];
   const genres: string[] = [];
   let minRating: number | null = null;
   let maxYear: number | null = null;
@@ -105,6 +193,12 @@ export function parseMovieIntent(query: string): ParsedIntent {
     }
   }
 
+  if (/\b(this year|current year|latest year|new this year)\b/i.test(lowerQuery)) {
+    minYear = currentYear;
+    maxYear = currentYear;
+    confidence += 0.2;
+  }
+
   // Use requested mood if found, otherwise use detected mood
   const effectiveMood = requestedMood || mood;
 
@@ -125,6 +219,17 @@ export function parseMovieIntent(query: string): ParsedIntent {
       genres.push(...moodToGenres[effectiveMood]);
     }
   }
+
+  // Detect style/vibe language and translate it into genre buckets.
+  for (const preset of Object.values(STYLE_PRESETS)) {
+    if (preset.phrases.some((phrase) => matchesPhrase(lowerQuery, phrase))) {
+      styleTags.push(preset.label);
+      styleGenres.push(...preset.genres);
+      confidence += 0.18;
+    }
+  }
+
+  genres.push(...styleGenres);
 
   // Also detect explicit genre keywords
   for (const [genreName, keywords_list] of Object.entries(GENRE_KEYWORDS)) {
@@ -153,6 +258,9 @@ export function parseMovieIntent(query: string): ParsedIntent {
     const years = yearMatches.map((y) => parseInt(y));
     maxYear = Math.max(...years);
     minYear = Math.min(...years);
+  } else if (!minYear && !maxYear && /\b(this year|current year|latest|new)\b/i.test(lowerQuery)) {
+    minYear = currentYear;
+    maxYear = currentYear;
   }
 
   // Detect language
@@ -173,14 +281,16 @@ export function parseMovieIntent(query: string): ParsedIntent {
     language = langMap[langMatch[1]?.toLowerCase() || langMatch[0]?.toLowerCase()] || null;
   }
 
-  // Extract director (simple heuristic: "by [Name]" or "directed by [Name]")
-  const directorMatch = lowerQuery.match(/(?:director|by|from)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+  // Extract director (prefer explicit "directed by" phrasing)
+  const directorMatch = rawQuery.match(/(?:directed by|director)\s+([A-Za-z][A-Za-z'.-]*(?:\s+[A-Za-z][A-Za-z'.-]*){0,3})/i);
   if (directorMatch) {
     director = directorMatch[1];
   }
 
-  // Extract cast (simple heuristic: "with [Name]" or "starring [Name]")
-  const castMatch = lowerQuery.match(/(?:with|starring|actor)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+  // Extract cast (common "with", "starring", or "from" phrasing)
+  const castMatch = rawQuery.match(
+    /(?:with|starring|featuring|from)\s+(?!this\b|that\b|the\b|current\b|next\b|last\b|year\b|month\b|week\b)([A-Za-z][A-Za-z'.-]*(?:\s+[A-Za-z][A-Za-z'.-]*){0,3})/i
+  );
   if (castMatch) {
     cast = castMatch[1];
   }
@@ -188,8 +298,27 @@ export function parseMovieIntent(query: string): ParsedIntent {
   // Extract keywords (words not already parsed)
   const parsedWords = new Set([
     ...Object.values(MOOD_KEYWORDS).flat(),
+    ...Object.values(STYLE_PRESETS).flatMap((preset) => preset.phrases),
     ...Object.values(GENRE_KEYWORDS).flat(),
-    "i", "want", "to", "watch", "movie", "film", "show", "a", "an", "is", "are", "be", "been", "that", "which",
+    "i",
+    "want",
+    "to",
+    "watch",
+    "movie",
+    "movies",
+    "film",
+    "show",
+    "a",
+    "an",
+    "is",
+    "are",
+    "be",
+    "been",
+    "that",
+    "which",
+    "from",
+    "this",
+    "year",
   ]);
 
   for (const word of words) {
@@ -203,6 +332,7 @@ export function parseMovieIntent(query: string): ParsedIntent {
 
   return {
     mood,
+    styleTags: Array.from(new Set(styleTags)),
     genres: [...new Set(genres)],
     minRating,
     maxYear,
@@ -223,13 +353,25 @@ export function generateResponse(intent: ParsedIntent): string {
   const parts: string[] = [];
 
   if (intent.mood) {
-    parts.push(`I love that you want a **${intent.mood}** movie!`);
+    parts.push(`I love that you want a ${intent.mood} movie!`);
   } else {
     parts.push("Let me find some great recommendations for you!");
   }
 
+  if (intent.styleTags.length > 0) {
+    parts.push(`I’m reading that as a ${intent.styleTags.join(", ")} vibe.`);
+  }
+
   if (intent.genres.length > 0) {
-    parts.push(`You're interested in ${intent.genres.map((g) => `**${g}**`).join(", ")}.`);
+    parts.push(`I’ll focus on popular ${intent.genres.join(", ")} picks.`);
+  }
+
+  if (intent.minYear && intent.maxYear && intent.minYear === intent.maxYear) {
+    parts.push(`I’ll keep it to ${intent.minYear}.`);
+  } else if (intent.minYear || intent.maxYear) {
+    const fromYear = intent.minYear || "any year";
+    const toYear = intent.maxYear || "present";
+    parts.push(`I’ll keep it between ${fromYear} and ${toYear}.`);
   }
 
   if (intent.minRating) {
@@ -237,11 +379,11 @@ export function generateResponse(intent: ParsedIntent): string {
   }
 
   if (intent.director) {
-    parts.push(`Checking out works by **${intent.director}**.`);
+    parts.push(`Checking out works by ${intent.director}.`);
   }
 
   if (intent.cast) {
-    parts.push(`Looking for films with **${intent.cast}**.`);
+    parts.push(`Looking for films with ${intent.cast}.`);
   }
 
   parts.push("Here are my top picks for you:");
@@ -260,6 +402,10 @@ export function buildTMDBFilters(intent: ParsedIntent): Record<string, any> {
 
   if (intent.genres.length > 0) {
     filters.genres = intent.genres;
+  }
+
+  if (intent.styleTags.length > 0) {
+    filters.styles = intent.styleTags;
   }
 
   if (intent.minRating) {

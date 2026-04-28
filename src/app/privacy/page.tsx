@@ -77,7 +77,7 @@ const sections = [
   {
     title: "10. International users",
     body: [
-      "If you use Canisterr from outside the United States, your information may be transferred to and processed in other countries where our service providers operate.",
+      "If you use Canisterr from India, your information may be transferred to and processed in other countries where our service providers operate.",
     ],
   },
   {
