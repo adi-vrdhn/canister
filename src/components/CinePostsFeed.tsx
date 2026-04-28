@@ -17,6 +17,7 @@ import { getPopularMovies } from "@/lib/tmdb";
 import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
 import { db } from "@/lib/firebase";
 import { get, ref } from "firebase/database";
+import AdTerraTopAd from "./AdTerraTopAd";
 import GoogleAdSlot from "./GoogleAdSlot";
 
 interface CinePostsFeedProps {
@@ -678,6 +679,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
         </div>
       ) : (
       <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
+        <AdTerraTopAd />
         {posts.map((post, index) => {
           const contentHref = getContentHref(post);
           const postHref = `/posts/${post.id}`;
