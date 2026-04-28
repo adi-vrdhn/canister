@@ -23,6 +23,10 @@ type CreateCinePostInput = {
   body: string;
   tags?: string[];
   content?: Content | null;
+  personId?: number;
+  personName?: string;
+  personProfileUrl?: string | null;
+  personDepartment?: string | null;
   listId?: string;
   listName?: string;
   listCoverUrl?: string | null;
@@ -152,16 +156,22 @@ export async function createCinePost(input: CreateCinePostInput): Promise<CinePo
   if (!postId) throw new Error("Failed to create CinePost ID");
 
   const now = new Date().toISOString();
-  const contentType: "movie" | "tv" | "list" = input.listId
+  const contentType: "movie" | "tv" | "list" | undefined = input.listId
     ? "list"
-    : input.content?.type === "tv"
+    : input.personId
+      ? undefined
+      : input.content?.type === "tv"
       ? "tv"
-      : "movie";
+      : input.content
+        ? "movie"
+        : undefined;
   const defaultTags = [
     input.anchorLabel,
     input.type,
     ...(input.content?.genres || []),
     input.content?.director || "",
+    input.personDepartment || "",
+    input.personName || "",
     ...((input.content as any)?.cast || []),
     ...((input.content as any)?.actors || []),
   ];
@@ -182,17 +192,27 @@ export async function createCinePost(input: CreateCinePostInput): Promise<CinePo
     post.content_id = input.content.id;
   }
 
+  if (input.personId) {
+    post.person_id = input.personId;
+    post.person_name = input.personName?.trim() || input.anchorLabel;
+    post.person_profile_url = input.personProfileUrl || null;
+    post.person_department = input.personDepartment || null;
+  }
+
   if (input.listId) {
     post.list_id = input.listId;
   }
 
-  post.content_type = contentType;
+  if (contentType) {
+    post.content_type = contentType;
+  }
   post.content_title =
     input.listName?.trim() ||
+    input.personName?.trim() ||
     input.content?.title ||
     (input.content as any)?.name ||
     input.anchorLabel;
-  post.poster_url = input.listCoverUrl ?? input.content?.poster_url ?? null;
+  post.poster_url = input.listCoverUrl ?? input.personProfileUrl ?? input.content?.poster_url ?? null;
 
   if (contentType === "movie" && input.content) {
     post.movie_id = input.content.id;

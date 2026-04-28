@@ -145,6 +145,14 @@ export interface TMDBMovie {
   vote_count?: number;
 }
 
+export interface TMDBPersonSearchResult {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  known_for_department?: string | null;
+  popularity?: number;
+}
+
 export interface TMDBSearchResponse {
   results: TMDBMovie[];
   total_pages: number;
@@ -296,7 +304,7 @@ export interface WatchedMovie {
 
 // CinePost Types
 export type CinePostType = "post" | "log";
-export type CinePostAnchorType = "movie" | "tv" | "list";
+export type CinePostAnchorType = "movie" | "tv" | "list" | "crew";
 export type CinePostEngagementType = "like" | "save";
 
 export interface CinePost {
@@ -307,11 +315,15 @@ export interface CinePost {
   anchor_label: string;
   movie_id?: number;
   content_id?: number;
+  person_id?: number;
   list_id?: string;
   content_type?: "movie" | "tv" | "list";
   content_title?: string;
   poster_url?: string | null;
   list_cover_images?: string[];
+  person_name?: string;
+  person_profile_url?: string | null;
+  person_department?: string | null;
   body: string;
   tags: string[];
   log_id?: string;

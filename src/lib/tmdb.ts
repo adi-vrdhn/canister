@@ -92,6 +92,7 @@ interface TMDBDetailedMovie {
 interface TMDBPersonSearchResult {
   id: number;
   name: string;
+  profile_path: string | null;
   popularity?: number;
   known_for_department?: string;
   known_for?: Array<TMDBMovie & { media_type?: string }>;
@@ -412,6 +413,37 @@ export async function searchMovies(query: string, page: number = 1) {
     });
   } catch (error) {
     console.error("TMDB search error:", error);
+    return [];
+  }
+}
+
+export async function searchPeople(query: string): Promise<TMDBPersonSearchResult[]> {
+  try {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return [];
+    }
+
+    const response = await fetchTmdb("search/person", {
+      query: trimmedQuery,
+      page: 1,
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to search people");
+    }
+
+    const data: TMDBPersonSearchResponse = await response.json();
+    return data.results
+      .slice()
+      .sort((a, b) => {
+        const aHasImage = a.profile_path ? 1 : 0;
+        const bHasImage = b.profile_path ? 1 : 0;
+        if (aHasImage !== bHasImage) return bHasImage - aHasImage;
+        return (b.popularity || 0) - (a.popularity || 0);
+      });
+  } catch (error) {
+    console.error("TMDB people search error:", error);
     return [];
   }
 }

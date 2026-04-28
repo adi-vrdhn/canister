@@ -726,7 +726,18 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                       />
                     </Link>
                   ) : (
-                    <div className={`aspect-[2/3] sm:rounded-[1.75rem] ${isBrutalist ? "bg-[#1a1a1a]" : "rounded-[1.4rem] bg-slate-100"}`} />
+                    <div className={`aspect-[2/3] overflow-hidden shadow-sm ${
+                      isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
+                    }`}>
+                      <CinePostArtwork
+                        src={post.poster_url}
+                        collageImages={post.list_cover_images}
+                        alt={post.content_title || post.anchor_label}
+                        className="h-full w-full"
+                        mediaClassName="transition duration-300 group-hover:scale-105"
+                        theme={theme}
+                      />
+                    </div>
                   )}
 
                     <div className="min-w-0 py-1">

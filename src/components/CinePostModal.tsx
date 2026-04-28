@@ -1,19 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clapperboard, Film, Search, Sparkles, Tv, X } from "lucide-react";
-import { CinePostAnchorType, Content, List, TMDBMovie, User } from "@/types";
+import { CheckCircle2, Clapperboard, Film, Search, Sparkles, Tv, UserRound, X } from "lucide-react";
+import { CinePostAnchorType, Content, List, TMDBMovie, TMDBPersonSearchResult, User } from "@/types";
 import { createCinePost } from "@/lib/cineposts";
 import { getUserLists } from "@/lib/lists";
 import { reportAppError } from "@/lib/report-error";
-import { searchMovies } from "@/lib/tmdb";
+import { searchMovies, searchPeople } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 
 const ANCHOR_TYPES: Array<{ value: CinePostAnchorType; label: string }> = [
   { value: "movie", label: "Movie" },
   { value: "tv", label: "TV" },
   { value: "list", label: "List" },
+  { value: "crew", label: "Crew" },
 ];
+
+type AnchorResult = Content | TMDBPersonSearchResult;
+
+function isCrewResult(item: AnchorResult): item is TMDBPersonSearchResult {
+  return "profile_path" in item;
+}
+
+function anchorTypeLabel(anchorType: CinePostAnchorType): string {
+  if (anchorType === "movie") return "movie";
+  if (anchorType === "tv") return "TV show";
+  if (anchorType === "list") return "list";
+  return "crew member";
+}
+
+function anchorSearchLabel(anchorType: CinePostAnchorType): string {
+  if (anchorType === "movie") return "TMDB movies";
+  if (anchorType === "tv") return "TV shows";
+  return "TMDB people";
+}
+
+function anchorPlaceholder(anchorType: CinePostAnchorType): string {
+  if (anchorType === "movie") return "Search La La Land, The Dark Knight...";
+  if (anchorType === "tv") return "Search Ted Lasso, Breaking Bad...";
+  return "Search Brad Pitt, Christopher Nolan...";
+}
 
 interface CinePostModalProps {
   isOpen: boolean;
@@ -46,8 +72,9 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
   const isBrutalist = theme === "brutalist";
   const [anchorType, setAnchorType] = useState<CinePostAnchorType>("movie");
   const [anchorQuery, setAnchorQuery] = useState("");
-  const [anchorResults, setAnchorResults] = useState<Content[]>([]);
+  const [anchorResults, setAnchorResults] = useState<AnchorResult[]>([]);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<TMDBPersonSearchResult | null>(null);
   const [selectedList, setSelectedList] = useState<List | null>(null);
   const [ownedLists, setOwnedLists] = useState<List[]>([]);
   const [listsLoading, setListsLoading] = useState(false);
@@ -65,7 +92,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       return;
     }
     const query = anchorQuery.trim();
-    if (query.length < 1 || selectedContent) {
+    if (query.length < 1 || selectedContent || selectedPerson) {
       setAnchorResults([]);
       setSearching(false);
       return;
@@ -75,10 +102,12 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     const timeout = window.setTimeout(async () => {
       try {
         setSearching(true);
-        const results =
+        const results: AnchorResult[] =
           anchorType === "movie"
             ? (await searchMovies(query, 1)).slice(0, 8).map(movieToContent)
-            : ((await searchShows(query)).slice(0, 8) as unknown as Content[]);
+            : anchorType === "tv"
+              ? ((await searchShows(query)).slice(0, 8) as unknown as Content[])
+              : await searchPeople(query);
 
         if (!cancelled) {
           setAnchorResults(results);
@@ -103,7 +132,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [anchorQuery, anchorType, isOpen, selectedContent]);
+  }, [anchorQuery, anchorType, isOpen, selectedContent, selectedPerson]);
 
   useEffect(() => {
     if (!isOpen || anchorType !== "list" || !user) return;
@@ -149,6 +178,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setAnchorQuery("");
     setAnchorResults([]);
     setSelectedContent(null);
+    setSelectedPerson(null);
     setSelectedList(null);
     setError("");
   };
@@ -157,14 +187,34 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setSelectedContent(item);
     setAnchorQuery(item.title || (item as any).name || "");
     setAnchorResults([]);
+    setSelectedPerson(null);
     setSelectedList(null);
     setError("");
+  };
+
+  const handleSelectPerson = (person: TMDBPersonSearchResult) => {
+    setSelectedPerson(person);
+    setAnchorQuery(person.name);
+    setAnchorResults([]);
+    setSelectedContent(null);
+    setSelectedList(null);
+    setError("");
+  };
+
+  const handleSelectSearchResult = (item: AnchorResult) => {
+    if (isCrewResult(item)) {
+      handleSelectPerson(item);
+      return;
+    }
+
+    handleSelectContent(item);
   };
 
   const handleSelectList = (list: List) => {
     setSelectedList(list);
     setAnchorQuery(list.name);
     setSelectedContent(null);
+    setSelectedPerson(null);
     setAnchorResults([]);
     setError("");
   };
@@ -191,8 +241,13 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
         setError("Select one of your lists first.");
         return;
       }
+    } else if (anchorType === "crew") {
+      if (!selectedPerson) {
+        setError("Select a crew member from search first.");
+        return;
+      }
     } else if (!selectedContent) {
-      setError(`Select a ${anchorType === "movie" ? "movie" : "TV show"} from search first.`);
+      setError(`Select a ${anchorTypeLabel(anchorType)} from search first.`);
       return;
     }
 
@@ -215,6 +270,23 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
           listName: list.name,
           listCoverUrl: list.cover_image_url,
         });
+      } else if (anchorType === "crew") {
+        const person = selectedPerson;
+        if (!person) return;
+
+        await createCinePost({
+          user,
+          type: "post",
+          anchorType,
+          anchorLabel: person.name,
+          body: content,
+          tags: tags.split(","),
+          content: null,
+          personId: person.id,
+          personName: person.name,
+          personProfileUrl: person.profile_path ? `https://image.tmdb.org/t/p/w500${person.profile_path}` : null,
+          personDepartment: person.known_for_department || null,
+        });
       } else {
         await createCinePost({
           user,
@@ -230,6 +302,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       setAnchorQuery("");
       setAnchorResults([]);
       setSelectedContent(null);
+      setSelectedPerson(null);
       setSelectedList(null);
       setContent("");
       setTags("");
@@ -263,7 +336,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
               Post
             </div>
             <h2 className={`text-2xl font-black tracking-tight ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Start a cinema thread</h2>
-            <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Pick a movie, TV show, or your list first, then write the take.</p>
+            <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Pick a movie, TV show, crew member, or your list first, then write the take.</p>
           </div>
           <button
             type="button"
@@ -282,7 +355,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ANCHOR_TYPES.map((type) => (
               <button
                 key={type.value}
@@ -294,7 +367,15 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                     : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                 }`}
               >
-                {type.value === "movie" ? <Film className="h-4 w-4" /> : type.value === "tv" ? <Tv className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                {type.value === "movie" ? (
+                  <Film className="h-4 w-4" />
+                ) : type.value === "tv" ? (
+                  <Tv className="h-4 w-4" />
+                ) : type.value === "crew" ? (
+                  <UserRound className="h-4 w-4" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
                 {type.label}
               </button>
             ))}
@@ -397,17 +478,18 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
             ) : (
               <>
                 <label className="mb-1 block text-sm font-semibold text-slate-900">
-                  Search {anchorType === "movie" ? "TMDB movies" : "TV shows"}
+                  Search {anchorSearchLabel(anchorType)}
                 </label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                   <input
                     className="field py-3 pl-10"
-                    placeholder={anchorType === "movie" ? "Search La La Land, The Dark Knight..." : "Search Ted Lasso, Breaking Bad..."}
+                    placeholder={anchorPlaceholder(anchorType)}
                     value={anchorQuery}
                     onChange={(event) => {
                       setAnchorQuery(event.target.value);
                       setSelectedContent(null);
+                      setSelectedPerson(null);
                     }}
                   />
                   {searching && (
@@ -425,36 +507,54 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                   }`}>
                     {anchorResults.map((item) => (
                       <button
-                        key={`${item.type || anchorType}-${item.id}`}
+                        key={`${isCrewResult(item) ? "crew" : item.type || anchorType}-${item.id}`}
                         type="button"
-                        onClick={() => handleSelectContent(item)}
+                        onClick={() => handleSelectSearchResult(item)}
                         className={`flex w-full items-center gap-3 border-b p-3 text-left transition last:border-b-0 ${
                           isBrutalist
                             ? "border-white/10 hover:bg-white/[0.04]"
                             : "border-slate-100 hover:bg-slate-50"
                         }`}
                       >
-                        {item.poster_url ? (
+                        {isCrewResult(item) ? (
+                          item.profile_path ? (
+                            <img
+                              src={`https://image.tmdb.org/t/p/w185${item.profile_path}`}
+                              alt={item.name}
+                              className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                              <UserRound className="h-5 w-5" />
+                            </div>
+                          )
+                        ) : item.poster_url ? (
                           <img
                             src={item.poster_url}
                             alt={item.title}
                             className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
                           />
-                          ) : (
-                            <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                              {anchorType === "movie" ? <Film className="h-5 w-5" /> : <Tv className="h-5 w-5" />}
-                            </div>
-                          )}
+                        ) : (
+                          <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                            {anchorType === "movie" ? <Film className="h-5 w-5" /> : <Tv className="h-5 w-5" />}
+                          </div>
+                        )}
                           <div className="min-w-0 flex-1">
                           <p className={`truncate text-sm font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>
-                            {item.title}
+                            {isCrewResult(item) ? item.name : item.title}
                           </p>
                           <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                            {item.release_date ? item.release_date.slice(0, 4) : "Unknown year"}
-                            <span className={`ml-2 rounded-full px-2 py-0.5 font-bold uppercase ${
-                              isBrutalist ? "bg-white/10 text-[#f5f0de]" : "bg-slate-100 text-slate-700"
-                            }`}>
-                              {anchorType}
+                            {isCrewResult(item)
+                              ? item.known_for_department || "TMDB person"
+                              : item.release_date
+                                ? item.release_date.slice(0, 4)
+                                : "Unknown year"}
+                            <span
+                              className={`ml-2 rounded-full px-2 py-0.5 font-bold uppercase ${
+                                isBrutalist ? "bg-white/10 text-[#f5f0de]" : "bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {isCrewResult(item) ? "crew" : anchorType}
                             </span>
                           </p>
                         </div>
@@ -463,9 +563,19 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                   </div>
                 )}
 
-                {selectedContent && (
+                {(selectedContent || selectedPerson) && (
                   <div className="mt-3 flex items-center gap-3 rounded-3xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-3">
-                    {selectedContent.poster_url ? (
+                    {selectedPerson ? (
+                      selectedPerson.profile_path ? (
+                        <img
+                          src={`https://image.tmdb.org/t/p/w185${selectedPerson.profile_path}`}
+                          alt={selectedPerson.name}
+                          className="h-20 w-14 rounded-xl object-cover shadow-sm"
+                        />
+                      ) : (
+                        <div className="h-20 w-14 rounded-xl bg-white/5" />
+                      )
+                    ) : selectedContent?.poster_url ? (
                       <img
                         src={selectedContent.poster_url}
                         alt={selectedContent.title}
@@ -479,9 +589,13 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                         <CheckCircle2 className="h-3 w-3" />
                         selected
                       </div>
-                      <p className="truncate font-black text-[#f5f0de]">{selectedContent.title}</p>
+                      <p className="truncate font-black text-[#f5f0de]">
+                        {selectedPerson ? selectedPerson.name : selectedContent?.title}
+                      </p>
                       <p className="text-xs text-white/55">
-                        This poster will become the tap target on the post.
+                        {selectedPerson
+                          ? "This person will become the tap target on the post."
+                          : "This poster will become the tap target on the post."}
                       </p>
                     </div>
                   </div>

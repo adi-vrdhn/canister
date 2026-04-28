@@ -1,7 +1,5 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
-
 type CinePostArtworkProps = {
   src?: string | null;
   collageImages?: string[];
@@ -46,13 +44,7 @@ export default function CinePostArtwork({
       ) : src ? (
         <img src={src} alt={alt} className={`absolute inset-0 h-full w-full object-cover ${mediaClassName}`} />
       ) : (
-        <div
-          className={`flex h-full w-full items-center justify-center ${
-            isBrutalist ? "bg-[#1a1a1a] text-white/35" : "bg-slate-100 text-slate-400"
-          }`}
-        >
-          <Sparkles className="h-5 w-5" />
-        </div>
+        <div className={isBrutalist ? "h-full w-full bg-[#1a1a1a]" : "h-full w-full bg-slate-100"} />
       )}
     </div>
   );
