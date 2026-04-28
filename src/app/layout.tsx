@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import "./globals.css";
 import HydrationFix from "@/components/HydrationFix";
 import GlobalErrorListener from "@/components/GlobalErrorListener";
@@ -31,19 +30,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT;
-
   return (
     <html lang="en">
       <body className="antialiased" suppressHydrationWarning>
-        {adsenseClient ? (
-          <Script
-            async
-            crossOrigin="anonymous"
-            data-cine-adsense="true"
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
-          />
-        ) : null}
         <LocalhostServiceWorkerCleanup />
         <HydrationFix>{children}</HydrationFix>
         <GlobalErrorListener />
