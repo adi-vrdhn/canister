@@ -35,7 +35,17 @@ function loadAdTerraScript() {
   return adTerraScriptPromise;
 }
 
-export default function AdTerraTopAd() {
+interface AdTerraTopAdProps {
+  className?: string;
+  label?: string;
+  placementKey?: string | number;
+}
+
+export default function AdTerraTopAd({
+  className,
+  label = "Sponsored",
+  placementKey,
+}: AdTerraTopAdProps) {
   useEffect(() => {
     let cancelled = false;
 
@@ -50,12 +60,14 @@ export default function AdTerraTopAd() {
     };
   }, []);
 
+  const containerId = placementKey ? `container-6cf1e759750e80b0433baa997f5578fd-${placementKey}` : ADTERRA_CONTAINER_ID;
+
   return (
-    <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0f0f0f] px-3 py-3 sm:px-4">
+    <div className={className || "overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0f0f0f] px-3 py-3 sm:px-4"}>
       <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-white/35">
-        Sponsored
+        {label}
       </div>
-      <div id={ADTERRA_CONTAINER_ID} className="min-h-[6.5rem] w-full" />
+      <div id={containerId} className="min-h-[6.5rem] w-full" />
     </div>
   );
 }

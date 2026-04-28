@@ -18,7 +18,6 @@ import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
 import { db } from "@/lib/firebase";
 import { get, ref } from "firebase/database";
 import AdTerraTopAd from "./AdTerraTopAd";
-import GoogleAdSlot from "./GoogleAdSlot";
 
 interface CinePostsFeedProps {
   currentUser: User | null;
@@ -679,7 +678,6 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
         </div>
       ) : (
       <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
-        <AdTerraTopAd />
         {posts.map((post, index) => {
           const contentHref = getContentHref(post);
           const postHref = `/posts/${post.id}`;
@@ -845,8 +843,9 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
               </article>
 
               {(index + 1) % 3 === 0 && (
-                <GoogleAdSlot
+                <AdTerraTopAd
                   key={`ad-${post.id}`}
+                  placementKey={post.id}
                   label="Sponsored"
                   className={isBrutalist ? "px-0 py-2 sm:py-3" : "px-0 py-2 sm:py-3"}
                 />
