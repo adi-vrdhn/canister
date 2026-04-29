@@ -4,6 +4,7 @@ import HydrationFix from "@/components/HydrationFix";
 import ForegroundPushListener from "@/components/ForegroundPushListener";
 import GlobalErrorListener from "@/components/GlobalErrorListener";
 import LocalhostServiceWorkerCleanup from "@/components/LocalhostServiceWorkerCleanup";
+import PwaBottomNav from "@/components/PwaBottomNav";
 
 export const metadata: Metadata = {
   title: "Canisterr",
@@ -38,6 +39,7 @@ export default function RootLayout({
         <HydrationFix>{children}</HydrationFix>
         <ForegroundPushListener />
         <GlobalErrorListener />
+        <PwaBottomNav />
       </body>
     </html>
   );

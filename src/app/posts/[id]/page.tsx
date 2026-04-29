@@ -538,13 +538,13 @@ export default function CinePostPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700"
+            className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#111111] px-4 py-2 text-sm font-bold text-[#f5f0de] transition hover:border-[#ff7a1a]/30 hover:text-[#ffb36b]"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-          <div className="rounded-[2rem] border border-dashed border-slate-300 bg-white p-8 text-center">
-            <p className="font-black text-slate-950">This post was not found.</p>
+          <div className="rounded-[2rem] border border-white/10 bg-[#111111] p-8 text-center">
+            <p className="font-black text-[#f5f0de]">This post was not found.</p>
           </div>
         </div>
       </PageLayout>
@@ -562,46 +562,46 @@ export default function CinePostPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <main className="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-8">
+      <main className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-8">
         <button
           type="button"
           onClick={() => router.back()}
-          className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#111111] px-4 py-2 text-sm font-bold text-[#f5f0de] transition hover:border-[#ff7a1a]/30 hover:text-[#ffb36b]"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </button>
 
-        <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
-          <div className="grid gap-5 p-4 sm:grid-cols-[13rem_minmax(0,1fr)] sm:p-6">
+        <article className="border-y border-white/10 bg-black">
+          <div className="grid gap-6 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:py-6">
             {href ? (
               <Link
                 href={href}
-                className="group relative mx-auto aspect-[2/3] w-full max-w-48 overflow-hidden rounded-[2rem] bg-slate-950 shadow-sm sm:mx-0"
+                className="group relative mx-auto aspect-[2/3] w-full max-w-48 overflow-hidden bg-[#111111] sm:mx-0"
               >
                 <CinePostArtwork
                   src={post.poster_url}
                   collageImages={post.list_cover_images}
                   alt={post.content_title || post.anchor_label}
                   className="h-full w-full"
-                  mediaClassName="transition duration-300 group-hover:scale-105"
+                  mediaClassName="transition duration-300 group-hover:scale-[1.02]"
                 />
               </Link>
             ) : (
-              <div className="mx-auto aspect-[2/3] w-full max-w-48 rounded-[2rem] bg-slate-100 sm:mx-0" />
+              <div className="mx-auto aspect-[2/3] w-full max-w-48 bg-[#111111] sm:mx-0" />
             )}
 
-            <div className="min-w-0">
+            <div className="min-w-0 pr-4 sm:pr-0">
               <div className="flex items-start gap-3">
                 <Link href={profileHref(post.user)} className="flex-shrink-0">
-                  <Avatar user={post.user} size="h-12 w-12" />
+                  <Avatar user={post.user} size="h-11 w-11" />
                 </Link>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <Link href={profileHref(post.user)} className="text-lg font-black text-[#f5f0de] hover:text-white">
+                    <Link href={profileHref(post.user)} className="text-lg font-black text-[#f5f0de] hover:text-[#ffb36b]">
                       {post.user.name}
                     </Link>
-                    <span className="text-sm text-slate-400">{relativeTime(post.created_at)}</span>
+                    <span className="text-sm text-white/45">{relativeTime(post.created_at)}</span>
                   </div>
                   <span className="mt-2 inline-flex rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-black text-black">
                     {formatPostType(post.type)}
@@ -626,7 +626,7 @@ export default function CinePostPage() {
                 </div>
               </div>
 
-              <div className="mt-6 whitespace-pre-wrap text-[16px] leading-8 text-slate-800">
+              <div className="mt-6 max-w-3xl whitespace-pre-wrap text-[16px] leading-8 text-[#f5f0de]/82">
                 {linkify(post.body)}
               </div>
 
@@ -635,7 +635,7 @@ export default function CinePostPage() {
                   {post.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-500"
+                      className="rounded-full border border-white/10 bg-white/[0.025] px-3 py-1.5 text-sm font-bold text-[#f5f0de]/65"
                     >
                       {tag}
                     </span>
@@ -645,16 +645,16 @@ export default function CinePostPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-100 px-4 py-3 sm:px-6">
+          <div className="border-t border-white/10 py-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => handleEngagement("like", !post.liked_by_current_user)}
-                  className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 transition ${
+                  className={`inline-flex items-center justify-center rounded-full px-2.5 py-2 transition ${
                     post.liked_by_current_user
-                      ? "bg-rose-50 text-rose-600"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                      ? "text-rose-300 hover:text-rose-200"
+                      : "text-white/60 hover:text-[#ffb36b]"
                   }`}
                 >
                   <Heart className={`h-5 w-5 ${post.liked_by_current_user ? "fill-rose-500" : ""}`} />
@@ -663,11 +663,11 @@ export default function CinePostPage() {
                   type="button"
                   onClick={() => openPeopleModal("like", "Liked by")}
                   disabled={post.likes_count === 0}
-                  className="rounded-2xl px-1 py-2 text-sm font-black text-rose-600 disabled:text-slate-400"
+                  className="rounded-full px-1 py-2 text-sm font-black text-rose-300 disabled:text-white/30"
                 >
                   {post.likes_count} like{post.likes_count === 1 ? "" : "s"}
                 </button>
-                <span className="inline-flex items-center gap-1.5 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-2 text-sm font-bold text-white/55">
                   <MessageCircle className="h-4 w-4" />
                   {post.comments_count}
                 </span>
@@ -675,10 +675,10 @@ export default function CinePostPage() {
               <button
                 type="button"
                 onClick={() => handleEngagement("save", !post.saved_by_current_user)}
-                className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 transition ${
+                className={`inline-flex items-center justify-center rounded-full px-2.5 py-2 transition ${
                   post.saved_by_current_user
                     ? "bg-[#ffb36b]/20 text-[#ff7a1a]"
-                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    : "text-white/60 hover:text-[#ffb36b]"
                 }`}
               >
                 <Bookmark className={`h-5 w-5 ${post.saved_by_current_user ? "fill-[#ff7a1a]" : ""}`} />
@@ -687,13 +687,13 @@ export default function CinePostPage() {
           </div>
         </article>
 
-        <section className="mt-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-1 sm:px-0">
+        <section className="mt-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-black text-[#f5f0de]">Comments</h2>
               <p className="text-sm text-white/55">Top insights rise first, with full threaded replies expanded.</p>
             </div>
-            <div className="rounded-full border border-white/10 bg-white/5 p-1">
+            <div className="rounded-full border border-white/10 bg-[#111111] p-1">
               {(["top", "newest"] as const).map((sort) => (
                 <button
                   key={sort}
@@ -709,7 +709,7 @@ export default function CinePostPage() {
             </div>
           </div>
 
-          <div className="mb-5 flex gap-2 px-1 sm:px-0">
+          <div className="mb-5 flex gap-2">
             <input
               value={commentText}
               onChange={(event) => setCommentText(event.target.value)}
@@ -727,9 +727,9 @@ export default function CinePostPage() {
             </button>
           </div>
 
-          <div className="divide-y divide-white/10 px-1 sm:px-0">
+          <div className="divide-y divide-white/10">
             {post.comments.length === 0 ? (
-              <p className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-white/55">
+              <p className="border-b border-white/10 py-5 text-sm text-white/55">
                 No comments yet. Start the thread.
               </p>
             ) : (

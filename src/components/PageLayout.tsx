@@ -30,6 +30,7 @@ export default function PageLayout({
   headerAction = "notifications",
 }: PageLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showPwaBottomNav, setShowPwaBottomNav] = useState(false);
   const isBrutalist = theme === "brutalist";
 
   useEffect(() => {
@@ -57,6 +58,31 @@ export default function PageLayout({
     return () => unsubscribe();
   }, [user?.id]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const update = () => {
+      const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+      const mobile = window.matchMedia("(max-width: 1023px)").matches;
+      setShowPwaBottomNav(Boolean(standalone && mobile));
+    };
+
+    update();
+
+    const standaloneMedia = window.matchMedia("(display-mode: standalone)");
+    const mobileMedia = window.matchMedia("(max-width: 1023px)");
+
+    standaloneMedia.addEventListener?.("change", update);
+    mobileMedia.addEventListener?.("change", update);
+    window.addEventListener("resize", update);
+
+    return () => {
+      standaloneMedia.removeEventListener?.("change", update);
+      mobileMedia.removeEventListener?.("change", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   return (
     <div className={`${isBrutalist ? "brutalist bg-[#0a0a0a]" : "app-shell"} flex min-h-dvh overflow-x-hidden`}>
       <header
@@ -64,18 +90,34 @@ export default function PageLayout({
           isBrutalist ? "border-b border-white/10 bg-[#0a0a0a]/95" : "bg-white/95"
         }`}
       >
-        {/* Hamburger menu for mobile */}
-        <button
-          className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center transition lg:hidden ${
-            isBrutalist ? "text-[#f5f0de] hover:text-[#ff7a1a]" : "text-slate-900 hover:text-[#f5f0de]"
+        <Link
+          href="/profile"
+          className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition ${
+            isBrutalist
+              ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
+              : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
           }`}
-          aria-label="Open menu"
-          onClick={() => setSidebarOpen(true)}
+          aria-label="Go to profile"
         >
-          <svg className={`h-6 w-6 ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
+          {user?.avatar_url ? (
+            <Image
+              src={user.avatar_url}
+              alt={user.name}
+              width={32}
+              height={32}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <Image
+              src="/logo.png"
+              alt=""
+              width={32}
+              height={32}
+              className="h-full w-full object-cover"
+              aria-hidden="true"
+            />
+          )}
+        </Link>
 
         <Link
           href="/dashboard"
@@ -130,7 +172,7 @@ export default function PageLayout({
         />
       )}
 
-      <div className={`min-w-0 flex-1 overflow-auto pt-16 lg:pl-72 ${isBrutalist ? "bg-[#0a0a0a]" : ""}`}>
+      <div className={`min-w-0 flex-1 overflow-auto pt-16 lg:pl-72 ${isBrutalist ? "bg-[#0a0a0a]" : ""} ${showPwaBottomNav ? "pb-28" : ""}`}>
         <EmailVerificationBadge className="mx-auto mt-3 w-full max-w-[1600px] px-1 sm:px-2" />
         <div className={fullWidth ? "w-full" : "mx-auto w-full max-w-[1600px] px-3 py-2 sm:px-4 md:px-6 lg:px-8"}>
           {children}

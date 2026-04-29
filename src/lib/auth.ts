@@ -1,8 +1,11 @@
 import { auth, db } from "@/lib/firebase";
 import {
   createUserWithEmailAndPassword,
+  browserLocalPersistence,
+  indexedDBLocalPersistence,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  setPersistence,
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -14,12 +17,31 @@ import {
 } from "firebase/database";
 import { User as DBUser } from "@/types";
 
+let persistencePromise: Promise<void> | null = null;
+
+async function ensureAuthPersistence() {
+  if (!persistencePromise) {
+    persistencePromise = (async () => {
+      try {
+        await setPersistence(auth, indexedDBLocalPersistence);
+      } catch (error) {
+        console.warn("IndexedDB auth persistence failed, falling back to browser persistence:", error);
+        await setPersistence(auth, browserLocalPersistence);
+      }
+    })();
+  }
+
+  return persistencePromise;
+}
+
 export async function signUp(
   email: string,
   password: string,
   username: string,
   name: string
 ) {
+  await ensureAuthPersistence();
+
   // Sign up with Firebase auth
   const userCredential = await createUserWithEmailAndPassword(
     auth,
@@ -51,6 +73,7 @@ export async function signUp(
 }
 
 export async function signIn(email: string, password: string) {
+  await ensureAuthPersistence();
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
   return userCredential;
 }
