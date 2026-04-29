@@ -364,6 +364,11 @@ export interface CinePostWithDetails extends CinePost {
   score: number;
   liked_by_current_user: boolean;
   saved_by_current_user: boolean;
+  feedScore?: number;
+  feedTier?: number;
+  isFromFriend?: boolean;
+  seenByUser?: boolean;
+  tasteMatchScore?: number;
 }
 
 // User Taste Types - for building your taste profile

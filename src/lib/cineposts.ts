@@ -38,6 +38,9 @@ type CinePostQueryOptions = {
   type?: CinePostType | "all";
   anchorType?: CinePostAnchorType | "all";
   sort?: "smart" | "recent" | "top";
+  feedContext?: {
+    seenPostIds?: string[];
+  };
 };
 
 type UpdateCinePostInput = {
@@ -86,14 +89,105 @@ function scorePost(saves: number, comments: number, likes: number): number {
   return saves * 3 + comments * 2 + likes;
 }
 
-function rankPost(post: CinePostWithDetails): number {
-  const ageHours = Math.max(
-    1,
-    (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60)
+function normalizeFeedToken(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeFeedTags(tags: Array<string | null | undefined>): Set<string> {
+  return new Set(
+    tags
+      .map((tag) => normalizeFeedToken(String(tag || "").replace(/^#/, "")))
+      .filter(Boolean)
   );
-  const agePenalty = Math.pow(ageHours + 2, 0.35);
-  const typeBoost = post.type === "log" ? 1.2 : 1.6;
-  return (post.score + typeBoost) / agePenalty;
+}
+
+function getPostTasteTags(post: CinePostWithDetails): Set<string> {
+  return normalizeFeedTags([
+    ...(post.tags || []),
+    post.anchor_label,
+    post.content_title || "",
+    post.person_name || "",
+    post.person_department || "",
+  ]);
+}
+
+function getAgeHours(createdAt: string): number {
+  return Math.max(1, (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60));
+}
+
+async function getAcceptedFriendIds(currentUserId?: string): Promise<Set<string>> {
+  if (!currentUserId) return new Set();
+
+  const followsSnapshot = await get(ref(db, "follows"));
+  if (!followsSnapshot.exists()) return new Set();
+
+  const friendIds = new Set<string>();
+  const followsRaw = followsSnapshot.val() as Record<string, { follower_id?: string; following_id?: string; status?: string }>;
+
+  Object.values(followsRaw).forEach((follow) => {
+    if (follow.status !== "accepted") return;
+    if (follow.follower_id === currentUserId && follow.following_id) {
+      friendIds.add(follow.following_id);
+    }
+    if (follow.following_id === currentUserId && follow.follower_id) {
+      friendIds.add(follow.follower_id);
+    }
+  });
+
+  return friendIds;
+}
+
+function rankPost(
+  post: CinePostWithDetails,
+  context: {
+    friendIds: Set<string>;
+    seenPostIds: Set<string>;
+    tasteTags: Set<string>;
+    popularIds: Set<string>;
+  }
+): CinePostWithDetails {
+  const ageHours = getAgeHours(post.created_at);
+  const isFromFriend = context.friendIds.has(post.user_id);
+  const seenByUser = context.seenPostIds.has(post.id);
+  const postTasteTags = getPostTasteTags(post);
+  const tasteMatches = Array.from(postTasteTags).filter((tag) => context.tasteTags.has(tag)).length;
+
+  const recencyScore = 240 / Math.pow(ageHours + 2, 0.85);
+  const popularityScore = post.score * 18 + post.likes_count * 2 + post.comments_count * 4 + post.saves_count * 5;
+  const friendScore = isFromFriend ? 260 : 0;
+  const unseenBoost = isFromFriend && !seenByUser && ageHours < 48 ? 500 : 0;
+  const freshPublicBoost = !isFromFriend && ageHours < 24 ? 70 : 0;
+  const tasteScore = tasteMatches > 0 ? 120 + tasteMatches * 35 : 0;
+  const popularBoost = context.popularIds.has(post.id) ? 160 : 0;
+
+  let feedTier = 5;
+  if (post.liked_by_current_user) {
+    feedTier = 9;
+  } else if (isFromFriend && !seenByUser && ageHours < 48) {
+    feedTier = 0;
+  } else if (isFromFriend) {
+    feedTier = 1;
+  } else if (ageHours < 24) {
+    feedTier = 2;
+  } else if (context.popularIds.has(post.id)) {
+    feedTier = 3;
+  } else if (tasteMatches > 0) {
+    feedTier = 4;
+  }
+
+  return {
+    ...post,
+    feedTier,
+    feedScore: recencyScore + popularityScore + friendScore + unseenBoost + freshPublicBoost + tasteScore + popularBoost,
+    isFromFriend,
+    seenByUser,
+    tasteMatchScore: tasteMatches,
+  };
 }
 
 function scoreComment(comment: CinePostComment, replyCount: number): number {
@@ -255,11 +349,12 @@ export async function getCinePosts(
   limit: number = 30,
   options: CinePostQueryOptions = {}
 ): Promise<CinePostWithDetails[]> {
-  const [postsSnapshot, usersById, commentsSnapshot, engagementSnapshot] = await Promise.all([
+  const [postsSnapshot, usersById, commentsSnapshot, engagementSnapshot, friendIds] = await Promise.all([
     get(ref(db, "posts")),
     getUsersById(),
     get(ref(db, "comments")),
     get(ref(db, "engagement")),
+    getAcceptedFriendIds(currentUserId),
   ]);
 
   if (!postsSnapshot.exists()) return [];
@@ -281,7 +376,10 @@ export async function getCinePosts(
     })
   );
 
-  return posts
+  const seenPostIds = new Set(options.feedContext?.seenPostIds || []);
+  const tasteTags = currentUserId ? normalizeFeedTags(usersById[currentUserId]?.mood_tags || []) : new Set<string>();
+
+  const enrichedPosts = posts
     .filter((post) => {
       if (options.type && options.type !== "all" && post.type !== options.type) return false;
       if (options.anchorType && options.anchorType !== "all" && post.anchor_type !== options.anchorType) return false;
@@ -312,19 +410,45 @@ export async function getCinePosts(
           currentUserId && saves.some((entry) => entry.user_id === currentUserId)
         ),
       };
-    })
-    .sort((a, b) => {
-      if (options.sort === "recent") {
+    });
+
+  if (options.sort === "smart") {
+    const popularityRanked = [...enrichedPosts].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    const popularIds = new Set(
+      popularityRanked.slice(0, Math.max(5, Math.ceil(popularityRanked.length * 0.2))).map((post) => post.id)
+    );
+
+    return enrichedPosts
+      .map((post) =>
+        rankPost(post, {
+          friendIds,
+          seenPostIds,
+          tasteTags,
+          popularIds,
+        })
+      )
+      .sort((a, b) => {
+        if ((a.feedTier || 0) !== (b.feedTier || 0)) return (a.feedTier || 0) - (b.feedTier || 0);
+        if ((b.feedScore || 0) !== (a.feedScore || 0)) return (b.feedScore || 0) - (a.feedScore || 0);
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-      if (options.sort === "top") {
+      })
+      .slice(0, limit);
+  }
+
+  if (options.sort === "top") {
+    return enrichedPosts
+      .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-      const rankDifference = rankPost(b) - rankPost(a);
-      if (rankDifference !== 0) return rankDifference;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    })
+      })
+      .slice(0, limit);
+  }
+
+  return enrichedPosts
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, limit);
 }
 

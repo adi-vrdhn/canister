@@ -3,10 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { signUp, checkUsernameAvailability } from "@/lib/auth";
 import { Mail, Lock, User, AlertCircle, CheckCircle, ArrowRight } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function SignUpPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,6 +23,16 @@ export default function SignUpPage() {
   const [verificationSent, setVerificationSent] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const usernameCheckDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        router.replace("/dashboard");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   useEffect(() => {
     if (usernameCheckDebounceRef.current) {

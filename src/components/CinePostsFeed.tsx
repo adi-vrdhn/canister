@@ -427,6 +427,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   const popularRailRef = useRef<HTMLDivElement | null>(null);
   const suggestedRailRef = useRef<HTMLDivElement | null>(null);
   const discoverRailRef = useRef<HTMLDivElement | null>(null);
+  const seenPostsRef = useRef<Set<string>>(new Set());
   const [posts, setPosts] = useState<CinePostWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [popularMovies, setPopularMovies] = useState<RailItem[]>([]);
@@ -438,10 +439,37 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   const [peopleModalTitle, setPeopleModalTitle] = useState("");
   const [peopleModalUsers, setPeopleModalUsers] = useState<User[]>([]);
   const [peopleModalLoading, setPeopleModalLoading] = useState(false);
+  const [seenHistoryReady, setSeenHistoryReady] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setSeenHistoryReady(true);
+      return;
+    }
+
+    if (!currentUser?.id) {
+      seenPostsRef.current = new Set();
+      setSeenHistoryReady(true);
+      return;
+    }
+
+    try {
+      const stored = window.localStorage.getItem(`cinepost-feed-seen:${currentUser.id}`);
+      const parsed = stored ? (JSON.parse(stored) as string[]) : [];
+      seenPostsRef.current = new Set(parsed);
+    } catch {
+      seenPostsRef.current = new Set();
+    } finally {
+      setSeenHistoryReady(true);
+    }
+  }, [currentUser?.id]);
 
   const refreshPosts = async () => {
     try {
-      const feed = await getCinePosts(currentUser?.id, 30, { sort: "smart" });
+      const feed = await getCinePosts(currentUser?.id, 30, {
+        sort: "smart",
+        feedContext: { seenPostIds: Array.from(seenPostsRef.current) },
+      });
       setPosts(feed);
     } catch (error) {
       console.error("Error loading posts:", error);
@@ -451,11 +479,16 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   };
 
   useEffect(() => {
+    if (!seenHistoryReady) return;
+
     let cancelled = false;
 
     const loadPosts = async () => {
       try {
-        const feed = await getCinePosts(currentUser?.id, 30, { sort: "smart" });
+        const feed = await getCinePosts(currentUser?.id, 30, {
+          sort: "smart",
+          feedContext: { seenPostIds: Array.from(seenPostsRef.current) },
+        });
         if (!cancelled) {
           setPosts(feed);
         }
@@ -474,7 +507,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, refreshKey]);
+  }, [currentUser?.id, refreshKey, seenHistoryReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -544,6 +577,45 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
       cancelled = true;
     };
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id || typeof window === "undefined" || posts.length === 0) return;
+
+    const storageKey = `cinepost-feed-seen:${currentUser.id}`;
+    const persistSeenPosts = () => {
+      window.localStorage.setItem(storageKey, JSON.stringify(Array.from(seenPostsRef.current)));
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let changed = false;
+
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting || entry.intersectionRatio < 0.6) return;
+
+          const target = entry.target as HTMLElement;
+          const postId = target.dataset.feedPostId;
+          if (!postId || seenPostsRef.current.has(postId)) return;
+
+          seenPostsRef.current.add(postId);
+          changed = true;
+        });
+
+        if (changed) {
+          persistSeenPosts();
+        }
+      },
+      {
+        threshold: [0.6],
+        rootMargin: "0px 0px -12% 0px",
+      }
+    );
+
+    const nodes = document.querySelectorAll<HTMLElement>("[data-feed-post-id]");
+    nodes.forEach((node) => observer.observe(node));
+
+    return () => observer.disconnect();
+  }, [currentUser?.id, posts]);
 
   const handleEngagement = async (
     post: CinePostWithDetails,
@@ -615,10 +687,214 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     </div>
   );
 
+  const priorityFriendPosts = posts.filter((post) => post.feedTier === 0);
+  const mainFeedPosts = posts.filter((post) => post.feedTier !== 0);
+
+  const renderPostCard = (post: CinePostWithDetails, index: number, withDiscoveryRails = true) => {
+    const contentHref = getContentHref(post);
+    const postHref = `/posts/${post.id}`;
+    const preview = getPreview(post.body);
+    const shouldIgnorePostClick = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) return false;
+      return Boolean(target.closest("a,button,[role='button'],input,textarea,select,label"));
+    };
+
+    return (
+      <div key={post.id} className={isBrutalist ? "py-5 sm:py-6" : "space-y-4"}>
+        <article
+          className={`cursor-pointer ${isBrutalist ? "bg-black text-[#f5f0de]" : "overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"}`}
+          role="button"
+          tabIndex={0}
+          data-feed-post-id={post.id}
+          onClick={(event) => {
+            if (shouldIgnorePostClick(event.target)) return;
+            router.push(postHref);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              router.push(postHref);
+            }
+          }}
+        >
+          <div className={`grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-5 ${
+            isBrutalist ? "px-0 py-0" : "p-3 sm:p-5"
+          }`}>
+            {contentHref ? (
+              <Link
+                href={contentHref}
+                className={`group relative aspect-[2/3] overflow-hidden shadow-sm ${
+                  isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
+                }`}
+                title={`Open ${post.content_title || post.anchor_label}`}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <CinePostArtwork
+                  src={post.poster_url}
+                  collageImages={post.list_cover_images}
+                  alt={post.content_title || post.anchor_label}
+                  className="h-full w-full"
+                  mediaClassName="transition duration-300 group-hover:scale-105"
+                  theme={theme}
+                />
+              </Link>
+            ) : (
+              <div className={`aspect-[2/3] overflow-hidden shadow-sm ${
+                isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
+              }`}>
+                <CinePostArtwork
+                  src={post.poster_url}
+                  collageImages={post.list_cover_images}
+                  alt={post.content_title || post.anchor_label}
+                  className="h-full w-full"
+                  mediaClassName="transition duration-300 group-hover:scale-105"
+                  theme={theme}
+                />
+              </div>
+            )}
+
+              <div className="min-w-0 py-1">
+                <div className="flex items-start gap-3">
+                  <Link href={profileHref(post.user)} className="flex-shrink-0" onClick={(event) => event.stopPropagation()}>
+                    <Avatar user={post.user} size="h-7 w-7 sm:h-8 sm:w-8" dark={isBrutalist} />
+                  </Link>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                      <Link
+                        href={profileHref(post.user)}
+                        onClick={(event) => event.stopPropagation()}
+                        className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-[#f5f0de]"}`}
+                      >
+                        {post.user.name}
+                      </Link>
+                      <span className={`text-[10px] sm:text-xs ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>{relativeTime(post.created_at)}</span>
+                    </div>
+                  </div>
+                  <div onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
+                    <CinePostOwnerMenu
+                      post={post}
+                      currentUser={currentUser}
+                      onDeleted={refreshPosts}
+                      onUpdated={refreshPosts}
+                      theme={theme}
+                    />
+                  </div>
+                </div>
+
+                <Link href={postHref} className="mt-2 block sm:mt-3" onClick={(event) => event.stopPropagation()}>
+                  <p className={`whitespace-pre-wrap text-[13px] leading-5 sm:text-[14px] sm:leading-6 ${
+                    isBrutalist ? "text-[#f5f0de]/92" : "text-slate-700"
+                  }`}>
+                    {preview.text}
+                  </p>
+                </Link>
+
+                {preview.isTrimmed && (
+                  <Link
+                    href={postHref}
+                    className={`mt-1 inline-flex text-[11px] font-black sm:mt-2 sm:text-sm ${
+                      isBrutalist ? "text-[#ffb36b]" : "text-[#f5f0de]"
+                    }`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    Show more
+                  </Link>
+                )}
+              </div>
+          </div>
+
+          <div className={`py-3 sm:py-4 ${isBrutalist ? "border-t border-white/10" : "border-t border-slate-100 px-3 sm:px-5"}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleEngagement(post, "like", !post.liked_by_current_user)}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  className={`inline-flex items-center justify-center transition ${
+                    post.liked_by_current_user
+                      ? isBrutalist
+                        ? "text-[#ff7a1a]"
+                        : "bg-rose-50 text-rose-600"
+                      : isBrutalist
+                      ? "text-white/65 hover:text-[#ffb36b]"
+                      : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  }`}
+                  aria-label={post.liked_by_current_user ? "Unlike post" : "Like post"}
+                >
+                  <Heart className={`h-5 w-5 ${post.liked_by_current_user ? (isBrutalist ? "fill-[#ff7a1a]" : "fill-rose-500") : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPeopleModal(post, "like", "Liked by")}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  disabled={post.likes_count === 0}
+                  className={`px-1 py-2 text-sm font-black disabled:opacity-40 ${
+                    isBrutalist ? "text-[#ffb36b]" : "text-rose-600 disabled:text-slate-400"
+                  }`}
+                >
+                  {post.likes_count}
+                </button>
+                <Link
+                  href={postHref}
+                  onClick={(event) => event.stopPropagation()}
+                  className={`inline-flex items-center justify-center gap-1.5 transition ${
+                    isBrutalist ? "text-white/65 hover:text-[#ffb36b]" : "rounded-2xl bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 sm:px-3 sm:text-sm"
+                  }`}
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  {post.comments_count}
+                </Link>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleEngagement(post, "save", !post.saved_by_current_user)}
+                onMouseDown={(event) => event.stopPropagation()}
+                className={`inline-flex items-center justify-center transition ${
+                  post.saved_by_current_user
+                    ? isBrutalist
+                      ? "text-[#ff7a1a]"
+                      : "bg-blue-50 text-[#f5f0de]"
+                    : isBrutalist
+                    ? "text-white/65 hover:text-[#ffb36b]"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                }`}
+                aria-label={post.saved_by_current_user ? "Unsave post" : "Save post"}
+              >
+                <Bookmark className={`h-5 w-5 ${post.saved_by_current_user ? (isBrutalist ? "fill-[#ff7a1a]" : "fill-blue-500") : ""}`} />
+              </button>
+            </div>
+          </div>
+        </article>
+
+        {withDiscoveryRails && index === 4 && renderPopularSection()}
+        {withDiscoveryRails && index === 9 && renderSuggestedSection()}
+        {withDiscoveryRails && index === 14 && renderDiscoverSection()}
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="space-y-6">
-        {(loading || posts.length === 0) && (
+        {priorityFriendPosts.length > 0 && !loading && (
+          <section className="space-y-3">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <h2 className={`text-[11px] uppercase tracking-[0.3em] ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>
+                  Friends First
+                </h2>
+                <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                  Unseen friend posts from the last 48 hours stay pinned up top.
+                </p>
+              </div>
+            </div>
+            <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
+              {priorityFriendPosts.slice(0, 3).map((post) => renderPostCard(post, 0, false))}
+            </div>
+          </section>
+        )}
+
+        {(loading || mainFeedPosts.length === 0) && (
           <div className="space-y-6">
             <div className="space-y-6">
               <DiscoveryRail
@@ -660,7 +936,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
               <div key={item} className={`h-48 animate-pulse ${isBrutalist ? "bg-white/5" : "rounded-[1.75rem] bg-slate-100"}`} />
             ))}
           </div>
-        ) : posts.length === 0 ? (
+        ) : mainFeedPosts.length === 0 ? (
           <div className={`p-6 text-center ${isBrutalist ? "bg-black" : "rounded-[1.75rem] border border-dashed border-slate-300 bg-white"}`}>
             <Sparkles className={`mx-auto mb-3 h-8 w-8 ${isBrutalist ? "text-[#ff7a1a]" : "text-slate-300"}`} />
             <p className={`font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>No posts here yet</p>
@@ -668,187 +944,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
           </div>
         ) : (
           <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
-            {posts.map((post, index) => {
-          const contentHref = getContentHref(post);
-          const postHref = `/posts/${post.id}`;
-          const preview = getPreview(post.body);
-          const shouldIgnorePostClick = (target: EventTarget | null) => {
-            if (!(target instanceof Element)) return false;
-            return Boolean(target.closest("a,button,[role='button'],input,textarea,select,label"));
-          };
-
-          return (
-            <div key={post.id} className={isBrutalist ? "py-5 sm:py-6" : "space-y-4"}>
-              <article
-                className={`cursor-pointer ${isBrutalist ? "bg-black text-[#f5f0de]" : "overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"}`}
-                role="button"
-                tabIndex={0}
-                onClick={(event) => {
-                  if (shouldIgnorePostClick(event.target)) return;
-                  router.push(postHref);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    router.push(postHref);
-                  }
-                }}
-              >
-                <div className={`grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-5 ${
-                  isBrutalist ? "px-0 py-0" : "p-3 sm:p-5"
-                }`}>
-                  {contentHref ? (
-                    <Link
-                      href={contentHref}
-                      className={`group relative aspect-[2/3] overflow-hidden shadow-sm ${
-                        isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
-                      }`}
-                      title={`Open ${post.content_title || post.anchor_label}`}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <CinePostArtwork
-                        src={post.poster_url}
-                        collageImages={post.list_cover_images}
-                        alt={post.content_title || post.anchor_label}
-                        className="h-full w-full"
-                        mediaClassName="transition duration-300 group-hover:scale-105"
-                        theme={theme}
-                      />
-                    </Link>
-                  ) : (
-                    <div className={`aspect-[2/3] overflow-hidden shadow-sm ${
-                      isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
-                    }`}>
-                      <CinePostArtwork
-                        src={post.poster_url}
-                        collageImages={post.list_cover_images}
-                        alt={post.content_title || post.anchor_label}
-                        className="h-full w-full"
-                        mediaClassName="transition duration-300 group-hover:scale-105"
-                        theme={theme}
-                      />
-                    </div>
-                  )}
-
-                    <div className="min-w-0 py-1">
-                      <div className="flex items-start gap-3">
-                        <Link href={profileHref(post.user)} className="flex-shrink-0" onClick={(event) => event.stopPropagation()}>
-                          <Avatar user={post.user} size="h-7 w-7 sm:h-8 sm:w-8" dark={isBrutalist} />
-                        </Link>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                            <Link
-                              href={profileHref(post.user)}
-                              onClick={(event) => event.stopPropagation()}
-                              className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-[#f5f0de]"}`}
-                            >
-                              {post.user.name}
-                            </Link>
-                            <span className={`text-[10px] sm:text-xs ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>{relativeTime(post.created_at)}</span>
-                          </div>
-                        </div>
-                        <div onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
-                          <CinePostOwnerMenu
-                            post={post}
-                            currentUser={currentUser}
-                            onDeleted={refreshPosts}
-                            onUpdated={refreshPosts}
-                            theme={theme}
-                          />
-                        </div>
-                      </div>
-
-                      <Link href={postHref} className="mt-2 block sm:mt-3" onClick={(event) => event.stopPropagation()}>
-                        <p className={`whitespace-pre-wrap text-[13px] leading-5 sm:text-[14px] sm:leading-6 ${
-                          isBrutalist ? "text-[#f5f0de]/92" : "text-slate-700"
-                        }`}>
-                          {preview.text}
-                        </p>
-                      </Link>
-
-                      {preview.isTrimmed && (
-                        <Link
-                          href={postHref}
-                          className={`mt-1 inline-flex text-[11px] font-black sm:mt-2 sm:text-sm ${
-                            isBrutalist ? "text-[#ffb36b]" : "text-[#f5f0de]"
-                          }`}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          Show more
-                        </Link>
-                      )}
-                    </div>
-                </div>
-
-                <div className={`py-3 sm:py-4 ${isBrutalist ? "border-t border-white/10" : "border-t border-slate-100 px-3 sm:px-5"}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEngagement(post, "like", !post.liked_by_current_user)}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        className={`inline-flex items-center justify-center transition ${
-                          post.liked_by_current_user
-                            ? isBrutalist
-                              ? "text-[#ff7a1a]"
-                              : "bg-rose-50 text-rose-600"
-                            : isBrutalist
-                            ? "text-white/65 hover:text-[#ffb36b]"
-                            : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                        }`}
-                        aria-label={post.liked_by_current_user ? "Unlike post" : "Like post"}
-                      >
-                        <Heart className={`h-5 w-5 ${post.liked_by_current_user ? (isBrutalist ? "fill-[#ff7a1a]" : "fill-rose-500") : ""}`} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openPeopleModal(post, "like", "Liked by")}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        disabled={post.likes_count === 0}
-                        className={`px-1 py-2 text-sm font-black disabled:opacity-40 ${
-                          isBrutalist ? "text-[#ffb36b]" : "text-rose-600 disabled:text-slate-400"
-                        }`}
-                      >
-                        {post.likes_count}
-                      </button>
-                      <Link
-                        href={postHref}
-                        onClick={(event) => event.stopPropagation()}
-                        className={`inline-flex items-center justify-center gap-1.5 transition ${
-                          isBrutalist ? "text-white/65 hover:text-[#ffb36b]" : "rounded-2xl bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 sm:px-3 sm:text-sm"
-                        }`}
-                      >
-                        <MessageCircle className="h-5 w-5" />
-                        {post.comments_count}
-                      </Link>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleEngagement(post, "save", !post.saved_by_current_user)}
-                      onMouseDown={(event) => event.stopPropagation()}
-                      className={`inline-flex items-center justify-center transition ${
-                        post.saved_by_current_user
-                          ? isBrutalist
-                            ? "text-[#ff7a1a]"
-                            : "bg-blue-50 text-[#f5f0de]"
-                          : isBrutalist
-                          ? "text-white/65 hover:text-[#ffb36b]"
-                          : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                      }`}
-                      aria-label={post.saved_by_current_user ? "Unsave post" : "Save post"}
-                    >
-                      <Bookmark className={`h-5 w-5 ${post.saved_by_current_user ? (isBrutalist ? "fill-[#ff7a1a]" : "fill-blue-500") : ""}`} />
-                    </button>
-                  </div>
-                </div>
-              </article>
-
-              {index === 2 && renderPopularSection()}
-              {index === 5 && renderSuggestedSection()}
-              {index === 8 && renderDiscoverSection()}
-            </div>
-          );
-        })}
+            {mainFeedPosts.map((post, index) => renderPostCard(post, index))}
           </div>
         )}
       </div>
