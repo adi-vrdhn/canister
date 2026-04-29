@@ -519,7 +519,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
 
       try {
         const [popular, suggested, publicListsBase, usersSnapshot] = await Promise.all([
-          getPopularMovies(1, 10),
+          getPopularMovies(1, 20),
           currentUser?.id ? getTasteBasedPopularMovies(currentUser.id, 10) : Promise.resolve([]),
           getPublicLists(8),
           get(ref(db, "users")),
