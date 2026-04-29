@@ -6,18 +6,17 @@ import { useRouter } from "next/navigation";
 import { Bookmark, ChevronLeft, ChevronRight, Heart, MessageCircle, Sparkles, X } from "lucide-react";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import CinePostArtwork from "@/components/CinePostArtwork";
-import { CinePostEngagementType, CinePostWithDetails, TMDBMovie, User, Content } from "@/types";
+import { CinePostEngagementType, CinePostWithDetails, Content, TMDBMovie, User } from "@/types";
 import {
   getCinePostEngagementUsers,
   getCinePosts,
   setCinePostEngagement,
 } from "@/lib/cineposts";
-import { getListWithDetails, getPublicLists } from "@/lib/lists";
+import { getPublicLists, getListWithDetails } from "@/lib/lists";
 import { getPopularMovies } from "@/lib/tmdb";
 import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
 import { db } from "@/lib/firebase";
 import { get, ref } from "firebase/database";
-import AdTerraTopAd from "./AdTerraTopAd";
 
 interface CinePostsFeedProps {
   currentUser: User | null;
@@ -26,10 +25,6 @@ interface CinePostsFeedProps {
 }
 
 const PREVIEW_LIMIT = 150;
-
-function formatPostType(type: string): string {
-  return type.charAt(0).toUpperCase() + type.slice(1);
-}
 
 function relativeTime(dateString: string): string {
   const diff = Date.now() - new Date(dateString).getTime();
@@ -82,109 +77,271 @@ function getPreview(body: string): { text: string; isTrimmed: boolean } {
   };
 }
 
-type TrendingList = {
+type RailItem = {
+  id: string;
+  label: string;
+  href: string;
+  posterUrl: string | null;
+  meta: string;
+};
+
+type DiscoverListItem = {
   id: string;
   name: string;
-  description: string | null;
-  item_count: number;
-  coverImage: string | null;
-  engagementScore: number;
-};
-
-type PosterItem = {
-  id: number;
-  title: string;
-  poster_url: string | null;
-  release_date?: string | null;
-  rating?: number | null;
-  type: "movie" | "tv";
   href: string;
+  coverImage: string | null;
+  description: string | null;
 };
 
-function buildTrendingScore(list: {
+function tmdbPosterUrl(path: string | null): string | null {
+  return path ? `https://image.tmdb.org/t/p/w342${path}` : null;
+}
+
+function buildPopularRailItems(items: TMDBMovie[]): RailItem[] {
+  return items.map((item) => ({
+    id: String(item.id),
+    label: item.title,
+    href: `/movie/${item.id}`,
+    posterUrl: tmdbPosterUrl(item.poster_path),
+    meta: item.vote_average ? `TMDB ${item.vote_average.toFixed(1)}` : "Popular",
+  }));
+}
+
+function buildSuggestedRailItems(items: Content[]): RailItem[] {
+  return items.map((item) => ({
+    id: String(item.id),
+    label: item.title || (item as any).name || "Untitled",
+    href: item.type === "tv" ? `/tv/${item.id}` : `/movie/${item.id}`,
+    posterUrl: item.poster_url || null,
+    meta: item.type === "tv" ? "Suggested show" : "Suggested movie",
+  }));
+}
+
+function buildDiscoverListScore(list: {
   item_count: number;
-  collaborators: Array<{ user_id: string }>;
+  collaborator_count: number;
   items: Array<{ watched_by?: string[] }>;
 }): number {
-  const collaboratorCount = list.collaborators.filter((collab) => Boolean(collab.user_id)).length;
   const watchSignal = list.items.reduce((sum, item) => sum + (item.watched_by?.length || 0), 0);
-  return list.item_count * 2 + collaboratorCount * 3 + watchSignal;
+  return list.item_count * 2 + list.collaborator_count * 3 + watchSignal;
 }
 
-function toPosterItemFromMovie(movie: TMDBMovie): PosterItem {
-  return {
-    id: movie.id,
-    title: movie.title,
-    poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
-    release_date: movie.release_date || null,
-    rating: movie.vote_average ?? null,
-    type: "movie",
-    href: `/movie/${movie.id}`,
-  };
+function buildDiscoverListItems(allLists: DiscoverListItem[]): DiscoverListItem[] {
+  return allLists;
 }
 
-function toPosterItemFromContent(content: Content): PosterItem {
-  return {
-    id: content.id,
-    title: content.title,
-    poster_url: content.poster_url || null,
-    release_date: content.release_date || null,
-    rating: content.rating ?? null,
-    type: content.type || "movie",
-    href: content.type === "tv" ? `/tv/${content.id}` : `/movie/${content.id}`,
-  };
+function scrollRail(ref: { current: HTMLDivElement | null }, direction: -1 | 1) {
+  const node = ref.current;
+  if (!node) return;
+  const amount = Math.max(node.clientWidth * 0.88, 320);
+  node.scrollBy({ left: amount * direction, behavior: "smooth" });
 }
 
-function PosterTile({
-  item,
-  onClick,
-  compact = false,
-  clickableLabel,
+function DiscoveryRail({
+  title,
+  items,
+  loading,
+  emptyLabel,
+  railRef,
+  theme = "default",
+  onLeft,
+  onRight,
+  showButtons = true,
 }: {
-  item: PosterItem;
-  onClick: () => void;
-  compact?: boolean;
-  clickableLabel?: string;
+  title: string;
+  items: RailItem[];
+  loading: boolean;
+  emptyLabel: string;
+  railRef: { current: HTMLDivElement | null };
+  theme?: "default" | "brutalist";
+  onLeft?: () => void;
+  onRight?: () => void;
+  showButtons?: boolean;
 }) {
+  const isBrutalist = theme === "brutalist";
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group block text-left ${compact ? "min-w-0 flex-none snap-start" : ""}`}
-      aria-label={clickableLabel || item.title}
-    >
+    <section className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h3 className={`text-[11px] uppercase tracking-[0.3em] ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>
+            {title}
+          </h3>
+        </div>
+        {showButtons && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onLeft}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
+                isBrutalist
+                  ? "border-white/10 bg-[#0a0a0a] text-[#f5f0de] hover:border-white/20"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+              }`}
+              aria-label={`Scroll ${title.toLowerCase()} left`}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onRight}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
+                isBrutalist
+                  ? "border-white/10 bg-[#0a0a0a] text-[#f5f0de] hover:border-white/20"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+              }`}
+              aria-label={`Scroll ${title.toLowerCase()} right`}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
       <div
-        className={`overflow-hidden border border-white/10 bg-[#0a0a0a] transition hover:border-[#ff7a1a]/35 hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)] ${
-          compact ? "rounded-[0.9rem]" : "rounded-[1.1rem]"
-        } ${
-          compact
-            ? "w-[5.35rem] sm:w-[6.1rem] md:w-[7rem] lg:w-[calc((100%-1rem)/5)]"
-            : ""
-        }`}
+        ref={railRef}
+        className="grid grid-flow-col gap-3 overflow-x-auto scroll-smooth pb-1 pr-1 scrollbar-hide snap-x snap-mandatory auto-cols-[7.5rem] sm:auto-cols-[8rem] lg:auto-cols-[calc((100%-3rem)/5)]"
       >
-        <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
-          {item.poster_url ? (
-            <img
-              src={item.poster_url}
-              alt={item.title}
-              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-[10px] text-white/35">
-              No poster
+        {loading ? (
+          Array.from({ length: 10 }).map((_, index) => (
+            <div key={`${title}-skeleton-${index}`} className="snap-start">
+              <div className="aspect-[2/3] overflow-hidden bg-white/5">
+                <div className="h-full w-full animate-pulse bg-white/10" />
+              </div>
+              <div className="mt-2 h-3 w-4/5 animate-pulse bg-white/10" />
+              <div className="mt-2 h-2 w-2/5 animate-pulse bg-white/5" />
             </div>
-          )}
+          ))
+        ) : items.length === 0 ? (
+          <div className={`py-3 text-sm ${isBrutalist ? "text-white/45" : "text-slate-500"}`}>{emptyLabel}</div>
+        ) : (
+          items.map((item) => (
+            <Link key={item.id} href={item.href} className="snap-start">
+              <div className="group">
+                <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
+                  {item.posterUrl ? (
+                    <img
+                      src={item.posterUrl}
+                      alt={item.label}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-white/35">No poster</div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2 pt-8">
+                    <p className="line-clamp-2 text-[11px] font-semibold leading-4 text-[#f5f0de]">{item.label}</p>
+                  </div>
+                </div>
+                <p className={`mt-2 text-[10px] uppercase tracking-[0.18em] ${isBrutalist ? "text-white/35" : "text-slate-400"}`}>
+                  {item.meta}
+                </p>
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DiscoverListRail({
+  items,
+  loading,
+  emptyLabel,
+  railRef,
+  theme = "default",
+  onLeft,
+  onRight,
+}: {
+  items: DiscoverListItem[];
+  loading: boolean;
+  emptyLabel: string;
+  railRef: { current: HTMLDivElement | null };
+  theme?: "default" | "brutalist";
+  onLeft?: () => void;
+  onRight?: () => void;
+}) {
+  const isBrutalist = theme === "brutalist";
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h3 className={`text-[11px] uppercase tracking-[0.3em] ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>
+            Discover Lists
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onLeft}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
+              isBrutalist
+                ? "border-white/10 bg-[#0a0a0a] text-[#f5f0de] hover:border-white/20"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+            aria-label="Scroll discover lists left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onRight}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${
+              isBrutalist
+                ? "border-white/10 bg-[#0a0a0a] text-[#f5f0de] hover:border-white/20"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+            aria-label="Scroll discover lists right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
-      {!compact && (
-        <div className="mt-2">
-          <p className="truncate text-[11px] font-black text-[#f5f0de]">{item.title}</p>
-          {item.release_date && (
-            <p className="text-[10px] text-white/45">{item.release_date.split("-")[0]}</p>
-          )}
-        </div>
-      )}
-    </button>
+
+      <div
+        ref={railRef}
+        className="grid grid-flow-col gap-3 overflow-x-auto scroll-smooth pb-1 pr-1 scrollbar-hide snap-x snap-mandatory auto-cols-[7.5rem] sm:auto-cols-[8rem] lg:auto-cols-[calc((100%-3rem)/5)]"
+      >
+        {loading ? (
+          Array.from({ length: 6 }).map((_, index) => (
+            <div key={`discover-skeleton-${index}`} className="snap-start">
+              <div className="aspect-[2/3] overflow-hidden bg-white/5">
+                <div className="h-full w-full animate-pulse bg-white/10" />
+              </div>
+              <div className="mt-2 h-3 w-4/5 animate-pulse bg-white/10" />
+              <div className="mt-2 h-2 w-2/5 animate-pulse bg-white/5" />
+            </div>
+          ))
+        ) : items.length === 0 ? (
+          <div className={`py-3 text-sm ${isBrutalist ? "text-white/45" : "text-slate-500"}`}>{emptyLabel}</div>
+        ) : (
+          items.map((item) => (
+            <Link key={item.id} href={item.href} className="snap-start">
+              <div className="group">
+                <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
+                  {item.coverImage ? (
+                    <img
+                      src={item.coverImage}
+                      alt={item.name}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-white/35">No poster</div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2 pt-8">
+                    <p className="line-clamp-2 text-[11px] font-semibold leading-4 text-[#f5f0de]">{item.name}</p>
+                  </div>
+                </div>
+                <p className={`mt-2 text-[10px] uppercase tracking-[0.18em] ${isBrutalist ? "text-white/35" : "text-slate-400"}`}>
+                  Public list
+                </p>
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -268,18 +425,19 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   const isBrutalist = theme === "brutalist";
   const router = useRouter();
   const popularRailRef = useRef<HTMLDivElement | null>(null);
-  const tasteRailRef = useRef<HTMLDivElement | null>(null);
+  const suggestedRailRef = useRef<HTMLDivElement | null>(null);
+  const discoverRailRef = useRef<HTMLDivElement | null>(null);
   const [posts, setPosts] = useState<CinePostWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [popularMovies, setPopularMovies] = useState<RailItem[]>([]);
+  const [popularLoading, setPopularLoading] = useState(true);
+  const [suggestedMovies, setSuggestedMovies] = useState<RailItem[]>([]);
+  const [suggestedLoading, setSuggestedLoading] = useState(true);
+  const [discoverLists, setDiscoverLists] = useState<DiscoverListItem[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(true);
   const [peopleModalTitle, setPeopleModalTitle] = useState("");
   const [peopleModalUsers, setPeopleModalUsers] = useState<User[]>([]);
   const [peopleModalLoading, setPeopleModalLoading] = useState(false);
-  const [popularMovies, setPopularMovies] = useState<PosterItem[]>([]);
-  const [popularMoviesLoading, setPopularMoviesLoading] = useState(true);
-  const [tasteMovies, setTasteMovies] = useState<PosterItem[]>([]);
-  const [tasteMoviesLoading, setTasteMoviesLoading] = useState(true);
-  const [trendingLists, setTrendingLists] = useState<TrendingList[]>([]);
-  const [trendingListsLoading, setTrendingListsLoading] = useState(true);
 
   const refreshPosts = async () => {
     try {
@@ -321,64 +479,66 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   useEffect(() => {
     let cancelled = false;
 
-    const loadFeedExtras = async () => {
-      try {
-        setPopularMoviesLoading(true);
-        setTasteMoviesLoading(true);
-        setTrendingListsLoading(true);
+    const loadDiscoveryRails = async () => {
+      setPopularLoading(true);
+      setSuggestedLoading(true);
+      setDiscoverLoading(true);
 
-        const [publicListsBase, usersSnapshot] = await Promise.all([
+      try {
+        const [popular, suggested, publicListsBase, usersSnapshot] = await Promise.all([
+          getPopularMovies(1, 10),
+          currentUser?.id ? getTasteBasedPopularMovies(currentUser.id, 10) : Promise.resolve([]),
           getPublicLists(8),
           get(ref(db, "users")),
         ]);
 
-        const [popular, taste] = await Promise.all([
-          getPopularMovies(1, 10),
-          currentUser?.id ? getTasteBasedPopularMovies(currentUser.id, 10) : Promise.resolve([]),
-        ]);
+        if (cancelled) return;
 
-        if (!cancelled) {
-          setPopularMovies(popular.slice(0, 10).map(toPosterItemFromMovie));
-          setTasteMovies(taste.slice(0, 10).map(toPosterItemFromContent));
-        }
+        setPopularMovies(buildPopularRailItems(popular));
+        setSuggestedMovies(buildSuggestedRailItems(suggested));
 
         const allUsers = usersSnapshot.exists() ? usersSnapshot.val() : {};
-        const publicListsWithDetails = await Promise.all(
-          publicListsBase.map(async (list) => {
+        const detailedLists = await Promise.all(
+          publicListsBase.slice(0, 5).map(async (list) => {
             const details = await getListWithDetails(list.id, allUsers);
             if (!details) return null;
-
             return {
               id: details.id,
               name: details.name,
+              href: `/lists/${details.id}`,
+              coverImage: details.cover_image_url || details.items[0]?.content?.poster_url || null,
               description: details.description,
               item_count: details.item_count,
-              coverImage: details.cover_image_url || details.items[0]?.content?.poster_url || null,
-              engagementScore: buildTrendingScore(details),
-            } satisfies TrendingList;
+              collaborator_count: details.collaborator_count,
+              items: details.items,
+            };
           })
         );
 
-        const nextTrending = publicListsWithDetails
-          .filter((list): list is TrendingList => Boolean(list))
-          .sort((a, b) => b.engagementScore - a.engagementScore)
-          .slice(0, 3);
+        const sortedLists = detailedLists
+          .filter(Boolean)
+          .sort((a, b) => buildDiscoverListScore(b as any) - buildDiscoverListScore(a as any))
+          .map((list) => ({
+            id: (list as any).id,
+            name: (list as any).name,
+            href: (list as any).href,
+            coverImage: (list as any).coverImage,
+            description: (list as any).description,
+          }));
 
-        if (!cancelled) {
-          setTrendingLists(nextTrending);
-        }
+        setDiscoverLists(sortedLists);
       } catch (error) {
-        console.error("Error loading trending lists:", error);
+        console.error("Error loading discovery rails:", error);
       } finally {
         if (!cancelled) {
-          setPopularMoviesLoading(false);
-          setTasteMoviesLoading(false);
-          setTrendingListsLoading(false);
+          setPopularLoading(false);
+          setSuggestedLoading(false);
+          setDiscoverLoading(false);
         }
       }
     };
 
-    loadFeedExtras();
+    loadDiscoveryRails();
 
     return () => {
       cancelled = true;
@@ -411,274 +571,104 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     }
   };
 
-  const scrollRail = (ref: { current: HTMLDivElement | null }, direction: -1 | 1) => {
-    const node = ref.current;
-    if (!node) return;
+  const renderPopularSection = () => (
+    <div className="pt-6">
+      <DiscoveryRail
+        title="Popular Movies"
+        items={popularMovies}
+        loading={popularLoading}
+        emptyLabel="Popular movies will appear here soon."
+        railRef={popularRailRef}
+        theme={theme}
+        onLeft={() => scrollRail(popularRailRef, -1)}
+        onRight={() => scrollRail(popularRailRef, 1)}
+      />
+    </div>
+  );
 
-    const amount = Math.max(node.clientWidth * 0.92, 360);
-    node.scrollBy({ left: amount * direction, behavior: "smooth" });
-  };
+  const renderSuggestedSection = () => (
+    <div className="pt-6">
+      <DiscoveryRail
+        title="Suggested Movies"
+        items={suggestedMovies}
+        loading={suggestedLoading}
+        emptyLabel={currentUser?.id ? "Suggested movies will appear here soon." : "Sign in to get personalized suggestions."}
+        railRef={suggestedRailRef}
+        theme={theme}
+        onLeft={() => scrollRail(suggestedRailRef, -1)}
+        onRight={() => scrollRail(suggestedRailRef, 1)}
+      />
+    </div>
+  );
 
-  const renderPopularMoviesSection = () => {
-    if (popularMoviesLoading || popularMovies.length === 0) return null;
-
-    return (
-      <article
-        className={`overflow-hidden ${
-          isBrutalist
-            ? "border border-white/10 bg-[#111111] text-[#f5f0de]"
-            : "rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
-        }`}
-      >
-        <div className={`flex items-center justify-between gap-3 px-3 py-3 sm:px-4 ${
-          isBrutalist ? "border-b border-white/10" : "border-b border-slate-100"
-        }`}>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Sparkles className={`h-4 w-4 ${isBrutalist ? "text-[#ff7a1a]" : "text-[#f5f0de]"}`} />
-              <h3 className={`text-sm font-black sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Popular movies</h3>
-            </div>
-            <p className={`mt-0.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Top 10 trending picks on TMDB</p>
-          </div>
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-black ${
-              isBrutalist
-                ? "border-white/10 bg-[#0a0a0a] text-[#ffb36b]"
-                : "border-slate-200 bg-white text-slate-700"
-            }`}
-          >
-            Top 10
-          </span>
-        </div>
-
-        <div className="relative px-2.5 py-3 sm:px-3">
-          <button
-            type="button"
-            onClick={() => scrollRail(popularRailRef, -1)}
-            className={`absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
-              isBrutalist
-                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            }`}
-            aria-label="Scroll popular movies left"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollRail(popularRailRef, 1)}
-            className={`absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
-              isBrutalist
-                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            }`}
-            aria-label="Scroll popular movies right"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-
-          <div
-            ref={popularRailRef}
-            className="flex gap-2 overflow-x-auto scroll-smooth pb-1 pr-10 pl-1 snap-x snap-mandatory sm:gap-3"
-          >
-            {popularMovies.map((item) => (
-              <PosterTile
-              key={item.id}
-              item={item}
-              compact
-              onClick={() => router.push(item.href)}
-              clickableLabel={`Open ${item.title}`}
-            />
-          ))}
-          </div>
-        </div>
-      </article>
-    );
-  };
-
-  const renderSuggestionsSection = () => {
-    if (tasteMoviesLoading || tasteMovies.length === 0) return null;
-
-    return (
-      <article
-        className={`overflow-hidden ${
-          isBrutalist
-            ? "border border-white/10 bg-[#111111] text-[#f5f0de]"
-            : "rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
-        }`}
-      >
-        <div className={`flex items-center justify-between gap-3 px-3 py-3 sm:px-4 ${
-          isBrutalist ? "border-b border-white/10" : "border-b border-slate-100"
-        }`}>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Sparkles className={`h-4 w-4 ${isBrutalist ? "text-[#ff7a1a]" : "text-[#f5f0de]"}`} />
-              <h3 className={`text-sm font-black sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Suggestions</h3>
-            </div>
-            <p className={`mt-0.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Good and masterpiece picks from your watched taste</p>
-          </div>
-        </div>
-
-        <div className="relative px-2.5 py-3 sm:px-3">
-          <button
-            type="button"
-            onClick={() => scrollRail(tasteRailRef, -1)}
-            className={`absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
-              isBrutalist
-                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            }`}
-            aria-label="Scroll suggestions left"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollRail(tasteRailRef, 1)}
-            className={`absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border p-2 shadow-lg sm:flex ${
-              isBrutalist
-                ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:border-[#ff7a1a]/40"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            }`}
-            aria-label="Scroll suggestions right"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-
-          <div
-            ref={tasteRailRef}
-            className="flex gap-2 overflow-x-auto scroll-smooth pb-1 pr-10 pl-1 snap-x snap-mandatory sm:gap-3"
-          >
-            {tasteMovies.map((item) => (
-              <PosterTile
-                key={item.id}
-                item={item}
-                compact
-                onClick={() => router.push(item.href)}
-                clickableLabel={`Open ${item.title}`}
-              />
-            ))}
-          </div>
-        </div>
-      </article>
-    );
-  };
-
-  const renderTrendingListsSection = () => {
-    if (trendingListsLoading || trendingLists.length === 0) return null;
-
-    return (
-      <article
-        className={`cursor-pointer overflow-hidden ${
-          isBrutalist
-            ? "border border-white/10 bg-[#111111] text-[#f5f0de] shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
-            : "rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
-        }`}
-        onClick={() => router.push("/lists")}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            router.push("/lists");
-          }
-        }}
-      >
-        <div className={`flex items-center justify-between gap-3 px-3 py-3 sm:px-4 ${
-          isBrutalist ? "border-b border-white/10" : "border-b border-slate-100"
-        }`}>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Sparkles className={`h-4 w-4 ${isBrutalist ? "text-[#ff7a1a]" : "text-[#f5f0de]"}`} />
-              <h3 className={`text-sm font-black sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Trending lists</h3>
-            </div>
-            <p className={`mt-0.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Global picks worth checking out</p>
-          </div>
-
-          <Link
-            href="/lists"
-            onClick={(event) => event.stopPropagation()}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
-              isBrutalist
-                ? "border-white/10 bg-[#0a0a0a] text-[#f5f0de] hover:border-[#ff7a1a]/40 hover:text-[#ffb36b]"
-                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
-            }`}
-            aria-label="Open lists"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Link>
-        </div>
-
-        <div className="flex gap-3 overflow-x-auto px-3 py-3 sm:px-4">
-          {trendingLists.map((list) => {
-            const listHref = `/lists/${list.id}`;
-
-            return (
-              <div
-                key={list.id}
-                className={`w-[8.75rem] shrink-0 p-2.5 transition hover:-translate-y-0.5 sm:w-[10.5rem] ${
-                  isBrutalist
-                    ? "border border-white/10 bg-[#0a0a0a] hover:border-[#ff7a1a]/40 hover:shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-                    : "rounded-[1.1rem] border border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white hover:shadow-sm"
-                }`}
-              >
-                <Link
-                  href={listHref}
-                  onClick={(event) => event.stopPropagation()}
-                  className="group block"
-                >
-                  <div className={`aspect-[2/3] overflow-hidden ${isBrutalist ? "bg-[#1a1a1a]" : "rounded-[0.9rem] bg-slate-100"}`}>
-                    {list.coverImage ? (
-                      <img
-                        src={list.coverImage}
-                        alt={list.name}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className={`flex h-full w-full items-center justify-center text-xs font-bold ${
-                        isBrutalist
-                          ? "bg-[#1a1a1a] text-white/35"
-                          : "bg-gradient-to-br from-slate-200 to-slate-300 text-slate-500"
-                      }`}>
-                        No poster
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-3 min-w-0">
-                    <h4 className={`truncate text-xs font-black sm:text-sm ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>{list.name}</h4>
-                    {list.description && (
-                      <p className={`mt-1 line-clamp-2 text-[11px] leading-4 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                        {list.description}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      </article>
-    );
-  };
+  const renderDiscoverSection = () => (
+    <div className="pt-6">
+      <DiscoverListRail
+        items={discoverLists}
+        loading={discoverLoading}
+        emptyLabel="Public lists will appear here soon."
+        railRef={discoverRailRef}
+        theme={theme}
+        onLeft={() => scrollRail(discoverRailRef, -1)}
+        onRight={() => scrollRail(discoverRailRef, 1)}
+      />
+    </div>
+  );
 
   return (
     <>
-      {loading ? (
-        <div className={isBrutalist ? "divide-y divide-white/10" : "grid gap-3"}>
-          {[0, 1].map((item) => (
-            <div key={item} className={`h-48 animate-pulse ${isBrutalist ? "bg-white/5" : "rounded-[1.75rem] bg-slate-100"}`} />
-          ))}
-        </div>
-      ) : posts.length === 0 ? (
-        <div className={`p-6 text-center ${isBrutalist ? "bg-black" : "rounded-[1.75rem] border border-dashed border-slate-300 bg-white"}`}>
-          <Sparkles className={`mx-auto mb-3 h-8 w-8 ${isBrutalist ? "text-[#ff7a1a]" : "text-slate-300"}`} />
-          <p className={`font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>No posts here yet</p>
-          <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Try another filter or create the first one.</p>
-        </div>
-      ) : (
-      <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
-        {posts.map((post, index) => {
+      <div className="space-y-6">
+        {(loading || posts.length === 0) && (
+          <div className="space-y-6">
+            <div className="space-y-6">
+              <DiscoveryRail
+                title="Popular Movies"
+                items={popularMovies}
+                loading={popularLoading}
+                emptyLabel="Popular movies will appear here soon."
+                railRef={popularRailRef}
+                theme={theme}
+                onLeft={() => scrollRail(popularRailRef, -1)}
+                onRight={() => scrollRail(popularRailRef, 1)}
+              />
+              <DiscoveryRail
+                title="Suggested Movies"
+                items={suggestedMovies}
+                loading={suggestedLoading}
+                emptyLabel={currentUser?.id ? "Suggested movies will appear here soon." : "Sign in to get personalized suggestions."}
+                railRef={suggestedRailRef}
+                theme={theme}
+                onLeft={() => scrollRail(suggestedRailRef, -1)}
+                onRight={() => scrollRail(suggestedRailRef, 1)}
+              />
+              <DiscoverListRail
+                items={discoverLists}
+                loading={discoverLoading}
+                emptyLabel="Public lists will appear here soon."
+                railRef={discoverRailRef}
+                theme={theme}
+                onLeft={() => scrollRail(discoverRailRef, -1)}
+                onRight={() => scrollRail(discoverRailRef, 1)}
+              />
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className={isBrutalist ? "divide-y divide-white/10" : "grid gap-3"}>
+            {[0, 1].map((item) => (
+              <div key={item} className={`h-48 animate-pulse ${isBrutalist ? "bg-white/5" : "rounded-[1.75rem] bg-slate-100"}`} />
+            ))}
+          </div>
+        ) : posts.length === 0 ? (
+          <div className={`p-6 text-center ${isBrutalist ? "bg-black" : "rounded-[1.75rem] border border-dashed border-slate-300 bg-white"}`}>
+            <Sparkles className={`mx-auto mb-3 h-8 w-8 ${isBrutalist ? "text-[#ff7a1a]" : "text-slate-300"}`} />
+            <p className={`font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>No posts here yet</p>
+            <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Try another filter or create the first one.</p>
+          </div>
+        ) : (
+          <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
+            {posts.map((post, index) => {
           const contentHref = getContentHref(post);
           const postHref = `/posts/${post.id}`;
           const preview = getPreview(post.body);
@@ -853,20 +843,15 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                 </div>
               </article>
 
-              {(index + 1) % 3 === 0 && (
-                <AdTerraTopAd
-                  key={`ad-${post.id}`}
-                />
-              )}
-
-              {index === 2 && renderPopularMoviesSection()}
-              {index === 5 && renderSuggestionsSection()}
-              {index === 8 && renderTrendingListsSection()}
+              {index === 2 && renderPopularSection()}
+              {index === 5 && renderSuggestedSection()}
+              {index === 8 && renderDiscoverSection()}
             </div>
           );
         })}
+          </div>
+        )}
       </div>
-      )}
 
       {peopleModalTitle && (
         <PeopleModal

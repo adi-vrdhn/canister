@@ -84,50 +84,49 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-[#090909] px-4 py-6 text-[#f5f0de] sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-dvh w-full max-w-7xl lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="flex flex-col justify-between px-0 py-4 lg:px-4 lg:py-8">
-          <div>
-            <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="Canisterr logo" width={56} height={56} className="h-14 w-14 rounded-2xl object-cover" />
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.28em] text-[#ffb36b]">Canisterr</p>
-                <h1 className="mt-1 text-3xl font-black leading-none sm:text-5xl">Happy to have you in register</h1>
-              </div>
-            </div>
-            <p className="mt-5 max-w-xl text-base leading-7 text-[#f5f0de]/72 sm:text-lg">
-              Create your account, choose your username, and start building your taste profile in the black and orange flow.
-            </p>
-          </div>
-
-          <div className="mt-8 grid gap-3 sm:max-w-md">
-            <Link
-              href="/auth/login"
-              className="inline-flex items-center justify-between rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-5 py-4 text-left transition hover:bg-white/[0.08]"
-            >
-              <span>
-                <span className="block text-lg font-black text-[#f5f0de]">Sign in instead</span>
-                <span className="block text-sm text-white/55">Welcome back for sign in</span>
-              </span>
-              <ArrowRight className="h-5 w-5 text-[#ffb36b]" />
-            </Link>
-          </div>
+    <div className="min-h-dvh bg-[#050505] text-[#f5f0de]">
+      <div className="grid h-full w-full lg:grid-cols-[3fr_2fr]">
+        <section className="relative hidden min-h-dvh overflow-hidden border-r border-white/10 bg-[#050505] lg:flex">
+          <img
+            src="https://image.tmdb.org/t/p/w780/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg"
+            alt="La La Land poster"
+            className="absolute inset-0 h-full w-full object-contain object-left pointer-events-none select-none"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.35),rgba(0,0,0,0.05)_50%,rgba(0,0,0,0.34))]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,122,26,0.14),transparent_28%),radial-gradient(circle_at_80%_80%,rgba(0,0,0,0.18),transparent_32%)]" />
         </section>
 
-        <section className="flex items-center justify-center py-6 lg:px-4 lg:py-8">
-          <div className="w-full max-w-xl">
-            <div className="mb-6 flex items-center gap-3 lg:hidden">
-              <Image src="/logo.png" alt="Canisterr logo" width={48} height={48} className="h-12 w-12 rounded-2xl object-cover" />
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#ffb36b]">Canisterr</p>
-                <p className="text-sm text-white/55">Register</p>
+        <section className="flex min-h-dvh items-start justify-start bg-[#0a0a0a] px-5 py-6 sm:px-8 sm:py-8 lg:px-4 lg:py-4">
+          <div className="w-full max-w-none">
+            <div className="mb-8 flex items-start gap-4">
+              <div className="flex items-center gap-3">
+                <Image src="/logo.png" alt="Canisterr logo" width={56} height={56} className="h-14 w-14 rounded-2xl object-cover" />
+                <div>
+                  <h1 className="mt-1 text-4xl font-black leading-none text-[#f5f0de] sm:text-6xl">
+                    Canisterr
+                  </h1>
+                </div>
               </div>
+            </div>
+
+            <p className="max-w-lg text-sm leading-7 text-white/60">
+              Build your profile, choose your username, and start logging films.
+            </p>
+
+            <div className="mt-5 flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.24em]">
+              <Link href="/auth/login" className="text-white/40 transition hover:text-[#ff7a1a]">
+                Sign in
+              </Link>
+              <span className="text-white/20">/</span>
+              <Link href="/auth/signup" className="text-[#ff7a1a]">
+                Create account
+              </Link>
             </div>
 
             {verificationSent ? (
-              <div className="space-y-4">
+              <div className="mt-8 space-y-4">
                 <h2 className="text-3xl font-black text-[#f5f0de] sm:text-4xl">Verify your email</h2>
-                <p className="text-sm leading-7 text-[#f5f0de]/65 sm:text-base">
+                <p className="text-sm leading-7 text-white/60 sm:text-base">
                   A verification link has been sent to <span className="font-semibold text-[#ffb36b]">{email}</span>.
                   {" "}You can use the app now, but please verify within 7 days.
                 </p>
@@ -141,16 +140,16 @@ export default function SignUpPage() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="mt-8 space-y-4">
                 {error && (
-                  <div className="flex items-start gap-3 rounded-[1.25rem] border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-4">
-                    <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#ffb36b]" />
+                  <div className="flex items-start gap-3 rounded-[1.25rem] border border-[#ff7a1a]/20 bg-[#ff7a1a]/10 p-4">
+                    <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#ff7a1a]" />
                     <p className="text-sm text-[#f5f0de]">{error}</p>
                   </div>
                 )}
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Email</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]/75">Email</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
@@ -159,13 +158,13 @@ export default function SignUpPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
                       required
-                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
+                      className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Username</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]/75">Username</label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
@@ -175,7 +174,7 @@ export default function SignUpPage() {
                       placeholder="@username"
                       minLength={3}
                       required
-                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-10 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
+                      className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] py-3 pl-10 pr-10 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                     {username.length >= 3 && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -195,19 +194,19 @@ export default function SignUpPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Full Name</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]/75">Full Name</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your name"
                     required
-                    className="w-full rounded-2xl border border-white/10 bg-[#151515] px-4 py-3 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
+                    className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] px-4 py-3 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Password</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]/75">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
@@ -217,13 +216,13 @@ export default function SignUpPage() {
                       placeholder="••••••••"
                       minLength={6}
                       required
-                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
+                      className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#f5f0de]/75">Confirm Password</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]/75">Confirm Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                     <input
@@ -233,7 +232,7 @@ export default function SignUpPage() {
                       placeholder="••••••••"
                       minLength={6}
                       required
-                      className="w-full rounded-2xl border border-white/10 bg-[#151515] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
+                      className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] py-3 pl-10 pr-4 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
                   </div>
                 </div>
@@ -243,7 +242,7 @@ export default function SignUpPage() {
                     type="checkbox"
                     checked={agreedToTerms}
                     onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-white/20 bg-[#151515] text-[#ff7a1a] accent-[#ff7a1a]"
+                    className="mt-1 h-4 w-4 rounded border-white/20 bg-[#111111] text-[#ff7a1a] accent-[#ff7a1a]"
                   />
                   <span>
                     By clicking I agree to the{" "}
@@ -261,12 +260,25 @@ export default function SignUpPage() {
                 <button
                   type="submit"
                   disabled={loading || !usernameAvailable || !agreedToTerms}
-                  className="w-full rounded-2xl bg-[#ff7a1a] py-3 text-sm font-black text-[#0a0a0a] transition hover:bg-[#ff8d3b] disabled:opacity-60"
+                  className="w-full rounded-[1.25rem] bg-[#f5f0de] py-3 text-sm font-black text-[#0a0a0a] transition hover:bg-[#ff7a1a] disabled:opacity-60"
                 >
-                  {loading ? "Creating account..." : "Register"}
+                  {loading ? "Creating account..." : "Create account"}
                 </button>
               </form>
             )}
+
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm">
+              <Link href="/auth/login" className="font-semibold text-[#ff7a1a] hover:text-[#ff8d3b]">
+                Already have an account?
+              </Link>
+              <Link
+                href="/auth/login"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 font-semibold text-[#f5f0de] transition hover:border-[#ff7a1a]/45 hover:bg-white/[0.08]"
+              >
+                Sign in
+                <ArrowRight className="h-4 w-4 text-[#ffb36b]" />
+              </Link>
+            </div>
           </div>
         </section>
       </div>

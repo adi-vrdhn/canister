@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import TopActionBanner from "@/components/TopActionBanner";
 import LogMovieModal from "@/components/LogMovieModal";
 import CinematicLoading from "@/components/CinematicLoading";
 import { User, MovieLogWithContent, Content } from "@/types";
@@ -268,6 +269,7 @@ export default function LogsPage() {
   const [activeLog, setActiveLog] = useState<MovieLogWithContent | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const listSectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -278,6 +280,26 @@ export default function LogsPage() {
 
     router.replace(`/user/${encodeURIComponent(targetUsername)}/logs`);
   }, [router]);
+
+  useEffect(() => {
+    if (!bannerMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setBannerMessage(null);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [bannerMessage]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const storedMessage = window.sessionStorage.getItem("cine_action_banner");
+    if (!storedMessage) return;
+
+    window.sessionStorage.removeItem("cine_action_banner");
+    setBannerMessage(storedMessage);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -531,6 +553,7 @@ export default function LogsPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+      <TopActionBanner message={bannerMessage} />
       <div className="brutalist mx-auto max-w-6xl space-y-5 px-1 pb-8 sm:space-y-6 sm:p-8">
         <div className="flex flex-row items-center gap-3">
           <button
@@ -882,7 +905,8 @@ export default function LogsPage() {
           content={selectedContent}
           user={user}
           theme="brutalist"
-          onLogCreated={() => {
+          onLogCreated={(message) => {
+            setBannerMessage(message);
             setShowLogModal(false);
             setSelectedContent(null);
             handleRefreshLogs();

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import TopActionBanner from "@/components/TopActionBanner";
 import AddToListModal from "@/components/AddToListModal";
 import CinematicLoading from "@/components/CinematicLoading";
 import ContentCinePosts from "@/components/ContentCinePosts";
@@ -27,6 +28,7 @@ export default function TVShowPage() {
   const [loading, setLoading] = useState(true);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
   const [showLogMovieModal, setShowLogMovieModal] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -78,6 +80,16 @@ export default function TVShowPage() {
     }
   };
 
+  useEffect(() => {
+    if (!bannerMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setBannerMessage(null);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [bannerMessage]);
+
   // Removed rating logic (no longer used in new design)
 
   if (loading || !user) {
@@ -100,6 +112,7 @@ export default function TVShowPage() {
   // --- Redesigned TV Show Page ---
   return (
     <PageLayout user={user} fullWidth>
+      <TopActionBanner message={bannerMessage} />
       <div className="min-h-screen bg-neutral-950 text-white">
         {/* Back Button */}
         <div className="absolute top-6 left-6 z-20">
@@ -237,6 +250,7 @@ export default function TVShowPage() {
           onClose={() => setShowLogMovieModal(false)}
           content={show as Content}
           user={user}
+          onLogCreated={(message) => setBannerMessage(message)}
         />
       </div>
     </PageLayout>

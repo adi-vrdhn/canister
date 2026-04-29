@@ -23,6 +23,7 @@ type CreateCinePostInput = {
   body: string;
   tags?: string[];
   content?: Content | null;
+  posterUrl?: string | null;
   personId?: number;
   personName?: string;
   personProfileUrl?: string | null;
@@ -212,7 +213,7 @@ export async function createCinePost(input: CreateCinePostInput): Promise<CinePo
     input.content?.title ||
     (input.content as any)?.name ||
     input.anchorLabel;
-  post.poster_url = input.listCoverUrl ?? input.personProfileUrl ?? input.content?.poster_url ?? null;
+  post.poster_url = input.posterUrl ?? input.listCoverUrl ?? input.personProfileUrl ?? input.content?.poster_url ?? null;
 
   if (contentType === "movie" && input.content) {
     post.movie_id = input.content.id;
@@ -243,6 +244,7 @@ export async function createLogCinePost(
     anchorLabel: title,
     body,
     content,
+    posterUrl: log.ticket_image_url || content.poster_url || null,
     logId: log.id,
     tags: [rating, "watched"],
   });

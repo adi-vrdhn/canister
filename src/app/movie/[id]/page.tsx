@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import TopActionBanner from "@/components/TopActionBanner";
 import AddToListModal from "@/components/AddToListModal";
 import LogMovieModal from "@/components/LogMovieModal";
 import CinematicLoading from "@/components/CinematicLoading";
@@ -72,6 +73,7 @@ export default function MoviePage() {
   const [friendLogs, setFriendLogs] = useState<MovieLogWithContent[]>([]);
   const [allLogs, setAllLogs] = useState<MovieLogWithContent[]>([]);
   const [showAllLogs, setShowAllLogs] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   const loadMovieLogData = async (currentUserId: string) => {
     const numericMovieId = Number(movieId);
@@ -115,6 +117,16 @@ export default function MoviePage() {
 
     setUserLogHistory(history);
   };
+
+  useEffect(() => {
+    if (!bannerMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setBannerMessage(null);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [bannerMessage]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -207,6 +219,7 @@ export default function MoviePage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut} fullWidth>
+      <TopActionBanner message={bannerMessage} />
       <div className="min-h-screen bg-black text-white">
         <section className="relative overflow-hidden px-4 pb-10 pt-6 sm:px-6 lg:px-8">
           <div className="absolute inset-0 bg-black" />
@@ -540,7 +553,8 @@ export default function MoviePage() {
         onClose={() => setShowLogMovieModal(false)}
         content={movie as Content}
         user={user}
-        onLogCreated={() => {
+        onLogCreated={(message) => {
+          setBannerMessage(message);
           if (!user) return;
           void loadMovieLogData(user.id);
         }}

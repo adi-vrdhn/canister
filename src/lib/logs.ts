@@ -125,7 +125,8 @@ export async function createMovieLog(
     location?: string;
     watched_with?: string;
     mood?: string;
-  }
+  },
+  ticketImageUrl?: string | null
 ): Promise<MovieLog> {
   const logRef = push(ref(db, "movie_logs"));
   const logId = logRef.key;
@@ -159,6 +160,10 @@ export async function createMovieLog(
   // Only add context_log if it has values
   if (Object.keys(cleanedContextLog).length > 0) {
     (newLog as any).context_log = cleanedContextLog;
+  }
+
+  if (ticketImageUrl) {
+    newLog.ticket_image_url = ticketImageUrl;
   }
 
   await set(logRef, newLog);

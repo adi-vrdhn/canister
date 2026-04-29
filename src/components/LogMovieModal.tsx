@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Upload, X } from "lucide-react";
 import { Content, User } from "@/types";
 import { createLogCinePost } from "@/lib/cineposts";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { reportAppError } from "@/lib/report-error";
+import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 
 interface LogMovieModalProps {
   isOpen: boolean;
   onClose: () => void;
   content: Content;
   user: User | null;
-  onLogCreated?: () => void;
+  onLogCreated?: (message: string) => void;
   theme?: "default" | "brutalist";
 }
 
@@ -49,6 +51,9 @@ export default function LogMovieModal({
   const [notes, setNotes] = useState("");
   const [shareAsPost, setShareAsPost] = useState(false);
   const [postCaption, setPostCaption] = useState("");
+  const [ticketImageUrl, setTicketImageUrl] = useState<string | null>(null);
+  const [ticketUploading, setTicketUploading] = useState(false);
+  const ticketInputRef = useRef<HTMLInputElement | null>(null);
 
   // Context Log
   const [showContextLog, setShowContextLog] = useState(false);
@@ -101,7 +106,60 @@ export default function LogMovieModal({
     };
   }, [content, isOpen, user]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setTicketImageUrl(null);
+    setTicketUploading(false);
+  }, [isOpen, content.id]);
+
   if (!user) return null;
+
+  const handleTicketUploadClick = () => {
+    ticketInputRef.current?.click();
+  };
+
+  const handleTicketFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file for your ticket or memory.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setError("Image size must be 8MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      setTicketUploading(true);
+      setError("");
+
+      const uploadRef = storageRef(
+        storage,
+        `log-ticket-images/${user.id}/${content.id}/${Date.now()}-${file.name}`
+      );
+      await uploadBytes(uploadRef, file, {
+        contentType: file.type,
+      });
+
+      const downloadUrl = await getDownloadURL(uploadRef);
+      setTicketImageUrl(downloadUrl);
+    } catch (err) {
+      reportAppError({
+        title: "Ticket upload failed",
+        message: "We could not upload your ticket or memory image.",
+        details: err instanceof Error ? err.stack || err.message : String(err),
+      });
+      setError("Failed to upload the image. Please try again.");
+    } finally {
+      setTicketUploading(false);
+      event.target.value = "";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +199,8 @@ export default function LogMovieModal({
         reaction,
         notes,
         undefined,
-        contextLog
+        contextLog,
+        ticketImageUrl
       );
 
       if (shareAsPost) {
@@ -159,7 +218,10 @@ export default function LogMovieModal({
       setWatchedWith("");
       setIsRewatch(false);
 
-      onLogCreated?.();
+      const contentLabel = contentType === "tv" ? "TV show" : "Movie";
+      const successMessage = shareAsPost ? `${contentLabel} logged and posted` : `${contentLabel} logged`;
+
+      onLogCreated?.(successMessage);
       onClose();
     } catch (err) {
       reportAppError({
@@ -447,6 +509,69 @@ export default function LogMovieModal({
             )}
           </div>
 
+          <div className={`rounded-[1.25rem] border p-3 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                  Ticket or memory image
+                </p>
+                <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                  Front stays the poster. Back becomes your ticket, receipt, or memory shot.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleTicketUploadClick}
+                disabled={ticketUploading}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-[#ff8d3b] disabled:opacity-60"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {ticketImageUrl ? "Replace image" : ticketUploading ? "Uploading" : "Upload image"}
+              </button>
+            </div>
+
+            {ticketImageUrl ? (
+              <div className="mt-3 overflow-hidden rounded-[1rem] border border-white/10 bg-black/20">
+                <img
+                  src={ticketImageUrl}
+                  alt="Uploaded ticket or memory"
+                  className="h-44 w-full object-cover"
+                />
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <p className={`truncate text-xs ${isBrutalist ? "text-white/60" : "text-slate-500"}`}>
+                    Uploaded and ready for this log.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTicketImageUrl(null)}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${
+                      isBrutalist ? "bg-white/5 text-white/60 hover:bg-white/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className={`mt-3 rounded-[1rem] border border-dashed px-4 py-5 text-center text-sm ${
+                  isBrutalist ? "border-white/10 bg-black/20 text-white/50" : "border-slate-200 bg-white text-slate-500"
+                }`}
+              >
+                No image selected yet.
+              </div>
+            )}
+
+            <input
+              ref={ticketInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleTicketFileChange}
+            />
+          </div>
+
           {/* Context Log Section */}
           <div className={`border-t pt-3 ${isBrutalist ? "border-white/10" : "border-slate-200"}`}>
             <button
@@ -493,10 +618,10 @@ export default function LogMovieModal({
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || ticketUploading}
             className="action-primary mt-6 w-full disabled:opacity-50"
           >
-            {loading ? "Logging..." : "Log Movie"}
+            {loading ? "Logging..." : ticketUploading ? "Uploading image..." : "Log Movie"}
           </button>
         </form>
       </div>

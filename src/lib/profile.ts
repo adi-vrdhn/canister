@@ -4,6 +4,127 @@ import { User, MovieLog, Content } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 
+export interface StatDistributionItem {
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface DetailedUserStats {
+  totalLogged: number;
+  watchedCount: number;
+  moviesWatchedThisMonth: number;
+  estimatedWatchTimeMinutes: number;
+  rewatchCount: number;
+  masterpieceCount: number;
+  goodCount: number;
+  badCount: number;
+  masterpiecePercentage: number;
+  goodPercentage: number;
+  badPercentage: number;
+  averageRating: number;
+  mostCommonMood?: string;
+  totalFriends: number;
+  genreDistribution: StatDistributionItem[];
+  topActors: StatDistributionItem[];
+  topDirectors: StatDistributionItem[];
+  languageDistribution: StatDistributionItem[];
+  ratingInsight: string;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
+function createDistribution(counts: Record<string, number>, limit = 5): StatDistributionItem[] {
+  const entries = Object.entries(counts).sort(([, a], [, b]) => b - a);
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  if (total <= 0) return [];
+
+  return entries
+    .slice(0, limit)
+    .map(([label, count]) => ({
+      label,
+      count,
+      percentage: Math.round((count / total) * 100),
+    }));
+}
+
+function formatLanguageName(value: string | null | undefined): string {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "Unknown";
+
+  if (trimmed.length <= 3 && /^[a-z]{2,3}$/i.test(trimmed) && typeof Intl !== "undefined" && "DisplayNames" in Intl) {
+    try {
+      const displayNames = new Intl.DisplayNames(["en"], { type: "language" });
+      return displayNames.of(trimmed.toLowerCase()) || trimmed.toUpperCase();
+    } catch {
+      return trimmed.toUpperCase();
+    }
+  }
+
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function getRatingInsight(masterpiecePercentage: number, goodPercentage: number, badPercentage: number, watchedCount: number): string {
+  if (watchedCount === 0) {
+    return "Log a few films to reveal your rating personality.";
+  }
+
+  if (masterpiecePercentage >= 35 && badPercentage <= 15) {
+    return "You are very selective with your masterpiece ratings.";
+  }
+
+  if (badPercentage >= 35) {
+    return "You are a tough critic and do not hand out easy approval.";
+  }
+
+  if (goodPercentage >= 60) {
+    return "You rate most movies as good, so you enjoy content pretty easily.";
+  }
+
+  if (masterpiecePercentage <= 10 && goodPercentage >= 45) {
+    return "You reserve masterpiece ratings for rare standouts.";
+  }
+
+  const spread = Math.max(masterpiecePercentage, goodPercentage, badPercentage) - Math.min(masterpiecePercentage, goodPercentage, badPercentage);
+  if (spread <= 20) {
+    return "You rate across a wide range and keep a balanced scale.";
+  }
+
+  return "Your ratings lean strongly in one direction, which makes your taste feel decisive.";
+}
+
+async function getContentForStatLog(log: MovieLog): Promise<Content | null> {
+  try {
+    if (log.content_type === "tv") {
+      const show = await getShowDetails(log.content_id);
+      return show as unknown as Content;
+    }
+
+    const movie = await getMovieDetails(log.content_id);
+    return movie as unknown as Content;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Get user profile by ID
  */
@@ -153,6 +274,155 @@ export async function getUserStats(userId: string): Promise<{
       badCount: 0,
       averageRating: 0,
       totalFriends: 0,
+    };
+  }
+}
+
+export async function getDetailedUserStats(userId: string): Promise<DetailedUserStats> {
+  try {
+    const logsRef = ref(db, "movie_logs");
+    const logsSnapshot = await get(logsRef);
+
+    let totalLogged = 0;
+    let watchedCount = 0;
+    let moviesWatchedThisMonth = 0;
+    let estimatedWatchTimeMinutes = 0;
+    let rewatchCount = 0;
+    let masterpieceCount = 0;
+    let goodCount = 0;
+    let badCount = 0;
+    const moodCounts: Record<string, number> = {};
+    let ratingTotal = 0;
+    const genreCounts: Record<string, number> = {};
+    const actorCounts: Record<string, number> = {};
+    const directorCounts: Record<string, number> = {};
+    const languageCounts: Record<string, number> = {};
+
+    if (logsSnapshot.exists()) {
+      const allLogs = logsSnapshot.val();
+      const userLogs = Object.values(allLogs).filter((log: any) => log.user_id === userId) as Array<MovieLog & { rating?: number }>;
+      totalLogged = userLogs.length;
+
+      const watchedLogs = userLogs.filter((log) => !log.watch_later && Boolean(log.watched_date));
+      watchedCount = watchedLogs.length;
+
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      const duplicateCounts = new Map<string, number>();
+
+      const contentEntries = await mapWithConcurrency(watchedLogs, 4, async (log) => {
+        const content = await getContentForStatLog(log);
+        return { log, content };
+      });
+
+      for (const { log, content } of contentEntries) {
+        const key = `${log.content_type}-${log.content_id}`;
+        duplicateCounts.set(key, (duplicateCounts.get(key) || 0) + 1);
+
+        if (log.content_type === "movie" && String(log.watched_date || "").slice(0, 7) === currentMonthKey) {
+          moviesWatchedThisMonth += 1;
+        }
+
+        if (log.reaction === 2) masterpieceCount += 1;
+        else if (log.reaction === 1) goodCount += 1;
+        else if (log.reaction === 0) badCount += 1;
+
+        const ratingValue = Number(log.rating);
+        if (Number.isFinite(ratingValue) && ratingValue > 0) {
+          ratingTotal += ratingValue;
+        }
+
+        if (log.mood) {
+          moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
+        }
+
+        if (content) {
+          const runtime = Number(content.runtime);
+          if (Number.isFinite(runtime) && runtime > 0) {
+            estimatedWatchTimeMinutes += runtime;
+          }
+
+          (content.genres || []).forEach((genre) => {
+            genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+          });
+
+          (content.actors || []).forEach((actor) => {
+            actorCounts[actor] = (actorCounts[actor] || 0) + 1;
+          });
+
+          if (content.director) {
+            directorCounts[content.director] = (directorCounts[content.director] || 0) + 1;
+          }
+
+          const languageLabel = formatLanguageName(content.language || null);
+          languageCounts[languageLabel] = (languageCounts[languageLabel] || 0) + 1;
+        }
+      }
+
+      rewatchCount = Array.from(duplicateCounts.values()).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+    }
+
+    const mostCommonMood = Object.entries(moodCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
+    const masterpiecePercentage = watchedCount > 0 ? (masterpieceCount / watchedCount) * 100 : 0;
+    const goodPercentage = watchedCount > 0 ? (goodCount / watchedCount) * 100 : 0;
+    const badPercentage = watchedCount > 0 ? (badCount / watchedCount) * 100 : 0;
+
+    // Get friends count (followers + following)
+    const followsRef = ref(db, "follows");
+    const followsSnapshot = await get(followsRef);
+
+    let totalFriends = 0;
+    if (followsSnapshot.exists()) {
+      const allFollows = followsSnapshot.val();
+      const userFollows = Object.values(allFollows).filter(
+        (follow: any) => (follow.follower_id === userId || follow.following_id === userId) && follow.status === "accepted"
+      );
+      totalFriends = userFollows.length;
+    }
+
+    return {
+      totalLogged,
+      watchedCount,
+      moviesWatchedThisMonth,
+      estimatedWatchTimeMinutes,
+      rewatchCount,
+      masterpieceCount,
+      goodCount,
+      badCount,
+      masterpiecePercentage,
+      goodPercentage,
+      badPercentage,
+      averageRating: totalLogged > 0 ? ratingTotal / totalLogged : 0,
+      mostCommonMood,
+      totalFriends,
+      genreDistribution: createDistribution(genreCounts),
+      topActors: createDistribution(actorCounts),
+      topDirectors: createDistribution(directorCounts),
+      languageDistribution: createDistribution(languageCounts),
+      ratingInsight: getRatingInsight(masterpiecePercentage, goodPercentage, badPercentage, watchedCount),
+    };
+  } catch (error) {
+    console.error("Error calculating detailed user stats:", error);
+    return {
+      totalLogged: 0,
+      watchedCount: 0,
+      moviesWatchedThisMonth: 0,
+      estimatedWatchTimeMinutes: 0,
+      rewatchCount: 0,
+      masterpieceCount: 0,
+      goodCount: 0,
+      badCount: 0,
+      masterpiecePercentage: 0,
+      goodPercentage: 0,
+      badPercentage: 0,
+      averageRating: 0,
+      totalFriends: 0,
+      genreDistribution: [],
+      topActors: [],
+      topDirectors: [],
+      languageDistribution: [],
+      ratingInsight: "Log a few films to reveal your rating personality.",
     };
   }
 }

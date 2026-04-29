@@ -333,6 +333,37 @@ export async function createFollowRequestNotification(
   );
 }
 
+export async function createFollowAcceptedNotification(
+  userId: string,
+  followId: string,
+  fromUser: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url?: string | null;
+  },
+  createdAt: string
+): Promise<void> {
+  if (!(await shouldDeliverNotificationToUser(userId, "follow_request"))) return;
+
+  await set(
+    ref(db, `notifications/${userId}/${followId}`),
+    stripUndefinedFields({
+      type: "follow_request",
+      seen: false,
+      followRequestState: "accepted",
+      fromUser: {
+        id: fromUser.id,
+        username: fromUser.username,
+        name: fromUser.name,
+        avatar_url: fromUser.avatar_url || null,
+      },
+      created_at: createdAt,
+      createdAt,
+    })
+  );
+}
+
 export function createNotificationFallbackUser(userId: string): User {
   return fallbackUser(userId);
 }

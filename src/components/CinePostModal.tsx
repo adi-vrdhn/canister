@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, Clapperboard, Film, Search, Sparkles, Tv, UserRound, X } from "lucide-react";
-import { CinePostAnchorType, Content, List, TMDBMovie, TMDBPersonSearchResult, User } from "@/types";
+import { CinePostAnchorType, Content, TMDBMovie, TMDBPersonSearchResult, User } from "@/types";
 import { createCinePost } from "@/lib/cineposts";
-import { getUserLists } from "@/lib/lists";
 import { reportAppError } from "@/lib/report-error";
 import { searchMovies, searchPeople } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
@@ -12,7 +11,6 @@ import { searchShows } from "@/lib/tvmaze";
 const ANCHOR_TYPES: Array<{ value: CinePostAnchorType; label: string }> = [
   { value: "movie", label: "Movie" },
   { value: "tv", label: "TV" },
-  { value: "list", label: "List" },
   { value: "crew", label: "Crew" },
 ];
 
@@ -25,7 +23,6 @@ function isCrewResult(item: AnchorResult): item is TMDBPersonSearchResult {
 function anchorTypeLabel(anchorType: CinePostAnchorType): string {
   if (anchorType === "movie") return "movie";
   if (anchorType === "tv") return "TV show";
-  if (anchorType === "list") return "list";
   return "crew member";
 }
 
@@ -45,7 +42,7 @@ interface CinePostModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
-  onCreated?: () => void;
+  onCreated?: (message: string) => void;
   theme?: "default" | "brutalist";
 }
 
@@ -75,9 +72,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
   const [anchorResults, setAnchorResults] = useState<AnchorResult[]>([]);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<TMDBPersonSearchResult | null>(null);
-  const [selectedList, setSelectedList] = useState<List | null>(null);
-  const [ownedLists, setOwnedLists] = useState<List[]>([]);
-  const [listsLoading, setListsLoading] = useState(false);
   const [content, setContent] = useState("");
   const [tags, setTags] = useState("");
   const [error, setError] = useState("");
@@ -86,11 +80,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
 
   useEffect(() => {
     if (!isOpen) return;
-    if (anchorType === "list") {
-      setAnchorResults([]);
-      setSearching(false);
-      return;
-    }
     const query = anchorQuery.trim();
     if (query.length < 1 || selectedContent || selectedPerson) {
       setAnchorResults([]);
@@ -134,43 +123,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     };
   }, [anchorQuery, anchorType, isOpen, selectedContent, selectedPerson]);
 
-  useEffect(() => {
-    if (!isOpen || anchorType !== "list" || !user) return;
-
-    let cancelled = false;
-
-    const loadLists = async () => {
-      try {
-        setListsLoading(true);
-        const lists = await getUserLists(user.id);
-        const ownLists = lists.filter((list) => list.owner_id === user.id);
-
-        if (!cancelled) {
-          setOwnedLists(ownLists);
-        }
-      } catch (err) {
-        reportAppError({
-          title: "List loading failed",
-          message: "We could not load your lists.",
-          details: err instanceof Error ? err.stack || err.message : String(err),
-        });
-        if (!cancelled) {
-          setOwnedLists([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setListsLoading(false);
-        }
-      }
-    };
-
-    void loadLists();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [anchorType, isOpen, user]);
-
   if (!isOpen) return null;
 
   const resetAnchor = (nextType: CinePostAnchorType) => {
@@ -179,7 +131,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setAnchorResults([]);
     setSelectedContent(null);
     setSelectedPerson(null);
-    setSelectedList(null);
     setError("");
   };
 
@@ -188,7 +139,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setAnchorQuery(item.title || (item as any).name || "");
     setAnchorResults([]);
     setSelectedPerson(null);
-    setSelectedList(null);
     setError("");
   };
 
@@ -197,7 +147,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setAnchorQuery(person.name);
     setAnchorResults([]);
     setSelectedContent(null);
-    setSelectedList(null);
     setError("");
   };
 
@@ -210,23 +159,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     handleSelectContent(item);
   };
 
-  const handleSelectList = (list: List) => {
-    setSelectedList(list);
-    setAnchorQuery(list.name);
-    setSelectedContent(null);
-    setSelectedPerson(null);
-    setAnchorResults([]);
-    setError("");
-  };
-
-  const listMatchesQuery = (list: List) => {
-    const query = anchorQuery.trim().toLowerCase();
-    if (!query) return true;
-    return list.name.toLowerCase().includes(query) || (list.description || "").toLowerCase().includes(query);
-  };
-
-  const visibleOwnLists = ownedLists.filter(listMatchesQuery);
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!user) return;
@@ -236,12 +168,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       return;
     }
 
-    if (anchorType === "list") {
-      if (!selectedList) {
-        setError("Select one of your lists first.");
-        return;
-      }
-    } else if (anchorType === "crew") {
+    if (anchorType === "crew") {
       if (!selectedPerson) {
         setError("Select a crew member from search first.");
         return;
@@ -254,23 +181,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     try {
       setSaving(true);
       setError("");
-      if (anchorType === "list") {
-        const list = selectedList;
-        if (!list) return;
-
-        await createCinePost({
-          user,
-          type: "post",
-          anchorType,
-          anchorLabel: list.name,
-          body: content,
-          tags: tags.split(","),
-          content: null,
-          listId: list.id,
-          listName: list.name,
-          listCoverUrl: list.cover_image_url,
-        });
-      } else if (anchorType === "crew") {
+      if (anchorType === "crew") {
         const person = selectedPerson;
         if (!person) return;
 
@@ -303,10 +214,15 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       setAnchorResults([]);
       setSelectedContent(null);
       setSelectedPerson(null);
-      setSelectedList(null);
       setContent("");
       setTags("");
-      onCreated?.();
+      const successMessage =
+        anchorType === "tv"
+          ? "TV show posted"
+          : anchorType === "movie"
+            ? "Movie posted"
+            : "Post created";
+      onCreated?.(successMessage);
       onClose();
     } catch (err) {
       reportAppError({
@@ -321,26 +237,30 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-2 backdrop-blur-sm sm:items-center sm:p-6">
-      <div className={`max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border shadow-2xl ${
-        isBrutalist ? "border-white/10 bg-[#111111] text-[#f5f0de]" : "border-slate-200 bg-white"
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-2 backdrop-blur-md sm:items-center sm:p-6">
+      <div className={`max-h-[92dvh] w-full max-w-[42rem] overflow-y-auto border shadow-[0_30px_120px_rgba(0,0,0,0.45)] ${
+        isBrutalist ? "border-white/10 bg-[#111111] text-[#f5f0de]" : "rounded-[2rem] border-slate-200 bg-[#fcfcfb]"
       }`}>
-        <div className={`sticky top-0 z-10 flex items-start justify-between gap-4 border-b p-4 backdrop-blur sm:p-6 ${
-          isBrutalist ? "border-white/10 bg-[#111111]/95" : "border-slate-200 bg-white/95"
+        <div className={`sticky top-0 z-10 flex items-start justify-between gap-4 border-b p-4 backdrop-blur-xl sm:p-6 ${
+          isBrutalist ? "border-white/10 bg-[#111111]/95" : "border-slate-200/80 bg-[#fcfcfb]/90"
         }`}>
-          <div>
-            <div className={`mb-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] ${
-              isBrutalist ? "border-white/10 text-white/60" : "border-slate-200 text-slate-500"
+          <div className="min-w-0">
+            <div className={`mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] ${
+              isBrutalist ? "border-white/10 text-white/60" : "border-slate-200 bg-white text-slate-500"
             }`}>
               <Sparkles className="h-3.5 w-3.5" />
               Post
             </div>
-            <h2 className={`text-2xl font-black tracking-tight ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Start a cinema thread</h2>
-            <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Pick a movie, TV show, crew member, or your list first, then write the take.</p>
+            <h2 className={`text-[1.9rem] font-black leading-none tracking-tight sm:text-[2.35rem] ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Start a cinema thread</h2>
+            <p className={`mt-2 max-w-xl text-sm leading-6 sm:text-[15px] ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Pick a title or crew member, then write your take. Everything stays compact, clean, and easy to scan.</p>
           </div>
           <button
             type="button"
-            className={`rounded-full border p-2 transition ${isBrutalist ? "border-white/10 text-white/60 hover:bg-white/5 hover:text-[#f5f0de]" : "border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-950"}`}
+            className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border transition ${
+              isBrutalist
+                ? "border-white/10 text-white/60 hover:bg-white/5 hover:text-[#f5f0de]"
+                : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+            }`}
             onClick={onClose}
             title="Close"
           >
@@ -348,259 +268,164 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 p-4 sm:p-6">
+        <form onSubmit={handleSubmit} className="space-y-4 p-4 sm:space-y-5 sm:p-6">
           {error && (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {ANCHOR_TYPES.map((type) => (
               <button
                 key={type.value}
                 type="button"
                 onClick={() => resetAnchor(type.value)}
-                className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-full px-3 py-3 text-center text-[13px] font-semibold leading-none transition sm:min-h-12 sm:px-4 sm:text-sm ${
                   anchorType === type.value
-                    ? "border-[#ff7a1a] bg-[#ff7a1a] text-black shadow-[0_0_0_1px_rgba(255,122,26,0.35)]"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    ? "bg-[#ff7a1a] text-black shadow-[0_10px_30px_rgba(255,122,26,0.25)]"
+                    : isBrutalist
+                      ? "bg-white/[0.02] text-white/75 hover:bg-white/[0.05] hover:text-[#f5f0de]"
+                      : "bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
                 }`}
-              >
-                {type.value === "movie" ? (
-                  <Film className="h-4 w-4" />
-                ) : type.value === "tv" ? (
-                  <Tv className="h-4 w-4" />
-                ) : type.value === "crew" ? (
-                  <UserRound className="h-4 w-4" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {type.label}
-              </button>
-            ))}
+                >
+                  {type.value === "movie" ? (
+                    <Film className="h-4 w-4" />
+                  ) : type.value === "tv" ? (
+                    <Tv className="h-4 w-4" />
+                  ) : (
+                    <UserRound className="h-4 w-4" />
+                  )}
+                  {type.label}
+                </button>
+              ))}
           </div>
 
           <div>
-            {anchorType === "list" ? (
-              <>
-                <label className="mb-1 block text-sm font-semibold text-slate-900">
-                  Choose from your lists
-                </label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className="field py-3 pl-10"
-                    placeholder="Search your lists..."
-                    value={anchorQuery}
-                    onChange={(event) => {
-                      setAnchorQuery(event.target.value);
-                      setSelectedList(null);
-                    }}
-                  />
-                </div>
+            <label className={`mb-1 block text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+              Search {anchorSearchLabel(anchorType)}
+            </label>
+            <div className="relative">
+              <Search className={`pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 ${isBrutalist ? "text-white/35" : "text-slate-400"}`} />
+              <input
+                className={`field py-3 pl-10 ${
+                  isBrutalist ? "border-white/10 bg-[#0d0d0d] text-[#f5f0de]" : "bg-white"
+                }`}
+                placeholder={anchorPlaceholder(anchorType)}
+                value={anchorQuery}
+                onChange={(event) => {
+                  setAnchorQuery(event.target.value);
+                  setSelectedContent(null);
+                  setSelectedPerson(null);
+                }}
+              />
+              {searching && (
+                <span
+                  className={`absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 ${
+                    isBrutalist ? "border-white/20 border-t-[#ff7a1a]" : "border-slate-300 border-t-[#ff7a1a]"
+                  }`}
+                />
+              )}
+            </div>
 
-                {listsLoading ? (
-                  <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
-                    Loading your lists...
-                  </div>
-                ) : visibleOwnLists.length > 0 ? (
-                  <div className="mt-2 grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-                    {visibleOwnLists.map((list) => (
-                      <button
-                        key={list.id}
-                        type="button"
-                        onClick={() => handleSelectList(list)}
-                        className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                          selectedList?.id === list.id
-                            ? "border-[#ff7a1a] bg-[#ff7a1a]/10"
-                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                          {list.cover_image_url ? (
-                            <img
-                              src={list.cover_image_url}
-                              alt={list.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
-                              <Sparkles className="h-4 w-4" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={`truncate text-sm font-black ${
-                              selectedList?.id === list.id ? "text-[#ff7a1a]" : "text-slate-950"
-                            }`}
-                          >
-                            {list.name}
-                          </p>
-                          <p className="line-clamp-2 text-xs text-slate-500">
-                            {list.description || "Your private list"}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
-                    No lists found. Create one in Lists first.
-                  </div>
-                )}
-
-                {selectedList && (
-                  <div className="mt-3 flex items-center gap-3 rounded-3xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-3">
-                    <div className="h-20 w-14 rounded-xl bg-white/80">
-                      {selectedList.cover_image_url ? (
+            {anchorResults.length > 0 && (
+              <div className={`mt-2 max-h-72 overflow-y-auto rounded-2xl shadow-xl ${
+                isBrutalist ? "border border-white/10 bg-[#0d0d0d]" : "border border-slate-200 bg-white"
+              }`}>
+                {anchorResults.map((item) => (
+                  <button
+                    key={`${isCrewResult(item) ? "crew" : item.type || anchorType}-${item.id}`}
+                    type="button"
+                    onClick={() => handleSelectSearchResult(item)}
+                    className={`flex w-full items-center gap-3 border-b p-3 text-left transition last:border-b-0 ${
+                      isBrutalist
+                        ? "border-white/10 hover:bg-white/[0.04]"
+                        : "border-slate-100 hover:bg-slate-50"
+                    }`}
+                  >
+                    {isCrewResult(item) ? (
+                      item.profile_path ? (
                         <img
-                          src={selectedList.cover_image_url}
-                          alt={selectedList.name}
-                          className="h-full w-full rounded-xl object-cover"
-                        />
-                      ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-[#ff7a1a] px-2 py-1 text-[11px] font-bold uppercase text-black">
-                        <CheckCircle2 className="h-3 w-3" />
-                        selected
-                      </div>
-                      <p className="truncate font-black text-[#ff7a1a]">{selectedList.name}</p>
-                      <p className="text-xs text-slate-600">
-                        This list will become the tap target on the post.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <label className="mb-1 block text-sm font-semibold text-slate-900">
-                  Search {anchorSearchLabel(anchorType)}
-                </label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className="field py-3 pl-10"
-                    placeholder={anchorPlaceholder(anchorType)}
-                    value={anchorQuery}
-                    onChange={(event) => {
-                      setAnchorQuery(event.target.value);
-                      setSelectedContent(null);
-                      setSelectedPerson(null);
-                    }}
-                  />
-                  {searching && (
-                    <span
-                      className={`absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 ${
-                        isBrutalist ? "border-white/20 border-t-[#ff7a1a]" : "border-slate-300 border-t-blue-600"
-                      }`}
-                    />
-                  )}
-                </div>
-
-                {anchorResults.length > 0 && (
-                  <div className={`mt-2 max-h-72 overflow-y-auto rounded-2xl shadow-xl ${
-                    isBrutalist ? "border border-white/10 bg-[#0d0d0d]" : "border border-slate-200 bg-white"
-                  }`}>
-                    {anchorResults.map((item) => (
-                      <button
-                        key={`${isCrewResult(item) ? "crew" : item.type || anchorType}-${item.id}`}
-                        type="button"
-                        onClick={() => handleSelectSearchResult(item)}
-                        className={`flex w-full items-center gap-3 border-b p-3 text-left transition last:border-b-0 ${
-                          isBrutalist
-                            ? "border-white/10 hover:bg-white/[0.04]"
-                            : "border-slate-100 hover:bg-slate-50"
-                        }`}
-                      >
-                        {isCrewResult(item) ? (
-                          item.profile_path ? (
-                            <img
-                              src={`https://image.tmdb.org/t/p/w185${item.profile_path}`}
-                              alt={item.name}
-                              className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                              <UserRound className="h-5 w-5" />
-                            </div>
-                          )
-                        ) : item.poster_url ? (
-                          <img
-                            src={item.poster_url}
-                            alt={item.title}
-                            className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                            {anchorType === "movie" ? <Film className="h-5 w-5" /> : <Tv className="h-5 w-5" />}
-                          </div>
-                        )}
-                          <div className="min-w-0 flex-1">
-                          <p className={`truncate text-sm font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>
-                            {isCrewResult(item) ? item.name : item.title}
-                          </p>
-                          <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                            {isCrewResult(item)
-                              ? item.known_for_department || "TMDB person"
-                              : item.release_date
-                                ? item.release_date.slice(0, 4)
-                                : "Unknown year"}
-                            <span
-                              className={`ml-2 rounded-full px-2 py-0.5 font-bold uppercase ${
-                                isBrutalist ? "bg-white/10 text-[#f5f0de]" : "bg-slate-100 text-slate-700"
-                              }`}
-                            >
-                              {isCrewResult(item) ? "crew" : anchorType}
-                            </span>
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {(selectedContent || selectedPerson) && (
-                  <div className="mt-3 flex items-center gap-3 rounded-3xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-3">
-                    {selectedPerson ? (
-                      selectedPerson.profile_path ? (
-                        <img
-                          src={`https://image.tmdb.org/t/p/w185${selectedPerson.profile_path}`}
-                          alt={selectedPerson.name}
-                          className="h-20 w-14 rounded-xl object-cover shadow-sm"
+                          src={`https://image.tmdb.org/t/p/w185${item.profile_path}`}
+                          alt={item.name}
+                          className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
                         />
                       ) : (
-                        <div className="h-20 w-14 rounded-xl bg-white/5" />
+                        <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                          <UserRound className="h-5 w-5" />
+                        </div>
                       )
-                    ) : selectedContent?.poster_url ? (
+                    ) : item.poster_url ? (
                       <img
-                        src={selectedContent.poster_url}
-                        alt={selectedContent.title}
-                        className="h-20 w-14 rounded-xl object-cover shadow-sm"
+                        src={item.poster_url}
+                        alt={item.title}
+                        className="h-16 w-12 flex-shrink-0 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="h-20 w-14 rounded-xl bg-white" />
+                      <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                        {anchorType === "movie" ? <Film className="h-5 w-5" /> : <Tv className="h-5 w-5" />}
+                      </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-[#ff7a1a] px-2 py-1 text-[11px] font-bold uppercase text-black">
-                        <CheckCircle2 className="h-3 w-3" />
-                        selected
-                      </div>
-                      <p className="truncate font-black text-[#f5f0de]">
-                        {selectedPerson ? selectedPerson.name : selectedContent?.title}
+                      <p className={`truncate text-sm font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>
+                        {isCrewResult(item) ? item.name : item.title}
                       </p>
-                      <p className="text-xs text-white/55">
-                        {selectedPerson
-                          ? "This person will become the tap target on the post."
-                          : "This poster will become the tap target on the post."}
+                      <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                        {isCrewResult(item)
+                          ? item.known_for_department || "TMDB person"
+                          : item.release_date
+                            ? item.release_date.slice(0, 4)
+                            : "Unknown year"}
+                        <span
+                          className={`ml-2 rounded-full px-2 py-0.5 font-bold uppercase ${
+                            isBrutalist ? "bg-white/10 text-[#f5f0de]" : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {isCrewResult(item) ? "crew" : anchorType}
+                        </span>
                       </p>
                     </div>
-                  </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {(selectedContent || selectedPerson) && (
+              <div className="mt-3 flex items-center gap-3 rounded-3xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-3">
+                {selectedPerson ? (
+                  selectedPerson.profile_path ? (
+                    <img
+                      src={`https://image.tmdb.org/t/p/w185${selectedPerson.profile_path}`}
+                      alt={selectedPerson.name}
+                      className="h-20 w-14 rounded-xl object-cover shadow-sm"
+                    />
+                  ) : (
+                    <div className="h-20 w-14 rounded-xl bg-white/5" />
+                  )
+                ) : selectedContent?.poster_url ? (
+                  <img
+                    src={selectedContent.poster_url}
+                    alt={selectedContent.title}
+                    className="h-20 w-14 rounded-xl object-cover shadow-sm"
+                  />
+                ) : (
+                  <div className="h-20 w-14 rounded-xl bg-white" />
                 )}
-              </>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-[#ff7a1a] px-2 py-1 text-[11px] font-bold uppercase text-black">
+                    <CheckCircle2 className="h-3 w-3" />
+                    selected
+                  </div>
+                  <p className="truncate font-black text-[#f5f0de]">
+                    {selectedPerson ? selectedPerson.name : selectedContent?.title}
+                  </p>
+                  <p className="text-xs text-white/55">
+                    {selectedPerson
+                      ? "This person will become the tap target on the post."
+                      : "This poster will become the tap target on the post."}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 

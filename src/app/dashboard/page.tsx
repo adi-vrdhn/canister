@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import TopActionBanner from "@/components/TopActionBanner";
 import ShareModal from "@/components/ShareModal";
 import CinematicLoading from "@/components/CinematicLoading";
 import LogMovieModal from "@/components/LogMovieModal";
@@ -84,6 +85,7 @@ export default function DashboardPage() {
   const [quickLogResults, setQuickLogResults] = useState<Content[]>([]);
   const [quickLogSearching, setQuickLogSearching] = useState(false);
   const [quickLogFilter, setQuickLogFilter] = useState<"all" | "movie" | "tv">("all");
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -212,6 +214,16 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    if (!bannerMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setBannerMessage(null);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [bannerMessage]);
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -431,6 +443,7 @@ export default function DashboardPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+      <TopActionBanner message={bannerMessage} />
       <div className="min-h-screen bg-[#0a0a0a] px-4 py-4 text-[#f5f0de] sm:px-8 sm:py-6">
         {/* Search Bar */}
         <div className="mb-6 sm:mb-8">
@@ -700,7 +713,10 @@ export default function DashboardPage() {
           isOpen={showCinePostModal}
           onClose={() => setShowCinePostModal(false)}
           user={user}
-          onCreated={() => setCinePostRefreshKey((key) => key + 1)}
+          onCreated={(message) => {
+            setBannerMessage(message);
+            setCinePostRefreshKey((key) => key + 1);
+          }}
           theme="brutalist"
         />
 
@@ -897,9 +913,12 @@ export default function DashboardPage() {
             }}
             content={quickLogContent}
             user={user}
-            onLogCreated={() => {
+            onLogCreated={(message) => {
               setShowQuickLogModal(false);
               setQuickLogContent(null);
+              if (typeof window !== "undefined") {
+                window.sessionStorage.setItem("cine_action_banner", message);
+              }
               router.push("/logs");
             }}
             theme="brutalist"
@@ -918,6 +937,7 @@ export default function DashboardPage() {
             onClose={() => setSelectedShare(null)}
             user={user}
             theme="brutalist"
+            onLogged={(message) => setBannerMessage(message)}
           />
         )}
       </div>

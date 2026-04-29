@@ -17,6 +17,7 @@ interface ShareModalProps {
   onClose: () => void;
   user: any;
   theme?: "default" | "brutalist";
+  onLogged?: (message: string) => void;
 }
 
 interface ContextMenuPosition {
@@ -30,6 +31,7 @@ export default function ShareModal({
   onClose,
   user,
   theme = "default",
+  onLogged,
 }: ShareModalProps) {
   const isBrutalist = theme === "brutalist";
   const router = useRouter();
@@ -245,7 +247,7 @@ export default function ShareModal({
     }
   };
 
-  const handleLogCreated = async () => {
+  const handleLogCreated = async (message: string) => {
     // After log is created, mark share as watched
     try {
       await update(ref(db, `shares/${share.id}`), {
@@ -255,6 +257,7 @@ export default function ShareModal({
       setIsWatched(true);
       setShowLogModal(false);
       setShowContextMenu(false);
+      onLogged?.(message);
     } catch (error) {
       reportAppError({
         title: "Update failed",

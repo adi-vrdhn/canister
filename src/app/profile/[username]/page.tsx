@@ -32,15 +32,15 @@ import {
   shouldDeliverNotificationToUser,
 } from "@/lib/settings";
 import {
-  getMostWatchedGenres,
   getUserByUsername,
+  getDetailedUserStats,
   getUserProfile,
-  getUserStats,
   updateUserProfile,
 } from "@/lib/profile";
 import {
   acceptFollowRequest as persistAcceptFollowRequest,
   createFollowRequestNotification,
+  createFollowAcceptedNotification,
 } from "@/lib/notifications";
 import { signOut as authSignOut } from "@/lib/auth";
 import type { List, ListWithItems, MovieLogWithContent, User } from "@/types";
@@ -132,7 +132,6 @@ function ProfilePageInner() {
   const [stats, setStats] = useState<any>(null);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [mostWatchedGenres, setMostWatchedGenres] = useState<any[]>([]);
   const [recentMoodGenres, setRecentMoodGenres] = useState<string[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   const [listsLoading, setListsLoading] = useState(false);
@@ -534,14 +533,10 @@ function ProfilePageInner() {
     const loadStats = async () => {
       try {
         setStatsLoading(true);
-          const [statsObj, genres] = await Promise.all([
-            getUserStats(profileUser.id),
-            getMostWatchedGenres(profileUser.id),
-          ]);
+        const statsObj = await getDetailedUserStats(profileUser.id);
 
         if (cancelled) return;
         setStats(statsObj);
-        setMostWatchedGenres(genres);
       } catch (error) {
         console.error("[PROFILE] Error loading stats:", error);
       } finally {
@@ -773,6 +768,7 @@ function ProfilePageInner() {
     };
 
     await set(ref(db, `follows/${followId}`), acceptedFollow);
+    await createFollowAcceptedNotification(targetUser.id, followId, currentUser, createdAt);
     setAllFollows((prev) => [
       ...prev.filter(
         (follow) => !(follow.follower_id === currentUser.id && follow.following_id === targetUser.id)
@@ -1055,13 +1051,8 @@ function ProfilePageInner() {
     }
   };
 
-  const handleStatDrillDown = (type: "total" | "masterpiece" | "good" | "bad") => {
+  const handleStatDrillDown = (type: "masterpiece" | "good" | "bad") => {
     if (!profileUser) return;
-
-    if (type === "total") {
-      router.push(`/user/${profileUser.username}/logs`);
-      return;
-    }
 
     const reaction = type === "masterpiece" ? "2" : type === "good" ? "1" : "0";
     router.push(`/user/${profileUser.username}/logs?reaction=${reaction}`);
@@ -1303,12 +1294,8 @@ function ProfilePageInner() {
         skipped,
       });
 
-      const [updatedStats, updatedGenres] = await Promise.all([
-        getUserStats(profileUser.id),
-        getMostWatchedGenres(profileUser.id),
-      ]);
+      const updatedStats = await getDetailedUserStats(profileUser.id);
       setStats(updatedStats);
-      setMostWatchedGenres(updatedGenres);
     } catch (error) {
       console.error("CSV import failed:", error);
       setRatingsImportError(error instanceof Error ? error.message : "Failed to import CSV file.");
@@ -2141,16 +2128,12 @@ function ProfilePageInner() {
         {activeTab === "stats" && canAccessActivity && (
           <div className="space-y-6">
             {statsLoading || !stats ? (
-              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 text-sm text-white/55">
+              <div className="border border-white/10 bg-black p-6 text-sm text-white/55">
                 Loading stats...
               </div>
             ) : (
               <StatsInsights
-                genres={mostWatchedGenres}
-                masterpieceCount={stats.masterpieceCount}
-                goodCount={stats.goodCount}
-                badCount={stats.badCount}
-                totalWatched={stats.totalLogged}
+                stats={stats}
                 onStatClick={handleStatDrillDown}
               />
             )}

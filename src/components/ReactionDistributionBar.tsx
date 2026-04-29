@@ -1,12 +1,9 @@
 'use client';
 
-import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Cell } from 'recharts';
-
 interface ReactionDistributionBarProps {
   badCount: number;
   goodCount: number;
   masterpieceCount: number;
-  height?: number;
   showLabels?: boolean;
 }
 
@@ -14,92 +11,53 @@ export default function ReactionDistributionBar({
   badCount,
   goodCount,
   masterpieceCount,
-  height = 220,
   showLabels = true,
 }: ReactionDistributionBarProps) {
   const total = badCount + goodCount + masterpieceCount;
+  const badPercent = total > 0 ? (badCount / total) * 100 : 0;
+  const goodPercent = total > 0 ? (goodCount / total) * 100 : 0;
+  const masterpiecePercent = total > 0 ? (masterpieceCount / total) * 100 : 0;
 
-  // If no reactions, show empty state
   if (total === 0) {
     return (
-      <div className="w-full flex items-center gap-3">
-        <div className="flex-1 flex h-10 items-center justify-center rounded-lg border border-white/10 bg-white/5">
-          <span className="text-xs text-white/45">No reactions yet</span>
-        </div>
+      <div className="flex items-center justify-center border border-white/8 bg-black/20 px-4 py-5">
+        <span className="text-sm text-white/40">No reactions yet</span>
       </div>
     );
   }
 
-  const badPercent = ((badCount / total) * 100).toFixed(1);
-  const goodPercent = ((goodCount / total) * 100).toFixed(1);
-  const masterpiecePercent = ((masterpieceCount / total) * 100).toFixed(1);
-
-  const data = [
-    {
-      name: 'Bad',
-      count: badCount,
-      percent: badPercent,
-      color: '#ef4444',
-    },
-    {
-      name: 'Good',
-      count: goodCount,
-      percent: goodPercent,
-      color: '#eab308',
-    },
-    {
-      name: 'Masterpiece',
-      count: masterpieceCount,
-      percent: masterpiecePercent,
-      color: '#22c55e',
-    },
+  const segments = [
+    { name: "Bad", count: badCount, percent: badPercent, color: "#fb7185" },
+    { name: "Good", count: goodCount, percent: goodPercent, color: "#ff7a1a" },
+    { name: "Masterpiece", count: masterpieceCount, percent: masterpiecePercent, color: "#34d399" },
   ];
 
-  const maxCount = Math.max(1, badCount, goodCount, masterpieceCount);
-
   return (
-    <div className="w-full space-y-2">
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-          <XAxis
-            dataKey="name"
-            tick={{ fill: '#f5f0de', fontSize: 12 }}
-            tickLine={false}
-            axisLine={{ stroke: 'rgba(255,255,255,0.12)' }}
-          />
-          <YAxis
-            allowDecimals={false}
-            domain={[0, Math.ceil(maxCount * 1.2)]}
-            hide
-          />
-          <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-            {data.map((entry) => (
-              <Cell key={entry.name} fill={entry.color} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-full bg-white/[0.06] ring-1 ring-inset ring-white/[0.07]">
+        <div className="flex h-3 w-full">
+          {segments.map((segment) => (
+            <div
+              key={segment.name}
+              className="h-full transition-all"
+              style={{
+                width: `${Math.max(segment.percent, 3)}%`,
+                backgroundColor: segment.color,
+              }}
+            />
+          ))}
+        </div>
+      </div>
       {showLabels && (
-        <div className="flex flex-wrap justify-center gap-4 text-sm mt-2">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-rose-400" />
-            <span className="text-gray-600">
-              <span className="text-white/65">Bad</span> <span className="font-semibold text-[#f5f0de]">{badPercent}%</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-[#ff7a1a]" />
-            <span className="text-gray-600">
-              <span className="text-white/65">Good</span> <span className="font-semibold text-[#f5f0de]">{goodPercent}%</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-emerald-400" />
-            <span className="text-gray-600">
-              <span className="text-white/65">Masterpiece</span> <span className="font-semibold text-[#f5f0de]">{masterpiecePercent}%</span>
-            </span>
-          </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+          {segments.map((segment) => (
+            <div key={segment.name} className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: segment.color }} />
+              <span className="text-white/65">{segment.name}</span>
+              <span className="font-semibold text-[#f5f0de]">{segment.percent.toFixed(1)}%</span>
+              <span className="text-white/35">({segment.count})</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

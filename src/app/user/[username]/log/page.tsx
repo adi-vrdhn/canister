@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import TopActionBanner from "@/components/TopActionBanner";
 import CinematicLoading from "@/components/CinematicLoading";
 import { User, MovieLogWithContent, Content } from "@/types";
 import { auth, db } from "@/lib/firebase";
@@ -243,6 +244,7 @@ export default function UserLogPage() {
   const [activeLog, setActiveLog] = useState<MovieLogWithContent | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const listSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Determine if the logged-in user is the owner
@@ -297,6 +299,16 @@ export default function UserLogPage() {
     });
     return () => unsubscribe();
   }, [router, usernameParam]);
+
+  useEffect(() => {
+    if (!bannerMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setBannerMessage(null);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [bannerMessage]);
 
   useEffect(() => {
     setSelectedDay(null);
@@ -508,6 +520,7 @@ export default function UserLogPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
+      <TopActionBanner message={bannerMessage} />
       <div className="brutalist mx-auto max-w-6xl space-y-5 px-1 pb-8 sm:space-y-6 sm:p-8">
         <div className="flex flex-col gap-1 px-2 pt-2 sm:px-0 sm:pt-0">
           <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb36b]/75">
@@ -768,7 +781,8 @@ export default function UserLogPage() {
           }}
           content={selectedContent}
           user={user}
-          onLogCreated={() => {
+          onLogCreated={(message) => {
+            setBannerMessage(message);
             setShowLogModal(false);
             setSelectedContent(null);
             handleRefreshLogs();
