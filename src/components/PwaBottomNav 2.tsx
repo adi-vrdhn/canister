@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { House, List, NotebookText, ScanSearch, Share2 } from "lucide-react";
 
 type NavItem = {
@@ -27,16 +26,6 @@ function isActivePath(pathname: string, href: string, exact?: boolean): boolean 
 
 export default function PwaBottomNav() {
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
-  const isAuthRoute = pathname.startsWith("/auth");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || isAuthRoute) {
-    return null;
-  }
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 lg:hidden">
@@ -49,14 +38,14 @@ export default function PwaBottomNav() {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`relative flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
+                className={`relative flex h-full flex-col items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
                   active ? "text-[#f5f0de]" : "text-white/55 hover:text-white/80"
                 }`}
                 aria-label={label}
               >
                 <Icon className={`h-6 w-6 ${active ? "text-[#f5f0de]" : "text-white/70"}`} />
                 <span
-                  className={`mt-1 h-0.5 w-6 rounded-full bg-[#ff7a1a] transition-opacity ${
+                  className={`absolute bottom-0 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[#ff7a1a] transition-opacity ${
                     active ? "opacity-100" : "opacity-0"
                   }`}
                 />
