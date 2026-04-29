@@ -12,6 +12,7 @@ interface ShareLinkButtonProps {
   className?: string;
   showLabel?: boolean;
   ariaLabel?: string;
+  onActivate?: () => void;
 }
 
 export default function ShareLinkButton({
@@ -21,6 +22,7 @@ export default function ShareLinkButton({
   className = "",
   showLabel = false,
   ariaLabel,
+  onActivate,
 }: ShareLinkButtonProps) {
   const [status, setStatus] = useState<ShareStatus>("idle");
   const timerRef = useRef<number | null>(null);
@@ -47,6 +49,7 @@ export default function ShareLinkButton({
   const handleShare = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    onActivate?.();
 
     if (typeof window === "undefined") return;
 

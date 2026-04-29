@@ -8,6 +8,7 @@ import {
 } from "firebase/database";
 import type { LogComment, LogCommentWithUser, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
+import { sendPushNotification } from "./push-notifications";
 
 function fallbackUser(userId: string): User {
   return {
@@ -111,6 +112,21 @@ async function createLogCommentNotification(
     },
     created_at: new Date().toISOString(),
     createdAt: new Date().toISOString(),
+  });
+
+  const titleByType: Record<typeof type, string> = {
+    log_comment: `${fromUser.name} commented on your log`,
+    log_comment_reply: `${fromUser.name} replied to your log comment`,
+    log_comment_like: `${fromUser.name} liked your log comment`,
+  };
+
+  await sendPushNotification({
+    userId,
+    title: titleByType[type],
+    body: "Open Canisterr to view it.",
+    url: `/logs/${logId}${commentId ? `?comment=${commentId}` : ""}`,
+    type,
+    notificationId: `${logId}-${commentId}-${type}`,
   });
 }
 

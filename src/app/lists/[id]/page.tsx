@@ -47,6 +47,7 @@ import {
 import { getLogsForContent } from "@/lib/logs";
 import { getUserWatchedMovies, upsertWatchedMovie, type WatchedMovie } from "@/lib/watched-movies";
 import { canInviteCollaborators, isUsernameBlocked, mergeSettings } from "@/lib/settings";
+import { createCollaborationRequestNotification } from "@/lib/notifications";
 
 function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, onShare, cloneLoading, onToggleWatchedStatus, watchedStatusEnabled, viewType, onSetViewType, onToggleReorder, reorderMode }: {
   onEdit: () => void;
@@ -610,13 +611,20 @@ export default function ListDetailPage() {
   };
 
   const handleAddCollaborators = async () => {
-    if (!list || selectedFriends.length === 0) return;
+    if (!list || !user || selectedFriends.length === 0) return;
 
     try {
       setAddingCollaborators(true);
 
       for (const friend of selectedFriends) {
         await addCollaborator(listId, friend.id);
+        await createCollaborationRequestNotification(
+          friend.id,
+          listId,
+          list?.name || "this list",
+          user,
+          new Date().toISOString()
+        );
       }
 
       // Reload list to see new collaborators

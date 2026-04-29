@@ -13,6 +13,7 @@ import PageLayout from "@/components/PageLayout";
 import MovieMatchAnalysisView from "@/components/MovieMatchAnalysisView";
 import type { User } from "@/types";
 import { signOut as authSignOut } from "@/lib/auth";
+import { createMatcherUpdateNotification } from "@/lib/notifications";
 
 export default function MovieMatcherReportPage() {
   const router = useRouter();
@@ -80,6 +81,16 @@ export default function MovieMatcherReportPage() {
           currentUserProfile.id,
           viewedProfile.id
         );
+
+        if (currentUserProfile.id !== viewedProfile.id) {
+          await createMatcherUpdateNotification(
+            viewedProfile.id,
+            currentUserProfile,
+            viewedProfile.username,
+            viewedProfile.name,
+            new Date().toISOString()
+          );
+        }
 
         setCurrentUser(currentUserProfile);
         setProfileUser(viewedProfile);

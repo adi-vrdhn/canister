@@ -64,6 +64,19 @@ async function getPushSupportStatus() {
   return { supported, permission };
 }
 
+async function ensurePushServiceWorkerRegistration() {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
+
+  try {
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+    return registration;
+  } catch (error) {
+    console.warn("Service worker registration failed:", error);
+    return null;
+  }
+}
+
 export async function getPushEnrollmentState(): Promise<PushEnrollmentState> {
   const { supported, permission } = await getPushSupportStatus();
   const enabled = Boolean(readStorage(PUSH_TOKEN_VALUE_KEY));
@@ -82,14 +95,6 @@ export async function enablePushNotificationsForUser(userId: string): Promise<Pu
     };
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    return {
-      ok: false,
-      reason: "unsupported" as const,
-      message: "Push notifications are disabled in local development.",
-    };
-  }
-
   const nextPermission =
     permission === "granted" ? permission : await Notification.requestPermission().catch(() => "default");
 
@@ -102,9 +107,11 @@ export async function enablePushNotificationsForUser(userId: string): Promise<Pu
   }
 
   const messaging = getMessaging(app);
+  const registration = await ensurePushServiceWorkerRegistration();
   const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
   const token = await getToken(messaging, {
     ...(vapidKey ? { vapidKey } : {}),
+    ...(registration ? { serviceWorkerRegistration: registration } : {}),
   });
 
   if (!token) {
@@ -132,6 +139,32 @@ export async function enablePushNotificationsForUser(userId: string): Promise<Pu
     ok: true,
     token,
   };
+}
+
+export type PushDeliveryInput = {
+  userId: string;
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  type?: string;
+  notificationId?: string;
+};
+
+export async function sendPushNotification(input: PushDeliveryInput): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  try {
+    await fetch("/api/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    });
+  } catch (error) {
+    console.warn("Push notification dispatch failed:", error);
+  }
 }
 
 export async function disablePushNotificationsForUser(userId: string) {

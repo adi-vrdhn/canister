@@ -3,7 +3,6 @@
 import Link from "next/link";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import CinePostArtwork from "@/components/CinePostArtwork";
-import ShareLinkButton from "@/components/ShareLinkButton";
 import { CinePostWithDetails, User } from "@/types";
 
 const PREVIEW_LIMIT = 130;
@@ -70,14 +69,15 @@ export default function CinePostPreviewList({
               ? `/tv/${post.content_id}`
               : `/movie/${post.content_id}`
             : null;
+        const hasArtwork = Boolean(post.poster_url || (post.list_cover_images && post.list_cover_images.length > 0));
 
         return (
           <article
             key={post.id}
             className="grid grid-cols-[4.75rem_minmax(0,1fr)] gap-3 border-b border-white/10 py-3 sm:grid-cols-[5.25rem_minmax(0,1fr)] sm:gap-4 sm:py-4"
           >
-            {contentHref ? (
-              <Link href={contentHref} className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
+            {hasArtwork && contentHref ? (
+              <Link href={contentHref} className="relative aspect-[2/3] overflow-hidden bg-transparent">
                 <CinePostArtwork
                   src={post.poster_url}
                   collageImages={post.list_cover_images}
@@ -87,8 +87,19 @@ export default function CinePostPreviewList({
                   theme={theme}
                 />
               </Link>
+            ) : hasArtwork ? (
+              <div className="relative aspect-[2/3] overflow-hidden bg-transparent">
+                <CinePostArtwork
+                  src={post.poster_url}
+                  collageImages={post.list_cover_images}
+                  alt={post.content_title || post.anchor_label}
+                  className="h-full w-full"
+                  mediaClassName=""
+                  theme={theme}
+                />
+              </div>
             ) : (
-              <div className="aspect-[2/3] bg-[#1a1a1a]" />
+              <div className="aspect-[2/3] bg-transparent" />
             )}
             <div className="min-w-0">
               <div className="flex items-start justify-between gap-3">
@@ -102,14 +113,6 @@ export default function CinePostPreviewList({
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <ShareLinkButton
-                    href={`/posts/${post.id}`}
-                    title={`${post.user.name}'s post`}
-                    text={`Shared from Canisterr by ${post.user.name}.`}
-                    showLabel
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-[#ff7a1a]/35 hover:bg-white/[0.08] hover:text-[#ffb36b]"
-                    ariaLabel="Share post link"
-                  />
                   {currentUser && currentUser.id === post.user_id && onPostMutated && (
                     <CinePostOwnerMenu
                       post={post}

@@ -232,11 +232,13 @@ export type NotificationType =
   | "share_reply"
   | "log_comment"
   | "log_comment_reply"
-  | "log_comment_like";
+  | "log_comment_like"
+  | "matcher_update";
 
 export function notificationPreferenceForType(type: NotificationType): NotificationPreferenceKey {
   if (type === "follow_request") return "followRequests";
   if (type === "collaboration_request") return "collaborationInvites";
+  if (type === "matcher_update") return "matcherUpdates";
   return "likesAndComments";
 }
 

@@ -2,6 +2,7 @@ import { push, ref, get, set } from "firebase/database";
 import { db } from "@/lib/firebase";
 import type { ShareReply, ShareReplyWithUser, ShareWithDetails, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
+import { sendPushNotification } from "./push-notifications";
 
 function fallbackUser(userId: string): User {
   return {
@@ -82,6 +83,15 @@ async function createShareReplyNotification(
     },
     created_at: now,
     createdAt: now,
+  });
+
+  await sendPushNotification({
+    userId,
+    title: `${fromUser.name} replied to your shared movie`,
+    body: "Open Canisterr to see the reply.",
+    url: `/share?share_id=${share.id}&panel=history`,
+    type: "share_reply",
+    notificationId: replyId,
   });
 }
 

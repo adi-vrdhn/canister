@@ -19,6 +19,7 @@ import { getAvailableFriends, getFullTasteProfile } from "@/lib/friends-match";
 import { getMovieRecommendations, RecommendationFilters } from "@/lib/movie-recommendations";
 import { getSimilarMovies } from "@/lib/tmdb";
 import { quickRateMovie, addToWatchlist, getUserMovieLogs } from "@/lib/logs";
+import { createMatcherUpdateNotification } from "@/lib/notifications";
 import { ArrowLeft, Plus, Trash2, Loader2, Search, X, Sparkles, Zap, Users, Heart, ChevronLeft, ChevronRight, Flame, Clock, BarChart3, ChevronDown, Star } from "lucide-react";
 import Link from "next/link";
 
@@ -1008,6 +1009,16 @@ export default function MovieMatcherPage() {
                               });
                               setMatchAnalysis(analysis);
                               setShowAnalysisModal(true);
+
+                              if (user!.id !== friend.userId) {
+                                await createMatcherUpdateNotification(
+                                  friend.userId,
+                                  user!,
+                                  friend.username,
+                                  friend.name,
+                                  new Date().toISOString()
+                                );
+                              }
                             } catch (err) {
                               setError("Failed to calculate match score");
                             } finally {

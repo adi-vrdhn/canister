@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { get, ref, remove } from "firebase/database";
-import { CloudDownload, Download, RefreshCw, Upload } from "lucide-react";
+import { CloudDownload, Upload } from "lucide-react";
 import SettingsPageFrame from "@/components/SettingsPageFrame";
 import { useSettingsUser } from "../settings-shared";
 import { SettingLine } from "../settings-ui";
@@ -77,10 +77,39 @@ function isValidDateString(dateText: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(dateText) && !Number.isNaN(new Date(dateText).getTime());
 }
 
-function getReactionFromRating(rating: number): 0 | 1 | 2 {
-  if (rating <= 2.5) return 0;
-  if (rating >= 4.5) return 2;
+type RatingBounds = {
+  badMax: number;
+  masterpieceMin: number;
+};
+
+const DEFAULT_RATING_BOUNDS: RatingBounds = {
+  badMax: 2.5,
+  masterpieceMin: 4.5,
+};
+
+function getReactionFromRating(rating: number, bounds: RatingBounds): 0 | 1 | 2 {
+  if (rating <= bounds.badMax) return 0;
+  if (rating >= bounds.masterpieceMin) return 2;
   return 1;
+}
+
+function parseRatingBounds(badMaxText: string, masterpieceMinText: string): RatingBounds {
+  const badMax = Number.parseFloat(badMaxText);
+  const masterpieceMin = Number.parseFloat(masterpieceMinText);
+
+  const safeBadMax = Number.isFinite(badMax) ? Math.min(Math.max(badMax, 0), 5) : DEFAULT_RATING_BOUNDS.badMax;
+  const safeMasterpieceMin = Number.isFinite(masterpieceMin)
+    ? Math.min(Math.max(masterpieceMin, 0), 5)
+    : DEFAULT_RATING_BOUNDS.masterpieceMin;
+
+  if (safeBadMax >= safeMasterpieceMin) {
+    return DEFAULT_RATING_BOUNDS;
+  }
+
+  return {
+    badMax: safeBadMax,
+    masterpieceMin: safeMasterpieceMin,
+  };
 }
 
 function normalizeTitle(value: string) {
@@ -107,6 +136,8 @@ export default function SettingsImportPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [badMaxInput, setBadMaxInput] = useState(String(DEFAULT_RATING_BOUNDS.badMax));
+  const [masterpieceMinInput, setMasterpieceMinInput] = useState(String(DEFAULT_RATING_BOUNDS.masterpieceMin));
 
   const handleImport = async (file: File) => {
     if (!auth.currentUser || !user) return;
@@ -116,6 +147,7 @@ export default function SettingsImportPage() {
     setError("");
 
     try {
+      const ratingBounds = parseRatingBounds(badMaxInput, masterpieceMinInput);
       const rows = parseRatingsCsv(await file.text());
       let imported = 0;
       let skipped = 0;
@@ -163,7 +195,14 @@ export default function SettingsImportPage() {
         }
 
         const watchedDate = isValidDateString(row.date) ? row.date : new Date().toISOString().split("T")[0];
-        await createMovieLog(auth.currentUser.uid, match.id, "movie", watchedDate, getReactionFromRating(ratingValue), "Imported from ratings CSV");
+        await createMovieLog(
+          auth.currentUser.uid,
+          match.id,
+          "movie",
+          watchedDate,
+          getReactionFromRating(ratingValue, ratingBounds),
+          "Imported from ratings CSV"
+        );
         imported += 1;
       }
 
@@ -257,20 +296,88 @@ export default function SettingsImportPage() {
     >
       <div className="space-y-3">
         <SettingLine icon={Upload} title="Import Letterboxd CSV" description="Pick a ratings export and we will build logs from it.">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={busy}
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50"
-          >
-            Choose file
-          </button>
-          <button
-            onClick={handleClearImports}
-            disabled={busy}
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50"
-          >
-            Clear imports
-          </button>
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-[#f5f0de]">Custom rating map</p>
+                  <p className="mt-1 text-xs text-white/45">
+                    Decide how your CSV ratings become Bad, Good, or Masterpiece before importing.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBadMaxInput(String(DEFAULT_RATING_BOUNDS.badMax));
+                    setMasterpieceMinInput(String(DEFAULT_RATING_BOUNDS.masterpieceMin));
+                  }}
+                  disabled={busy}
+                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/80">Bad up to</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    value={badMaxInput}
+                    onChange={(event) => setBadMaxInput(event.target.value)}
+                    disabled={busy}
+                    className="w-full rounded-2xl border border-white/10 bg-[#0b0b0b] px-3 py-2 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/60 disabled:opacity-50"
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/80">Masterpiece from</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    value={masterpieceMinInput}
+                    onChange={(event) => setMasterpieceMinInput(event.target.value)}
+                    disabled={busy}
+                    className="w-full rounded-2xl border border-white/10 bg-[#0b0b0b] px-3 py-2 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/60 disabled:opacity-50"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-[#f5f0de]/70">
+                <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1">
+                  0.0 - {Number.parseFloat(badMaxInput) || DEFAULT_RATING_BOUNDS.badMax} = Bad
+                </span>
+                <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1">
+                  {(Number.isFinite(Number.parseFloat(badMaxInput)) ? Number.parseFloat(badMaxInput) : DEFAULT_RATING_BOUNDS.badMax) + 0.1} - {(Number.isFinite(Number.parseFloat(masterpieceMinInput)) ? Number.parseFloat(masterpieceMinInput) : DEFAULT_RATING_BOUNDS.masterpieceMin) - 0.1} = Good
+                </span>
+                <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1">
+                  {Number.isFinite(Number.parseFloat(masterpieceMinInput)) ? Number.parseFloat(masterpieceMinInput) : DEFAULT_RATING_BOUNDS.masterpieceMin}+ = Masterpiece
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50"
+              >
+                Choose file
+              </button>
+              <button
+                onClick={handleClearImports}
+                disabled={busy}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50"
+              >
+                Clear imports
+              </button>
+            </div>
+          </div>
         </SettingLine>
 
         <SettingLine icon={CloudDownload} title="Export data" description="Download your profile, logs, lists and social data as JSON.">

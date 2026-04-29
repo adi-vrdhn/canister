@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clapperboard, Film, Search, Sparkles, Tv, UserRound, X } from "lucide-react";
+import { Film, Search, Tv, UserRound, X } from "lucide-react";
 import { CinePostAnchorType, Content, TMDBMovie, TMDBPersonSearchResult, User } from "@/types";
 import { createCinePost } from "@/lib/cineposts";
 import { reportAppError } from "@/lib/report-error";
@@ -245,14 +245,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
           isBrutalist ? "border-white/10 bg-[#111111]/95" : "border-slate-200/80 bg-[#fcfcfb]/90"
         }`}>
           <div className="min-w-0">
-            <div className={`mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] ${
-              isBrutalist ? "border-white/10 text-white/60" : "border-slate-200 bg-white text-slate-500"
-            }`}>
-              <Sparkles className="h-3.5 w-3.5" />
-              Post
-            </div>
-            <h2 className={`text-[1.9rem] font-black leading-none tracking-tight sm:text-[2.35rem] ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Start a cinema thread</h2>
-            <p className={`mt-2 max-w-xl text-sm leading-6 sm:text-[15px] ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>Pick a title or crew member, then write your take. Everything stays compact, clean, and easy to scan.</p>
+            <h2 className={`text-[2.05rem] font-black leading-none tracking-tight sm:text-[2.7rem] ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>Start a cinema thread</h2>
           </div>
           <button
             type="button"
@@ -275,13 +268,13 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             {ANCHOR_TYPES.map((type) => (
               <button
                 key={type.value}
                 type="button"
                 onClick={() => resetAnchor(type.value)}
-                className={`flex min-h-11 items-center justify-center gap-2 rounded-full px-3 py-3 text-center text-[13px] font-semibold leading-none transition sm:min-h-12 sm:px-4 sm:text-sm ${
+                className={`flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 py-3 text-center text-[12px] font-semibold leading-none transition sm:min-h-12 sm:px-4 sm:text-sm ${
                   anchorType === type.value
                     ? "bg-[#ff7a1a] text-black shadow-[0_10px_30px_rgba(255,122,26,0.25)]"
                     : isBrutalist
@@ -391,7 +384,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
             )}
 
             {(selectedContent || selectedPerson) && (
-              <div className="mt-3 flex items-center gap-3 rounded-3xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-3">
+              <div className="mt-3 flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3">
                 {selectedPerson ? (
                   selectedPerson.profile_path ? (
                     <img
@@ -412,37 +405,25 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                   <div className="h-20 w-14 rounded-xl bg-white" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-[#ff7a1a] px-2 py-1 text-[11px] font-bold uppercase text-black">
-                    <CheckCircle2 className="h-3 w-3" />
-                    selected
-                  </div>
                   <p className="truncate font-black text-[#f5f0de]">
                     {selectedPerson ? selectedPerson.name : selectedContent?.title}
-                  </p>
-                  <p className="text-xs text-white/55">
-                    {selectedPerson
-                      ? "This person will become the tap target on the post."
-                      : "This poster will become the tap target on the post."}
                   </p>
                 </div>
               </div>
             )}
           </div>
 
-          <div className={`rounded-3xl border p-4 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+          <div className={`rounded-3xl border p-5 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <label className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Post details</label>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${isBrutalist ? "bg-white/5 text-white/55" : "bg-white text-slate-500"}`}>
-                Post
-              </span>
             </div>
             <textarea
-              className={`min-h-36 w-full resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-4 ${
+              className={`min-h-56 w-full resize-none rounded-3xl border px-4 py-4 text-[15px] leading-7 outline-none transition focus:ring-4 ${
                 isBrutalist
                   ? "border-white/10 bg-[#0d0d0d] text-[#f5f0de] focus:border-white/20 focus:ring-white/10"
                   : "border-slate-200 bg-white text-slate-900 focus:border-slate-400 focus:ring-slate-100"
               }`}
-              placeholder="Write the take. Links are supported, and people can reply in threads."
+              placeholder="Write your post..."
               value={content}
               onChange={(event) => setContent(event.target.value)}
             />
@@ -456,10 +437,6 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
               value={tags}
               onChange={(event) => setTags(event.target.value)}
             />
-            <p className={`mt-1 flex items-center gap-1.5 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-              <Clapperboard className="h-3.5 w-3.5" />
-              Movie or TV tags are added automatically from your selected anchor.
-            </p>
           </div>
 
           <button

@@ -20,9 +20,10 @@ export default function CinePostArtwork({
   const isBrutalist = theme === "brutalist";
   const images = collageImages.filter((image): image is string => Boolean(image));
   const showCollage = images.length > 1 && !src;
+  const hasMedia = Boolean(src) || showCollage;
 
   return (
-    <div className={`relative overflow-hidden bg-[#1a1a1a] ${className}`}>
+    <div className={`relative overflow-hidden ${hasMedia ? "bg-transparent" : isBrutalist ? "bg-[#1a1a1a]" : "bg-slate-100"} ${className}`}>
       {showCollage ? (
         <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-px bg-black">
           {images.slice(0, 4).map((image, index) => (

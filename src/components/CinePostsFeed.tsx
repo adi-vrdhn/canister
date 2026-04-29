@@ -429,6 +429,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   const discoverRailRef = useRef<HTMLDivElement | null>(null);
   const seenPostsRef = useRef<Set<string>>(new Set());
   const [posts, setPosts] = useState<CinePostWithDetails[]>([]);
+  const [lockedFeedPostIds, setLockedFeedPostIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [popularMovies, setPopularMovies] = useState<RailItem[]>([]);
   const [popularLoading, setPopularLoading] = useState(true);
@@ -466,6 +467,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
 
   const refreshPosts = async () => {
     try {
+      setLockedFeedPostIds(new Set());
       const feed = await getCinePosts(currentUser?.id, 30, {
         sort: "smart",
         feedContext: { seenPostIds: Array.from(seenPostsRef.current) },
@@ -485,6 +487,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
 
     const loadPosts = async () => {
       try {
+        setLockedFeedPostIds(new Set());
         const feed = await getCinePosts(currentUser?.id, 30, {
           sort: "smart",
           feedContext: { seenPostIds: Array.from(seenPostsRef.current) },
@@ -624,7 +627,24 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   ) => {
     if (!currentUser) return;
     await setCinePostEngagement(post, currentUser, type, enabled);
-    await refreshPosts();
+    setLockedFeedPostIds((current) => new Set(current).add(post.id));
+    setPosts((currentPosts) =>
+      currentPosts.map((currentPost) => {
+        if (currentPost.id !== post.id) return currentPost;
+
+        const likeDelta = type === "like" ? (enabled ? 1 : -1) : 0;
+        const saveDelta = type === "save" ? (enabled ? 1 : -1) : 0;
+
+        return {
+          ...currentPost,
+          liked_by_current_user: type === "like" ? enabled : currentPost.liked_by_current_user,
+          saved_by_current_user: type === "save" ? enabled : currentPost.saved_by_current_user,
+          likes_count: Math.max(0, currentPost.likes_count + likeDelta),
+          saves_count: Math.max(0, currentPost.saves_count + saveDelta),
+          score: Math.max(0, currentPost.score + likeDelta + saveDelta * 3),
+        };
+      })
+    );
   };
 
   const openPeopleModal = async (
@@ -688,7 +708,8 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   );
 
   const priorityFriendPosts = posts.filter((post) => post.feedTier === 0);
-  const mainFeedPosts = posts.filter((post) => post.feedTier !== 0);
+  const mainFeedPosts = posts.filter((post) => post.feedTier !== 0 && (lockedFeedPostIds.has(post.id) || !post.liked_by_current_user));
+  const likedPosts = posts.filter((post) => post.liked_by_current_user && !lockedFeedPostIds.has(post.id) && post.feedTier !== 0);
 
   const renderPostCard = (post: CinePostWithDetails, index: number, withDiscoveryRails = true) => {
     const contentHref = getContentHref(post);
@@ -946,6 +967,22 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
           <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
             {mainFeedPosts.map((post, index) => renderPostCard(post, index))}
           </div>
+        )}
+
+        {likedPosts.length > 0 && (
+          <section className="space-y-3 pt-2">
+            <div>
+              <h2 className={`text-[11px] uppercase tracking-[0.3em] ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>
+                Liked Posts
+              </h2>
+              <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                Posts you already liked sit at the bottom after refresh.
+              </p>
+            </div>
+            <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
+              {likedPosts.map((post) => renderPostCard(post, 0, false))}
+            </div>
+          </section>
         )}
       </div>
 

@@ -49,13 +49,15 @@ type FollowModalType = "followers" | "following" | "requests" | "sent-requests";
 
 interface SocialNotification {
   id: string;
-  type: "follow_request" | "collaboration_request" | "post_like" | "post_save" | "post_comment" | "comment_reply" | "share_reply";
+  type: "follow_request" | "collaboration_request" | "post_like" | "post_save" | "post_comment" | "comment_reply" | "share_reply" | "matcher_update";
   fromUser: User;
   createdAt: string;
   followRequestState?: "pending" | "accepted";
   listId?: string;
   listName?: string;
   ref_id?: string;
+  subjectUsername?: string;
+  subjectName?: string;
 }
 
 interface FollowRecord {
@@ -1417,9 +1419,9 @@ function ProfilePageInner() {
               </span>
             </p>
 
-            <div className="mt-4 flex flex-row flex-wrap items-center justify-center gap-2">
+            <div className="mt-4 grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-center">
               {!isOwnProfile && currentUser && (
-                <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className="contents">
                   {hasIncomingFollowRequestFromProfile ? (
                     <>
                       <button
@@ -1436,7 +1438,7 @@ function ProfilePageInner() {
                           })
                         }
                         disabled={profileFollowActionLoading}
-                        className="inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full border border-[#ff7a1a] bg-[#ff7a1a] px-4 py-2 text-xs font-black text-black transition hover:bg-[#ff8d33] disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
+                        className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-[#ff7a1a] bg-[#ff7a1a] px-2 py-2 text-[11px] font-black text-black transition hover:bg-[#ff8d33] disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
                       >
                         Confirm
                       </button>
@@ -1446,7 +1448,7 @@ function ProfilePageInner() {
                           handleDeclineFollowRequest(profileToViewerPendingFollow.id)
                         }
                         disabled={profileFollowActionLoading}
-                        className="inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
+                        className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
                       >
                         Decline
                       </button>
@@ -1458,7 +1460,7 @@ function ProfilePageInner() {
                         profileFollowActionLoading ||
                         (profileFollowState === "follow" && profileFollowVisibility === "private" && !canSendFollowRequest)
                       }
-                      className={`inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full px-4 py-2 text-xs font-black transition sm:px-5 sm:py-2.5 sm:text-sm ${
+                      className={`inline-flex w-full min-w-0 items-center justify-center rounded-full px-2 py-2 text-[11px] font-black transition sm:px-5 sm:py-2.5 sm:text-sm ${
                         profileFollowState === "following"
                           ? "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                           : profileFollowState === "requested"
@@ -1486,13 +1488,13 @@ function ProfilePageInner() {
                 <>
                   <Link
                     href="/profile/edit"
-                    className="inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                    className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
                   >
                     Edit Profile
                   </Link>
                   <Link
                     href={`/movie-matcher/${profileUser.username}`}
-                    className="inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                    className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
                   >
                     Movie Matcher
                   </Link>
@@ -1502,7 +1504,7 @@ function ProfilePageInner() {
                   {canShowSharedMoviesLink && (
                     <Link
                       href={`/profile/${profileUser.username}/shared-movies`}
-                      className="inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                      className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Shared Movies
                     </Link>
@@ -1510,7 +1512,7 @@ function ProfilePageInner() {
                   {canAccessProfile && currentUser && (
                     <Link
                       href={`/movie-matcher/${profileUser.username}`}
-                      className="inline-flex w-auto min-w-[10rem] items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                      className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Movie Matcher
                     </Link>

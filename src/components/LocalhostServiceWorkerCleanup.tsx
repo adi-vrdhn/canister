@@ -16,9 +16,14 @@ export default function LocalhostServiceWorkerCleanup() {
         const registrations = await navigator.serviceWorker.getRegistrations();
         if (cancelled) return;
 
-        if (registrations.length > 0) {
+        const staleRegistrations = registrations.filter((registration) => {
+          const scriptUrls = [registration.active?.scriptURL, registration.installing?.scriptURL, registration.waiting?.scriptURL].filter(Boolean);
+          return !scriptUrls.some((scriptUrl) => scriptUrl?.endsWith("/sw.js"));
+        });
+
+        if (staleRegistrations.length > 0) {
           hadRegistrations = true;
-          await Promise.all(registrations.map((registration) => registration.unregister()));
+          await Promise.all(staleRegistrations.map((registration) => registration.unregister()));
         }
       } catch (error) {
         console.warn("Service worker cleanup failed:", error);

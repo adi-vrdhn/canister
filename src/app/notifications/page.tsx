@@ -29,11 +29,12 @@ function avatarFallback(name?: string): string {
   return name?.charAt(0)?.toUpperCase() || "N";
 }
 
-type NotificationFilter = "all" | "requests" | "posts" | "shares" | "logs";
+type NotificationFilter = "all" | "requests" | "posts" | "shares" | "logs" | "matcher";
 
 function getNotificationFilter(note: NotificationItem): Exclude<NotificationFilter, "all"> {
   if (note.type === "follow_request" || note.type === "collaboration_request") return "requests";
   if (note.type === "share_reply") return "shares";
+  if (note.type === "matcher_update") return "matcher";
   if (note.type === "post_like" || note.type === "post_save" || note.type === "post_comment" || note.type === "comment_reply") return "posts";
   return "logs";
 }
@@ -220,6 +221,7 @@ export default function NotificationsPage() {
             ["posts", "Posts"],
             ["shares", "Shares"],
             ["logs", "Logs"],
+            ["matcher", "Matcher"],
           ] as const).map(([value, label]) => (
             <button
               key={value}
@@ -255,7 +257,7 @@ export default function NotificationsPage() {
 
               return (
                 <article key={note.id} className="flex flex-col gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
+                  <Link href={notificationHref(note)} className="flex min-w-0 items-start gap-3">
                     {avatar}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -266,62 +268,59 @@ export default function NotificationsPage() {
                       </div>
                       <p className="mt-1 text-sm leading-6 text-[#f5f0de]/75">{notificationText(note)}</p>
                       <p className="mt-1 text-xs text-[#f5f0de]/45">{formatNotificationDate(note.createdAt, true)}</p>
-                      <Link
-                        href={notificationHref(note)}
-                        className="mt-2 inline-flex text-sm font-bold text-[#ffb36b] transition hover:text-[#ff7a1a]"
-                      >
+                      <span className="mt-2 inline-flex text-sm font-bold text-[#ffb36b] transition hover:text-[#ff7a1a]">
                         Open related item
-                      </Link>
+                      </span>
+                    </div>
+                  </Link>
 
-                      {note.type === "follow_request" && (
-                        <div className="mt-3 flex flex-wrap gap-3">
-                          {note.followRequestState === "accepted" ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleFollowBack(note)}
-                                disabled={busyId === note.id}
-                                className="inline-flex items-center gap-2 text-xs font-black text-[#ffb36b] transition hover:text-[#ff7a1a] disabled:opacity-50"
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                Follow back
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(note.id)}
-                                disabled={busyId === note.id}
-                                className="inline-flex items-center gap-2 text-xs font-black text-[#f5f0de]/60 transition hover:text-[#f5f0de] disabled:opacity-50"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Delete
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleAccept(note)}
-                                disabled={busyId === note.id}
-                                className="inline-flex items-center gap-2 text-xs font-black text-[#ffb36b] transition hover:text-[#ff7a1a] disabled:opacity-50"
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                Confirm
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDecline(note)}
-                                disabled={busyId === note.id}
-                                className="inline-flex items-center gap-2 text-xs font-black text-[#f5f0de]/60 transition hover:text-[#f5f0de] disabled:opacity-50"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                                Decline
-                              </button>
-                            </>
-                          )}
-                        </div>
+                  {note.type === "follow_request" && (
+                    <div className="flex flex-wrap gap-3">
+                      {note.followRequestState === "accepted" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleFollowBack(note)}
+                            disabled={busyId === note.id}
+                            className="inline-flex items-center gap-2 text-xs font-black text-[#ffb36b] transition hover:text-[#ff7a1a] disabled:opacity-50"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            Follow back
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(note.id)}
+                            disabled={busyId === note.id}
+                            className="inline-flex items-center gap-2 text-xs font-black text-[#f5f0de]/60 transition hover:text-[#f5f0de] disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleAccept(note)}
+                            disabled={busyId === note.id}
+                            className="inline-flex items-center gap-2 text-xs font-black text-[#ffb36b] transition hover:text-[#ff7a1a] disabled:opacity-50"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDecline(note)}
+                            disabled={busyId === note.id}
+                            className="inline-flex items-center gap-2 text-xs font-black text-[#f5f0de]/60 transition hover:text-[#f5f0de] disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Decline
+                          </button>
+                        </>
                       )}
                     </div>
-                  </div>
+                  )}
 
                   <button
                     type="button"

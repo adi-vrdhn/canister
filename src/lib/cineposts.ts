@@ -14,6 +14,7 @@ import {
 } from "@/types";
 import { getListCoverImages } from "./lists";
 import { shouldDeliverNotificationToUser } from "./settings";
+import { sendPushNotification } from "./push-notifications";
 
 type CreateCinePostInput = {
   user: User;
@@ -781,6 +782,7 @@ async function createCinePostNotification(
   if (!(await shouldDeliverNotificationToUser(userId, type))) return;
 
   const notificationRef = push(ref(db, `notifications/${userId}`));
+  const now = new Date().toISOString();
 
   await set(notificationRef, {
     type,
@@ -792,7 +794,23 @@ async function createCinePostNotification(
       name: fromUser.name,
       avatar_url: fromUser.avatar_url || null,
     },
-    created_at: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
+    created_at: now,
+    createdAt: now,
+  });
+
+  const titleByType: Record<typeof type, string> = {
+    post_like: `${fromUser.name} liked your post`,
+    post_save: `${fromUser.name} saved your post`,
+    post_comment: `${fromUser.name} commented on your post`,
+    comment_reply: `${fromUser.name} replied to your comment`,
+  };
+
+  await sendPushNotification({
+    userId,
+    title: titleByType[type],
+    body: "Open Canisterr to view it.",
+    url: `/posts/${refId}`,
+    type,
+    notificationId: notificationRef.key || `${refId}-${type}`,
   });
 }

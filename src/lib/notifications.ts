@@ -2,6 +2,7 @@ import { get, ref, remove, set } from "firebase/database";
 import { db } from "@/lib/firebase";
 import type { User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
+import { sendPushNotification } from "./push-notifications";
 
 export type FollowRequestState = "pending" | "accepted";
 
@@ -16,7 +17,8 @@ export type NotificationType =
   | "share_reply"
   | "log_comment"
   | "log_comment_reply"
-  | "log_comment_like";
+  | "log_comment_like"
+  | "matcher_update";
 
 export type NotificationItem = {
   id: string;
@@ -37,6 +39,8 @@ export type NotificationItem = {
   commentId?: string;
   shareId?: string;
   shareTitle?: string;
+  subjectUsername?: string;
+  subjectName?: string;
   content?: string;
   contentId?: string | number;
   contentType?: string;
@@ -92,6 +96,8 @@ export function parseNotificationItems(raw: unknown): NotificationItem[] {
     commentId: entry.commentId as string | undefined,
     shareId: entry.shareId as string | undefined,
     shareTitle: entry.shareTitle as string | undefined,
+    subjectUsername: entry.subjectUsername as string | undefined,
+    subjectName: entry.subjectName as string | undefined,
     content: entry.content as string | undefined,
     contentId: entry.contentId as string | number | undefined,
     contentType: entry.contentType as string | undefined,
@@ -109,6 +115,9 @@ export function notificationHref(note: NotificationItem): string {
   }
   if (note.type === "share_reply" && note.shareId) {
     return `/share?share_id=${note.shareId}&panel=history`;
+  }
+  if (note.type === "matcher_update" && note.subjectUsername) {
+    return `/movie-matcher/${note.subjectUsername}`;
   }
   if ((note.type === "log_comment" || note.type === "log_comment_reply" || note.type === "log_comment_like") && note.logId) {
     return note.commentId ? `/logs/${note.logId}?comment=${note.commentId}` : `/logs/${note.logId}`;
@@ -137,6 +146,8 @@ export function notificationText(note: NotificationItem): string {
       return "liked your log.";
     case "share_reply":
       return note.shareTitle ? `replied to your share of ${note.shareTitle}.` : "replied to your share.";
+    case "matcher_update":
+      return note.subjectName ? `updated your movie matcher with ${note.subjectName}.` : "updated your movie matcher.";
     case "log_comment":
       return "commented on your log.";
     case "log_comment_reply":
@@ -299,6 +310,15 @@ export async function sendFollowRequest(
         createdAt,
       })
     );
+
+    await sendPushNotification({
+      userId: targetUser.id,
+      title: `${fromUser.name} sent you a follow request`,
+      body: "Open Canisterr to confirm or decline it.",
+      url: "/notifications",
+      type: "follow_request",
+      notificationId: followId,
+    });
   }
 }
 
@@ -331,6 +351,15 @@ export async function createFollowRequestNotification(
       createdAt,
     })
   );
+
+  await sendPushNotification({
+    userId,
+    title: `${fromUser.name} sent you a follow request`,
+    body: "Open Canisterr to confirm or decline it.",
+    url: "/notifications",
+    type: "follow_request",
+    notificationId: followId,
+  });
 }
 
 export async function createFollowAcceptedNotification(
@@ -362,6 +391,100 @@ export async function createFollowAcceptedNotification(
       createdAt,
     })
   );
+
+  await sendPushNotification({
+    userId,
+    title: `${fromUser.name} is now following you`,
+    body: "Open Canisterr to see who followed you back.",
+    url: "/notifications",
+    type: "follow_request",
+    notificationId: followId,
+  });
+}
+
+export async function createCollaborationRequestNotification(
+  userId: string,
+  listId: string,
+  listName: string,
+  fromUser: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url?: string | null;
+  },
+  createdAt: string
+): Promise<void> {
+  if (!(await shouldDeliverNotificationToUser(userId, "collaboration_request"))) return;
+
+  await set(
+    ref(db, `notifications/${userId}/${listId}-${fromUser.id}-${createdAt}`),
+    stripUndefinedFields({
+      type: "collaboration_request",
+      seen: false,
+      listId,
+      listName,
+      fromUser: {
+        id: fromUser.id,
+        username: fromUser.username,
+        name: fromUser.name,
+        avatar_url: fromUser.avatar_url || null,
+      },
+      created_at: createdAt,
+      createdAt,
+    })
+  );
+
+  await sendPushNotification({
+    userId,
+    title: `${fromUser.name} invited you to collaborate`,
+    body: listName ? `Open Canisterr to join ${listName}.` : "Open Canisterr to view the invite.",
+    url: `/lists/${listId}`,
+    type: "collaboration_request",
+    notificationId: `${listId}-${fromUser.id}-${createdAt}`,
+  });
+}
+
+export async function createMatcherUpdateNotification(
+  userId: string,
+  fromUser: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url?: string | null;
+  },
+  subjectUsername: string,
+  subjectName: string,
+  createdAt: string
+): Promise<void> {
+  if (!(await shouldDeliverNotificationToUser(userId, "matcher_update"))) return;
+
+  const notificationId = `${fromUser.id}-${subjectUsername}-${createdAt}`;
+  await set(
+    ref(db, `notifications/${userId}/${notificationId}`),
+    stripUndefinedFields({
+      type: "matcher_update",
+      seen: false,
+      subjectUsername,
+      subjectName,
+      fromUser: {
+        id: fromUser.id,
+        username: fromUser.username,
+        name: fromUser.name,
+        avatar_url: fromUser.avatar_url || null,
+      },
+      created_at: createdAt,
+      createdAt,
+    })
+  );
+
+  await sendPushNotification({
+    userId,
+    title: `${fromUser.name} checked your movie matcher`,
+    body: "Open Canisterr to see the match report.",
+    url: `/movie-matcher/${subjectUsername}`,
+    type: "matcher_update",
+    notificationId,
+  });
 }
 
 export function createNotificationFallbackUser(userId: string): User {

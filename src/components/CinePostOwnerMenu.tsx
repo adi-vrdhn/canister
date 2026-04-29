@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MoreVertical, Pencil, Trash2, X } from "lucide-react";
 import { CinePostWithDetails, User } from "@/types";
 import { deleteCinePost, updateCinePost } from "@/lib/cineposts";
+import ShareLinkButton from "@/components/ShareLinkButton";
 
 interface CinePostOwnerMenuProps {
   post: CinePostWithDetails;
@@ -103,10 +104,21 @@ export default function CinePostOwnerMenu({
               className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
                 isBrutalist ? "text-[#f5f0de] hover:bg-white/5" : "rounded-xl text-slate-700 hover:bg-slate-50"
               }`}
-            >
+              >
               <Pencil className="h-4 w-4" />
               Edit post
             </button>
+            <ShareLinkButton
+              href={`/posts/${post.id}`}
+              title={`${post.user.name}'s post`}
+              text={`Shared from Canisterr by ${post.user.name}.`}
+              showLabel
+              onActivate={() => setMenuOpen(false)}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                isBrutalist ? "text-[#f5f0de] hover:bg-white/5" : "rounded-xl text-slate-700 hover:bg-slate-50"
+              }`}
+              ariaLabel="Share post link"
+            />
             <button
               type="button"
               onClick={handleDelete}
