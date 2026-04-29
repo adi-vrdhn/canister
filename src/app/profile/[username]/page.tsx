@@ -592,7 +592,7 @@ function ProfilePageInner() {
   }, [activeTab, canAccessLists, isOwnProfile, profileUser]);
 
   useEffect(() => {
-    if (!profileUser || !isOwnProfile || profileUser.display_list_id || activeTab === "lists") return;
+    if (!profileUser || !isOwnProfile) return;
 
     let cancelled = false;
 
@@ -616,7 +616,7 @@ function ProfilePageInner() {
     return () => {
       cancelled = true;
     };
-  }, [isOwnProfile, profileUser]);
+  }, [isOwnProfile, profileUser, displayListConnectOpen]);
 
   useEffect(() => {
     setOpenFollowMenuUserId(null);

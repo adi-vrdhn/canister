@@ -8,6 +8,7 @@ import { get, ref } from "firebase/database";
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreVertical, Pencil, Send, Trash2, X } from "lucide-react";
 import CinematicLoading from "@/components/CinematicLoading";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
+import ShareLinkButton from "@/components/ShareLinkButton";
 import PageLayout from "@/components/PageLayout";
 import CinePostArtwork from "@/components/CinePostArtwork";
 import {
@@ -606,13 +607,23 @@ export default function CinePostPage() {
                     {formatPostType(post.type)}
                   </span>
                 </div>
-                <CinePostOwnerMenu
-                  post={post}
-                  currentUser={user}
-                  onDeleted={() => router.push("/dashboard")}
-                  onUpdated={refreshPost}
-                  theme="brutalist"
-                />
+                <div className="flex items-center gap-1.5">
+                  <ShareLinkButton
+                    href={`/posts/${post.id}`}
+                    title={`${post.user.name}'s post`}
+                    text={`Shared from Canisterr by ${post.user.name}.`}
+                    showLabel
+                    className="rounded-full border border-white/10 bg-[#111111] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-[#ff7a1a]/35 hover:bg-white/[0.08] hover:text-[#ffb36b]"
+                    ariaLabel="Share post link"
+                  />
+                  <CinePostOwnerMenu
+                    post={post}
+                    currentUser={user}
+                    onDeleted={() => router.push("/dashboard")}
+                    onUpdated={refreshPost}
+                    theme="brutalist"
+                  />
+                </div>
               </div>
 
               <div className="mt-6 whitespace-pre-wrap text-[16px] leading-8 text-slate-800">

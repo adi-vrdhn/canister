@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
+import LogMovieModal from "@/components/LogMovieModal";
 import { MovieLog, MovieLogWithContent, User, Content, LogCommentWithUser } from "@/types";
 import { deleteMovieLog, updateMovieLog, getLogsForContent } from "@/lib/logs";
 import { likeLog, unlikeLog, getLogLikes } from "@/lib/log-likes";
@@ -22,11 +23,11 @@ import {
   MessageCircle,
   Send,
   Upload,
+  Share2,
 } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebase";
 import { ref, get, ref as dbRef, push as dbPush } from "firebase/database";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   createLogComment,
@@ -37,7 +38,6 @@ import {
 } from "@/lib/log-comments";
 import { buildLogUrl } from "@/lib/log-url";
 import { shouldDeliverNotificationToUser } from "@/lib/settings";
-import { storage } from "@/lib/firebase";
 
 function relativeTime(dateString: string): string {
   const diff = Date.now() - new Date(dateString).getTime();
@@ -65,6 +65,21 @@ function linkify(text: string) {
       );
     }
     return <span key={`${part}-${index}`}>{part}</span>;
+  });
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Could not read file"));
+    };
+    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.readAsDataURL(file);
   });
 }
 
@@ -131,6 +146,77 @@ function PeopleModal({
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function TicketActionsModal({
+  imageUrl,
+  title,
+  uploading,
+  onClose,
+  onDelete,
+  onReplace,
+}: {
+  imageUrl: string | null;
+  title: string;
+  uploading: boolean;
+  onClose: () => void;
+  onDelete: () => void;
+  onReplace: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm border border-white/10 bg-[#101010] p-4 shadow-2xl sm:p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/80">Ticket image</p>
+            <h3 className="mt-1 text-base font-semibold text-[#f5f0de]">{title}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-white/55 hover:bg-white/5"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {imageUrl && (
+          <div className="mb-4 overflow-hidden bg-black">
+            <img src={imageUrl} alt={`${title} ticket preview`} className="h-56 w-full object-cover" />
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={onReplace}
+            disabled={uploading}
+            className="flex w-full items-center gap-3 border border-white/10 bg-white/5 px-4 py-3 text-left text-sm font-semibold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
+          >
+            <Upload className="h-4 w-4 text-[#ff7a1a]" />
+            {uploading ? "Uploading..." : "Replace image"}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={uploading}
+            className="flex w-full items-center gap-3 border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-left text-sm font-semibold text-rose-200 transition hover:bg-rose-500/15 disabled:opacity-60"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete image
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-4 py-3 text-sm font-semibold text-[#f5f0de]/70 transition hover:text-[#f5f0de]"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -323,16 +409,13 @@ export default function LogDetailPage() {
   const [log, setLog] = useState<MovieLogWithContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingNotes, setEditingNotes] = useState("");
-  const [editingReaction, setEditingReaction] = useState<0|1|2>(1);
+  const [showEditLogModal, setShowEditLogModal] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [liked, setLiked] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
   const [showLikesModal, setShowLikesModal] = useState(false);
   const [likers, setLikers] = useState<User[]>([]);
   const [likersLoading, setLikersLoading] = useState(false);
-  const [reactionSaving, setReactionSaving] = useState(false);
   const [comments, setComments] = useState<LogCommentWithUser[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentText, setCommentText] = useState("");
@@ -348,6 +431,7 @@ export default function LogDetailPage() {
   const [ticketSide, setTicketSide] = useState<"front" | "back">("front");
   const [ticketImageUrl, setTicketImageUrl] = useState<string | null>(null);
   const [ticketUploading, setTicketUploading] = useState(false);
+  const [showTicketActions, setShowTicketActions] = useState(false);
   const ticketInputRef = useRef<HTMLInputElement | null>(null);
 
   const getFallbackContent = (contentType: "movie" | "tv", contentId: number): Content => {
@@ -460,9 +544,6 @@ export default function LogDetailPage() {
 
         setLog(foundLog);
         setTicketImageUrl((foundLog as MovieLog).ticket_image_url || null);
-        setEditingNotes(foundLog.notes || "");
-        setEditingReaction(typeof foundLog.reaction === "number" ? foundLog.reaction : 1);
-
         // Fetch likes
         const likes = await getLogLikes(logId, currentUser.id);
         setLikeCount(likes.count);
@@ -568,12 +649,6 @@ export default function LogDetailPage() {
     }
   };
 
-  // Reaction change handler
-  // In edit mode, just update local state
-  const handleReactionChange = (newReaction: 0|1|2) => {
-    setEditingReaction(newReaction);
-  };
-
   const handleDelete = async () => {
     if (!log || !user || log.user_id !== user.id) return;
     if (!confirm("Are you sure you want to delete this log?")) return;
@@ -587,31 +662,45 @@ export default function LogDetailPage() {
     }
   };
 
-  const handleSaveEdit = async () => {
+  const handleTicketUploadClick = () => {
+    setShowTicketActions(false);
+    ticketInputRef.current?.click();
+  };
+
+  const handleDeleteTicketImage = async () => {
     if (!log || !user || log.user_id !== user.id) return;
 
     try {
-      await updateMovieLog(logId, {
-        notes: editingNotes,
-        reaction: editingReaction,
-      });
-
-      // Update local state
-      setLog({
-        ...log,
-        notes: editingNotes,
-        reaction: editingReaction,
-      });
-
-      setIsEditing(false);
+      setTicketUploading(true);
+      await updateMovieLog(log.id, {
+        ticket_image_url: null,
+      } as Partial<MovieLog>);
+      setTicketImageUrl(null);
+      setLog((prev) => (prev ? { ...prev, ticket_image_url: null } : prev));
+      setTicketSide("front");
+      setShowTicketActions(false);
     } catch (error) {
-      console.error("Error updating log:", error);
-      alert("Failed to update log");
+      console.error("Error deleting ticket image:", error);
+      alert("Failed to delete the image. Please try again.");
+    } finally {
+      setTicketUploading(false);
     }
   };
 
-  const handleTicketUploadClick = () => {
-    ticketInputRef.current?.click();
+  const handleLogUpdated = (updatedLog: MovieLogWithContent) => {
+    setLog((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...updatedLog,
+            content: prev.content,
+            user: prev.user,
+          }
+        : prev
+    );
+    setTicketImageUrl(updatedLog.ticket_image_url || null);
+    setTicketSide("front");
+    setShowEditLogModal(false);
   };
 
   const handleTicketFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -630,13 +719,7 @@ export default function LogDetailPage() {
 
     try {
       setTicketUploading(true);
-
-      const uploadRef = storageRef(storage, `log-ticket-images/${log.id}/${Date.now()}-${file.name}`);
-      await uploadBytes(uploadRef, file, {
-        contentType: file.type,
-      });
-
-      const downloadUrl = await getDownloadURL(uploadRef);
+      const downloadUrl = await fileToDataUrl(file);
       await updateMovieLog(log.id, {
         ticket_image_url: downloadUrl,
       } as Partial<MovieLog>);
@@ -644,6 +727,7 @@ export default function LogDetailPage() {
       setTicketImageUrl(downloadUrl);
       setLog((prev) => (prev ? { ...prev, ticket_image_url: downloadUrl } : prev));
       setTicketSide("back");
+      setShowTicketActions(false);
     } catch (error) {
       console.error("Error uploading ticket image:", error);
       alert("Failed to upload the image. Please try again.");
@@ -771,6 +855,33 @@ export default function LogDetailPage() {
       : `/movie/${log.content.id}`
     : "#";
 
+  const handleShareLog = async () => {
+    if (!log || typeof window === "undefined") return;
+
+    const shareUrl = buildLogUrl(log, targetCommentId ? { comment: targetCommentId } : undefined);
+    const absoluteUrl = new URL(shareUrl, window.location.origin).toString();
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: log.content.title,
+          text: `Take a look at ${log.content.title} on Canisterr.`,
+          url: absoluteUrl,
+        });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(absoluteUrl);
+        return;
+      }
+    } catch (error) {
+      console.error("Share log failed:", error);
+    }
+
+    window.prompt("Copy this link", absoluteUrl);
+  };
+
   useEffect(() => {
     if (!log) return;
 
@@ -821,267 +932,262 @@ export default function LogDetailPage() {
 
   return (
     <PageLayout user={user} onSignOut={() => router.push("/auth/login")} theme="brutalist">
-      <div className="min-h-screen bg-[#0f0f0f] text-[#f5f0de]">
-        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        {/* Movie Info */}
-        <div className="mb-8">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#121212] shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <div className="relative flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-5">
+      <div className="min-h-screen bg-black text-[#f5f0de]">
+        <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-5 lg:px-6">
+          <div className="flex items-center justify-between pb-3">
+            <button
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-[#f5f0de]/70 transition hover:text-[#f5f0de]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+
+            <div className="relative">
               <button
-                onClick={() => router.back()}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-[#f5f0de]/75 transition hover:text-[#f5f0de]"
+                type="button"
+                onClick={() => setShowMenu((prev) => !prev)}
+                className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-[#f5f0de]/60 transition hover:text-[#f5f0de]"
+                aria-label="Open log actions"
               >
-                <ArrowLeft className="h-4 w-4" />
-                Back
+                <MoreVertical className="h-4 w-4" />
+                Menu
               </button>
 
-              {isOwnLog ? (
-                <button
-                  type="button"
-                  onClick={() => setShowMenu((prev) => !prev)}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-[#f5f0de]/75 hover:bg-white/10"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                  Menu
-                </button>
-              ) : (
-                <span className="text-[11px] uppercase tracking-[0.22em] text-[#ffb36b]/75">Log detail</span>
-              )}
-
-              {isOwnLog && showMenu && (
-                <div className="absolute right-4 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-white/10 bg-[#121212] shadow-lg">
+              {showMenu && (
+                <div className="absolute right-0 top-[calc(100%+0.75rem)] z-20 min-w-40 border border-white/10 bg-[#101010]">
                   <button
                     onClick={() => {
-                      setIsEditing(true);
+                      handleShareLog();
                       setShowMenu(false);
                     }}
                     className="flex w-full items-center gap-2 px-4 py-2 text-left text-[#f5f0de] transition-colors hover:bg-white/5"
                   >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
+                    <Share2 className="h-4 w-4" />
+                    Share
                   </button>
-                  <button
-                    onClick={() => {
-                      handleDelete();
-                      setShowMenu(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-rose-300 transition-colors hover:bg-rose-500/10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
+                  {isOwnLog && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowEditLogModal(true);
+                          setShowMenu(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-[#f5f0de] transition-colors hover:bg-white/5"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleDelete();
+                          setShowMenu(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-rose-300 transition-colors hover:bg-rose-500/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:gap-5 sm:p-6">
-              <div className="relative">
-                <div className="relative mx-auto h-[17rem] w-[11rem] [perspective:1400px] sm:mx-0 sm:h-[20rem] sm:w-full">
+          <div className="mt-5 grid grid-cols-[minmax(8.75rem,0.9fr)_minmax(0,1.1fr)] gap-4 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] lg:items-start lg:gap-10">
+            <div className="w-full">
+              <div className="relative aspect-[3/4] overflow-hidden bg-black">
+                <div
+                  className="relative h-full w-full transition-transform duration-700 [transform-style:preserve-3d]"
+                  style={{
+                    transform: ticketSide === "front" ? "rotateY(0deg)" : "rotateY(180deg)",
+                  }}
+                >
                   <div
-                    className="relative h-full w-full transition-transform duration-700 [transform-style:preserve-3d]"
-                    style={{
-                      transform: ticketSide === "front" ? "rotateY(0deg)" : "rotateY(180deg)",
-                    }}
+                    className={`absolute inset-0 [backface-visibility:hidden] ${
+                      ticketSide === "front" ? "pointer-events-auto" : "pointer-events-none"
+                    }`}
                   >
-                    <div className="absolute inset-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#0f0f0f] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]">
-                      <Link
-                        href={contentHref}
-                        className="absolute inset-0 z-0 block"
-                        aria-label={`Open ${log.content.title}`}
-                      >
-                        {log.content.poster_url ? (
-                          <img
-                            src={log.content.poster_url}
-                            alt={log.content.title}
-                            className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.02]"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs uppercase tracking-[0.2em] text-white/35">
-                            No poster
-                          </div>
-                        )}
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => setTicketSide("back")}
-                        className="absolute bottom-3 right-3 z-10 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg"
-                      >
-                        Flip
-                      </button>
-                    </div>
-
-                    <div
-                      className="absolute inset-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#111111] shadow-[0_18px_35px_rgba(0,0,0,0.32)] [backface-visibility:hidden]"
-                      style={{ transform: "rotateY(180deg)" }}
+                    <Link
+                      href={contentHref}
+                      className="absolute inset-0 z-0 block"
+                      aria-label={`Open ${log.content.title}`}
                     >
-                      {ticketImageUrl ? (
+                      {log.content.poster_url ? (
+                        <img
+                          src={log.content.poster_url}
+                          alt={log.content.title}
+                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.01]"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-white/3 text-xs uppercase tracking-[0.2em] text-white/30">
+                          No poster
+                        </div>
+                      )}
+                    </Link>
+                  </div>
+
+                  <div
+                    className={`absolute inset-0 [backface-visibility:hidden] ${
+                      ticketSide === "back" ? "pointer-events-auto" : "pointer-events-none"
+                    }`}
+                    style={{ transform: "rotateY(180deg)" }}
+                  >
+                    {ticketImageUrl ? (
+                      <div className="relative h-full w-full">
                         <img
                           src={ticketImageUrl}
                           alt={`${log.content.title} ticket`}
                           className="h-full w-full object-cover"
                         />
-                      ) : isOwnLog ? (
-                        <div className="flex h-full flex-col items-center justify-center p-4 text-center">
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/75">
-                            Upload a picture or ticket
-                          </p>
-                          <p className="mt-2 max-w-[10rem] text-xs leading-5 text-[#f5f0de]/70">
-                            Add an image for the back of this log card.
-                          </p>
+                        {isOwnLog && (
                           <button
                             type="button"
-                            onClick={handleTicketUploadClick}
-                            disabled={ticketUploading}
-                            className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#f5f0de] px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-white disabled:opacity-60"
+                            onClick={() => setShowTicketActions(true)}
+                            className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center border border-white/10 bg-black/70 text-[#f5f0de] transition hover:bg-black"
+                            aria-label="Open ticket actions"
                           >
-                            <Upload className="h-3.5 w-3.5" />
-                            {ticketUploading ? "Uploading" : "Upload image"}
+                            <MoreVertical className="h-4 w-4" />
                           </button>
-                          <p className="mt-3 text-[11px] text-white/45">
-                            JPG, PNG, or WebP up to 8MB.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex h-full items-center justify-center p-4 text-center">
-                          <p className="max-w-[10rem] text-xs leading-5 text-[#f5f0de]/55">
-                            No ticket image yet.
-                          </p>
-                        </div>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setTicketSide("front")}
-                        className="absolute bottom-3 left-3 z-10 rounded-full border border-white/10 bg-[#121212]/90 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#f5f0de] shadow-lg"
-                      >
-                        Front
-                      </button>
-
-                      {isOwnLog && ticketImageUrl && (
+                        )}
+                      </div>
+                    ) : isOwnLog ? (
+                      <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/75">
+                          Upload a picture or ticket
+                        </p>
+                        <p className="mt-2 max-w-[10rem] text-xs leading-5 text-[#f5f0de]/65">
+                          Add an image for the back of this log card.
+                        </p>
                         <button
                           type="button"
                           onClick={handleTicketUploadClick}
                           disabled={ticketUploading}
-                          className="absolute right-3 top-3 z-10 rounded-full bg-[#ff7a1a] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-black shadow-lg disabled:opacity-60"
+                          className="mt-4 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#ff7a1a] transition hover:text-[#ffb36b] disabled:opacity-60"
                         >
-                          {ticketUploading ? "Uploading" : "Replace"}
+                          <Upload className="h-3.5 w-3.5" />
+                          {ticketUploading ? "Uploading" : "Upload image"}
                         </button>
-                      )}
-                    </div>
+                        <p className="mt-3 text-[11px] text-white/35">
+                          JPG, PNG, or WebP up to 8MB.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex h-full items-center justify-center p-4 text-center">
+                        <p className="max-w-[10rem] text-xs leading-5 text-[#f5f0de]/55">
+                          No ticket image yet.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                {isOwnLog && (
-                  <input
-                    ref={ticketInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleTicketFileChange}
-                  />
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.22em] text-white/35">
+                <button
+                  type="button"
+                  onClick={() => setTicketSide("front")}
+                  className={ticketSide === "front" ? "text-[#ff7a1a]" : "text-white/45 hover:text-[#f5f0de]"}
+                >
+                  Front
+                </button>
+                <span className="text-white/15">/</span>
+                <button
+                  type="button"
+                  onClick={() => setTicketSide("back")}
+                  className={ticketSide === "back" ? "text-[#ff7a1a]" : "text-white/45 hover:text-[#f5f0de]"}
+                >
+                  Back
+                </button>
+                {isOwnLog && ticketImageUrl && (
+                  <>
+                    <span className="text-white/15">/</span>
+                    <button
+                      type="button"
+                      onClick={handleTicketUploadClick}
+                      disabled={ticketUploading}
+                      className="text-[#ff7a1a] hover:text-[#ffb36b] disabled:opacity-60"
+                    >
+                      {ticketUploading ? "Uploading" : "Replace"}
+                    </button>
+                  </>
                 )}
               </div>
 
-              <div className="min-w-0 self-center">
-                <Link
-                  href={contentHref}
-                  className="group inline-block max-w-full"
-                  aria-label={`Open ${log.content.title}`}
-                >
-                  <h1 className="line-clamp-2 text-xl font-black leading-[1.05] tracking-tight text-[#f5f0de] transition group-hover:text-[#ffb36b] sm:text-[2.1rem]">
-                    {log.content.title}
-                  </h1>
-                </Link>
+              {isOwnLog && (
+                <input
+                  ref={ticketInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleTicketFileChange}
+                />
+              )}
+            </div>
 
-                <div className="mt-4 space-y-3 text-sm text-white/68">
-                  {releaseYear && (
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
-                      <span>{releaseYear}</span>
-                    </div>
-                  )}
+            <div className="min-w-0 pt-0 lg:pt-2">
+              <Link
+                href={contentHref}
+                className="group inline-block max-w-full"
+                aria-label={`Open ${log.content.title}`}
+              >
+                <h1 className="line-clamp-3 text-[clamp(1.55rem,6vw,3.35rem)] font-black leading-[0.96] tracking-tight text-[#f5f0de] transition group-hover:text-[#ffb36b]">
+                  {log.content.title}
+                </h1>
+              </Link>
+
+              <div className="mt-4 space-y-2 text-[13px] text-white/72 sm:text-sm">
+                {releaseYear && (
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
-                    <span className="inline-flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      Watched {formatDate(log.watched_date)}
-                    </span>
+                    <span>{releaseYear}</span>
                   </div>
-                  {log.content.genres?.length ? (
-                    <div className="flex items-start gap-2">
-                      <span className="mt-2 inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
-                      <p className="leading-6 text-[#f5f0de]/78">
-                        {log.content.genres.slice(0, 4).join(" • ")}
-                      </p>
-                    </div>
-                  ) : null}
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    Watched {formatDate(log.watched_date)}
+                  </span>
                 </div>
-
-                <div className="mt-5 border-t border-white/10 pt-4 text-[10px] uppercase tracking-[0.22em] text-[#ffb36b]/75">
+                {log.content.genres?.length ? (
+                  <div className="flex items-start gap-2">
+                    <span className="mt-2 inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
+                    <p className="leading-6 text-[#f5f0de]/76">
+                      {log.content.genres.slice(0, 4).join(" • ")}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="pt-3 text-[10px] uppercase tracking-[0.22em] text-[#ffb36b]/75">
                   {log.content_type === "tv" ? "TV Show" : "Movie"}
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Review */}
-        <div className="mb-8 border-t border-white/10 pt-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-lg font-semibold text-[#f5f0de] sm:text-xl">
-              {isOwnLog ? "Your review" : `${log.user.name}'s review`}
-            </h2>
-            {(() => {
-              const reaction = getReactionDisplay(log.reaction as 0 | 1 | 2);
-              const reactionLabel = (
-                <span className={reaction.textClass}>{reaction.label}</span>
-              );
-              return (
-                <span
-                  className={`inline-flex items-center gap-2 border px-4 py-1.5 text-sm font-bold ${reaction.badgeClass}`}
-                >
-                  {reactionLabel}
-                </span>
-              );
-            })()}
+          {/* Review */}
+          <div className="mt-8 border-t border-white/10 pt-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-[#f5f0de] sm:text-xl">
+                {isOwnLog ? "Your review" : `${log.user.name}'s review`}
+              </h2>
+              {(() => {
+                const reaction = getReactionDisplay(log.reaction as 0 | 1 | 2);
+                const reactionLabel = <span className={reaction.textClass}>{reaction.label}</span>;
+                return (
+                  <span
+                    className={`inline-flex items-center gap-2 border px-4 py-1.5 text-sm font-bold ${reaction.badgeClass}`}
+                  >
+                    {reactionLabel}
+                  </span>
+                );
+              })()}
+            </div>
+
+          <div className="mt-5 whitespace-pre-wrap text-[15px] leading-7 text-[#f5f0de]/90">
+            {log.notes || <span className="text-white/35">No review written yet.</span>}
           </div>
-
-          {isOwnLog && isEditing ? (
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-white/60">Review</label>
-                <textarea
-                  value={editingNotes}
-                  onChange={(e) => setEditingNotes(e.target.value)}
-                  className="field min-h-28 resize-none py-3"
-                  placeholder="Write your review"
-                  rows={4}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditingNotes(log.notes);
-                  }}
-                  className="rounded-none border border-white/10 px-4 py-2 text-sm font-medium text-[#f5f0de] hover:bg-white/5"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="rounded-none bg-[#ff7a1a] px-4 py-2 text-sm font-medium text-black hover:bg-[#ff8d33]"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-5 whitespace-pre-wrap text-[15px] leading-7 text-[#f5f0de]/90">
-              {log.notes || <span className="text-white/35">No review written yet.</span>}
-            </div>
-          )}
 
           <div className="mt-5 inline-flex items-center gap-2 text-sm">
             <button
@@ -1106,26 +1212,6 @@ export default function LogDetailPage() {
             </button>
           </div>
 
-          {/* Reaction Edit (owner only, only in edit mode) */}
-          {isOwnLog && isEditing && (
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <span className="text-sm text-white/55">Change reaction:</span>
-              {[{label: "Bad", value: 0}, {label: "Good", value: 1}, {label: "Masterpiece", value: 2}].map(opt => (
-                <button
-                  key={opt.value}
-                  disabled={reactionSaving}
-                  onClick={() => handleReactionChange(opt.value as 0|1|2)}
-                  className={`rounded-none border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    editingReaction === opt.value
-                      ? "border-[#ff7a1a] bg-[#ff7a1a] text-black"
-                      : "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Context Log */}
@@ -1281,6 +1367,28 @@ export default function LogDetailPage() {
             setShowCommentLikesModal(false);
             setCommentLikers([]);
           }}
+        />
+      )}
+      {showEditLogModal && log && (
+        <LogMovieModal
+          isOpen={showEditLogModal}
+          onClose={() => setShowEditLogModal(false)}
+          content={log.content}
+          user={user}
+          mode="edit"
+          existingLog={log}
+          onLogUpdated={handleLogUpdated}
+          theme="brutalist"
+        />
+      )}
+      {showTicketActions && (
+        <TicketActionsModal
+          imageUrl={ticketImageUrl}
+          title={log.content.title}
+          uploading={ticketUploading}
+          onClose={() => setShowTicketActions(false)}
+          onDelete={handleDeleteTicketImage}
+          onReplace={handleTicketUploadClick}
         />
       )}
     </PageLayout>

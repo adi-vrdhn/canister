@@ -3,12 +3,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { RotateCcw, Upload, X } from "lucide-react";
-import { Content, User } from "@/types";
+import { Content, MovieLog, MovieLogWithContent, User } from "@/types";
 import { createLogCinePost } from "@/lib/cineposts";
-import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
+import { createMovieLog, getUserMovieLogs, updateMovieLog } from "@/lib/logs";
 import { reportAppError } from "@/lib/report-error";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { storage } from "@/lib/firebase";
 
 interface LogMovieModalProps {
   isOpen: boolean;
@@ -16,6 +14,9 @@ interface LogMovieModalProps {
   content: Content;
   user: User | null;
   onLogCreated?: (message: string) => void;
+  mode?: "create" | "edit";
+  existingLog?: MovieLogWithContent | null;
+  onLogUpdated?: (log: MovieLogWithContent) => void;
   theme?: "default" | "brutalist";
 }
 
@@ -37,14 +38,33 @@ function isSameContent(
   return log.content_id === currentContent.id && log.content_type === currentType;
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Could not read file"));
+    };
+    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function LogMovieModal({
   isOpen,
   onClose,
   content,
   user,
   onLogCreated,
+  mode = "create",
+  existingLog = null,
+  onLogUpdated,
   theme = "default",
 }: LogMovieModalProps) {
+  const isEditMode = mode === "edit";
   const isBrutalist = theme === "brutalist";
   const [watchedDate, setWatchedDate] = useState(new Date().toISOString().split("T")[0]);
   const [reaction, setReaction] = useState<null | 0 | 1 | 2>(null); // 0=Bad, 1=Good, 2=Masterpiece
@@ -108,9 +128,36 @@ export default function LogMovieModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setTicketImageUrl(null);
+    if (isEditMode && existingLog) {
+      setWatchedDate(existingLog.watched_date || new Date().toISOString().split("T")[0]);
+      setReaction((typeof existingLog.reaction === "number" ? existingLog.reaction : 1) as 0 | 1 | 2);
+      setNotes(existingLog.notes || "");
+      setTicketImageUrl(existingLog.ticket_image_url || null);
+
+      const existingContext = existingLog.context_log || {};
+      setShowContextLog(Boolean(existingContext.location || existingContext.watched_with || existingContext.mood));
+      setLocation(existingContext.location || "");
+      setWatchedWith(existingContext.watched_with || "");
+      const rewatchValue = (existingContext as Record<string, unknown>).rewatch;
+      setIsRewatch(rewatchValue === "true" || rewatchValue === true);
+      setShareAsPost(false);
+      setPostCaption("");
+      setError("");
+    } else {
+      setTicketImageUrl(null);
+      setWatchedDate(new Date().toISOString().split("T")[0]);
+      setReaction(null);
+      setNotes("");
+      setShareAsPost(false);
+      setPostCaption("");
+      setShowContextLog(false);
+      setLocation("");
+      setWatchedWith("");
+      setIsRewatch(false);
+      setError("");
+    }
     setTicketUploading(false);
-  }, [isOpen, content.id]);
+  }, [existingLog, isEditMode, isOpen, content.id]);
 
   if (!user) return null;
 
@@ -137,24 +184,15 @@ export default function LogMovieModal({
     try {
       setTicketUploading(true);
       setError("");
-
-      const uploadRef = storageRef(
-        storage,
-        `log-ticket-images/${user.id}/${content.id}/${Date.now()}-${file.name}`
-      );
-      await uploadBytes(uploadRef, file, {
-        contentType: file.type,
-      });
-
-      const downloadUrl = await getDownloadURL(uploadRef);
-      setTicketImageUrl(downloadUrl);
+      const dataUrl = await fileToDataUrl(file);
+      setTicketImageUrl(dataUrl);
     } catch (err) {
       reportAppError({
         title: "Ticket upload failed",
-        message: "We could not upload your ticket or memory image.",
+        message: "We could not save your ticket or memory image.",
         details: err instanceof Error ? err.stack || err.message : String(err),
       });
-      setError("Failed to upload the image. Please try again.");
+      setError("Failed to save the image. Please try again.");
     } finally {
       setTicketUploading(false);
       event.target.value = "";
@@ -191,20 +229,47 @@ export default function LogMovieModal({
           )
         : undefined;
 
-      const newLog = await createMovieLog(
-        user.id,
-        content.id,
-        contentType,
-        watchedDate,
-        reaction,
-        notes,
-        undefined,
-        contextLog,
-        ticketImageUrl
-      );
+      if (isEditMode) {
+        if (!existingLog) {
+          throw new Error("Missing log to edit");
+        }
 
-      if (shareAsPost) {
-        await createLogCinePost(user, newLog, content, postCaption || notes);
+        const updates: Partial<MovieLog> = {
+          watched_date: watchedDate,
+          reaction,
+          notes,
+          ticket_image_url: ticketImageUrl || null,
+          context_log: Object.keys(contextLog || {}).length > 0 ? (contextLog as MovieLog["context_log"]) : {},
+        };
+
+        await updateMovieLog(existingLog.id, updates);
+
+        onLogUpdated?.({
+          ...existingLog,
+          ...updates,
+          id: existingLog.id,
+          watched_date: watchedDate,
+          reaction,
+          notes,
+          ticket_image_url: ticketImageUrl || null,
+          context_log: updates.context_log || {},
+        } as MovieLogWithContent);
+      } else {
+        const newLog = await createMovieLog(
+          user.id,
+          content.id,
+          contentType,
+          watchedDate,
+          reaction,
+          notes,
+          undefined,
+          contextLog,
+          ticketImageUrl
+        );
+
+        if (shareAsPost) {
+          await createLogCinePost(user, newLog, content, postCaption || notes);
+        }
       }
 
       // Reset form
@@ -219,9 +284,15 @@ export default function LogMovieModal({
       setIsRewatch(false);
 
       const contentLabel = contentType === "tv" ? "TV show" : "Movie";
-      const successMessage = shareAsPost ? `${contentLabel} logged and posted` : `${contentLabel} logged`;
+      const successMessage = isEditMode
+        ? `${contentLabel} updated`
+        : shareAsPost
+          ? `${contentLabel} logged and posted`
+          : `${contentLabel} logged`;
 
-      onLogCreated?.(successMessage);
+      if (!isEditMode) {
+        onLogCreated?.(successMessage);
+      }
       onClose();
     } catch (err) {
       reportAppError({
@@ -295,9 +366,11 @@ export default function LogMovieModal({
             <div className="min-w-0">
               <div className="mb-1 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb36b]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#ff7a1a]" />
-                Movie log
+                {isEditMode ? "Edit log" : "Movie log"}
               </div>
-              <h2 className={`text-base font-semibold sm:text-lg ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Log Movie</h2>
+              <h2 className={`text-base font-semibold sm:text-lg ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                {isEditMode ? "Edit Movie Log" : "Log Movie"}
+              </h2>
               <p
                 className={`line-clamp-1 text-xs sm:text-sm ${
                   isBrutalist ? "text-white/60 group-hover:text-[#f5f0de]" : "text-slate-600 group-hover:text-slate-900"
@@ -318,7 +391,7 @@ export default function LogMovieModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 p-3 sm:space-y-5 sm:p-4">
-          {checkingPreviousWatches && previousWatchDates.length === 0 && (
+          {!isEditMode && checkingPreviousWatches && previousWatchDates.length === 0 && (
             <div className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${
               isBrutalist ? "border border-white/10 bg-white/5 text-white/65" : "border border-slate-200 bg-slate-50 text-slate-600"
             }`}>
@@ -326,57 +399,59 @@ export default function LogMovieModal({
             </div>
           )}
 
-          <label
-            className={`flex cursor-pointer items-start gap-3 rounded-[1.25rem] px-3 py-3 transition-all ${
-              isBrutalist
-                ? "border border-white/10 bg-white/[0.04] shadow-[0_12px_30px_rgba(0,0,0,0.18)] hover:bg-white/[0.06]"
-                : "border border-slate-200 bg-slate-50 shadow-sm hover:bg-slate-100"
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={isRewatchSelected}
-              onChange={(e) => setIsRewatch(e.target.checked)}
-              className="sr-only"
-            />
-            <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border ${
-              isRewatchSelected
-                ? isBrutalist
-                  ? "border-[#ff7a1a]/40 bg-[#ff7a1a]/12 text-[#ffb36b]"
-                  : "border-orange-200 bg-orange-50 text-orange-600"
-                : isBrutalist
-                  ? "border-white/10 bg-white/5 text-white/45"
-                  : "border-slate-200 bg-white text-slate-400"
-            }`}>
-              <RotateCcw className={`h-4 w-4 ${isRewatchSelected ? "rewatch-icon-spin" : ""}`} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Rewatch</p>
-                {hasPreviousWatch ? (
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
-                    isBrutalist ? "bg-white/5 text-[#ffb36b]" : "bg-orange-100 text-orange-700"
-                  }`}>
-                    Seen before
-                  </span>
-                ) : (
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
-                    isBrutalist ? "bg-white/5 text-white/55" : "bg-slate-100 text-slate-500"
-                  }`}>
-                    Fresh watch
-                  </span>
+          {!isEditMode && (
+            <label
+              className={`flex cursor-pointer items-start gap-3 rounded-[1.25rem] px-3 py-3 transition-all ${
+                isBrutalist
+                  ? "border border-white/10 bg-white/[0.04] shadow-[0_12px_30px_rgba(0,0,0,0.18)] hover:bg-white/[0.06]"
+                  : "border border-slate-200 bg-slate-50 shadow-sm hover:bg-slate-100"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={isRewatchSelected}
+                onChange={(e) => setIsRewatch(e.target.checked)}
+                className="sr-only"
+              />
+              <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border ${
+                isRewatchSelected
+                  ? isBrutalist
+                    ? "border-[#ff7a1a]/40 bg-[#ff7a1a]/12 text-[#ffb36b]"
+                    : "border-orange-200 bg-orange-50 text-orange-600"
+                  : isBrutalist
+                    ? "border-white/10 bg-white/5 text-white/45"
+                    : "border-slate-200 bg-white text-slate-400"
+              }`}>
+                <RotateCcw className={`h-4 w-4 ${isRewatchSelected ? "rewatch-icon-spin" : ""}`} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Rewatch</p>
+                  {hasPreviousWatch ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
+                      isBrutalist ? "bg-white/5 text-[#ffb36b]" : "bg-orange-100 text-orange-700"
+                    }`}>
+                      Seen before
+                    </span>
+                  ) : (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
+                      isBrutalist ? "bg-white/5 text-white/55" : "bg-slate-100 text-slate-500"
+                    }`}>
+                      Fresh watch
+                    </span>
+                  )}
+                </div>
+                <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                  Tick this if you have watched it before. A new log entry will still be created.
+                </p>
+                {hasPreviousWatch && (
+                  <p className={`mt-2 text-xs ${isBrutalist ? "text-white/70" : "text-slate-600"}`}>
+                    Previously logged {previousWatchDates.length} time{previousWatchDates.length === 1 ? "" : "s"}.
+                  </p>
                 )}
               </div>
-              <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                Tick this if you have watched it before. A new log entry will still be created.
-              </p>
-              {hasPreviousWatch && (
-                <p className={`mt-2 text-xs ${isBrutalist ? "text-white/70" : "text-slate-600"}`}>
-                  Previously logged {previousWatchDates.length} time{previousWatchDates.length === 1 ? "" : "s"}.
-                </p>
-              )}
-            </div>
-          </label>
+            </label>
+          )}
 
           {error && (
             <div className={`rounded-2xl px-4 py-2 text-sm ${
@@ -469,11 +544,12 @@ export default function LogMovieModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Write your review"
-              className="field resize-none py-3"
-              rows={3}
+              className="field min-h-40 resize-none py-4"
+              rows={6}
             />
           </div>
 
+          {!isEditMode && (
           <div className={`rounded-[1.25rem] border p-3 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
             <label className="flex cursor-pointer items-start gap-3">
               <input
@@ -508,14 +584,15 @@ export default function LogMovieModal({
               </div>
             )}
           </div>
+          )}
 
-          <div className={`rounded-[1.25rem] border p-3 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className={`rounded-[1.15rem] border p-2.5 sm:p-3 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-                  Ticket or memory image
+                  {isEditMode ? "Edit ticket or memory image" : "Ticket or memory image"}
                 </p>
-                <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                <p className={`mt-0.5 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
                   Front stays the poster. Back becomes your ticket, receipt, or memory shot.
                 </p>
               </div>
@@ -523,7 +600,7 @@ export default function LogMovieModal({
                 type="button"
                 onClick={handleTicketUploadClick}
                 disabled={ticketUploading}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-[#ff8d3b] disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-3.5 py-1.75 text-[10px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-[#ff8d3b] disabled:opacity-60"
               >
                 <Upload className="h-3.5 w-3.5" />
                 {ticketImageUrl ? "Replace image" : ticketUploading ? "Uploading" : "Upload image"}
@@ -531,11 +608,11 @@ export default function LogMovieModal({
             </div>
 
             {ticketImageUrl ? (
-              <div className="mt-3 overflow-hidden rounded-[1rem] border border-white/10 bg-black/20">
+              <div className="mt-2.5 overflow-hidden rounded-[0.9rem] border border-white/10 bg-black/20">
                 <img
                   src={ticketImageUrl}
                   alt="Uploaded ticket or memory"
-                  className="h-44 w-full object-cover"
+                  className="h-28 w-full object-cover sm:h-32"
                 />
                 <div className="flex items-center justify-between gap-3 px-3 py-2">
                   <p className={`truncate text-xs ${isBrutalist ? "text-white/60" : "text-slate-500"}`}>
@@ -555,7 +632,7 @@ export default function LogMovieModal({
               </div>
             ) : (
               <div
-                className={`mt-3 rounded-[1rem] border border-dashed px-4 py-5 text-center text-sm ${
+                className={`mt-2.5 rounded-[0.9rem] border border-dashed px-4 py-4 text-center text-sm ${
                   isBrutalist ? "border-white/10 bg-black/20 text-white/50" : "border-slate-200 bg-white text-slate-500"
                 }`}
               >
@@ -621,7 +698,7 @@ export default function LogMovieModal({
             disabled={loading || ticketUploading}
             className="action-primary mt-6 w-full disabled:opacity-50"
           >
-            {loading ? "Logging..." : ticketUploading ? "Uploading image..." : "Log Movie"}
+            {loading ? (isEditMode ? "Saving..." : "Logging...") : ticketUploading ? "Uploading image..." : isEditMode ? "Save Changes" : "Log Movie"}
           </button>
         </form>
       </div>

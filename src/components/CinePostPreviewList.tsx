@@ -3,6 +3,7 @@
 import Link from "next/link";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import CinePostArtwork from "@/components/CinePostArtwork";
+import ShareLinkButton from "@/components/ShareLinkButton";
 import { CinePostWithDetails, User } from "@/types";
 
 const PREVIEW_LIMIT = 130;
@@ -100,15 +101,25 @@ export default function CinePostPreviewList({
                     {formatPostType(post.type)}
                   </span>
                 </div>
-                {currentUser && currentUser.id === post.user_id && onPostMutated && (
-                  <CinePostOwnerMenu
-                    post={post}
-                    currentUser={currentUser}
-                    onDeleted={onPostMutated}
-                    onUpdated={onPostMutated}
-                    theme={theme}
+                <div className="flex items-center gap-1.5">
+                  <ShareLinkButton
+                    href={`/posts/${post.id}`}
+                    title={`${post.user.name}'s post`}
+                    text={`Shared from Canisterr by ${post.user.name}.`}
+                    showLabel
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-[#ff7a1a]/35 hover:bg-white/[0.08] hover:text-[#ffb36b]"
+                    ariaLabel="Share post link"
                   />
-                )}
+                  {currentUser && currentUser.id === post.user_id && onPostMutated && (
+                    <CinePostOwnerMenu
+                      post={post}
+                      currentUser={currentUser}
+                      onDeleted={onPostMutated}
+                      onUpdated={onPostMutated}
+                      theme={theme}
+                    />
+                  )}
+                </div>
               </div>
               <Link href={`/posts/${post.id}`} className="mt-2 block">
                 <p className="whitespace-pre-wrap text-sm leading-6 text-[#f5f0de]/80">{preview(post.body)}</p>

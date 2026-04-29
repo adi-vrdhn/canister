@@ -21,6 +21,7 @@ import {
   GripVertical,
   MoveRight,
   Copy,
+  Share2,
   ChevronUp,
   ChevronDown,
   UserX,
@@ -47,13 +48,14 @@ import { getLogsForContent } from "@/lib/logs";
 import { getUserWatchedMovies, upsertWatchedMovie, type WatchedMovie } from "@/lib/watched-movies";
 import { canInviteCollaborators, isUsernameBlocked, mergeSettings } from "@/lib/settings";
 
-function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, cloneLoading, onToggleWatchedStatus, watchedStatusEnabled, viewType, onSetViewType, onToggleReorder, reorderMode }: {
+function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, onShare, cloneLoading, onToggleWatchedStatus, watchedStatusEnabled, viewType, onSetViewType, onToggleReorder, reorderMode }: {
   onEdit: () => void;
   onAddItems: () => void;
   canEdit: boolean;
   isOwner: boolean;
   onDelete?: () => void;
   onClone: () => void;
+  onShare?: () => void;
   cloneLoading?: boolean;
   onToggleWatchedStatus?: () => void;
   watchedStatusEnabled?: boolean;
@@ -109,6 +111,18 @@ function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, c
                 <p className="text-xs text-white/55">Save a private copy to Your lists</p>
               </div>
             </button>
+            {onShare && (
+              <button
+                className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+                onClick={() => { setOpen(false); onShare(); }}
+              >
+                <Share2 className="mt-0.5 h-4 w-4 text-[#ff7a1a]" />
+                <div>
+                  <p className="text-sm font-semibold text-[#f5f0de]">Share list</p>
+                  <p className="text-xs text-white/55">Send a link to this list</p>
+                </div>
+              </button>
+            )}
             <button
               className={`mt-1 flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5 ${
                 watchedStatusEnabled ? "text-[#ffb36b]" : ""
@@ -642,6 +656,31 @@ export default function ListDetailPage() {
     .filter((poster): poster is string => Boolean(poster));
   const displayCoverImageUrl = selectedCoverImageUrl || list.cover_image_url || posterOptions[0] || null;
 
+  const handleShareList = async () => {
+    if (typeof window === "undefined") return;
+
+    const shareUrl = new URL(`/lists/${listId}`, window.location.origin).toString();
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: list.name,
+          text: `Take a look at ${list.name} on Canisterr.`,
+          url: shareUrl,
+        });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        return;
+      }
+    } catch (error) {
+      console.error("Share list failed:", error);
+    }
+
+    window.prompt("Copy this link", shareUrl);
+  };
+
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
@@ -666,24 +705,27 @@ export default function ListDetailPage() {
               )}
             </div>
 
-            <MenuButton
-              onEdit={() => {
-                setEditMode(true);
-                setSelectedCoverImageUrl(list.cover_image_url || null);
-              }}
-              onAddItems={() => window.location.href = `/lists/${listId}/add-items`}
-              canEdit={isOwner || isCollaborator}
-              isOwner={isOwner}
-              onDelete={isOwner ? handleDeleteList : undefined}
-              onClone={handleCloneList}
-              cloneLoading={cloningList}
-              onToggleWatchedStatus={() => setWatchedStatusEnabled(v => !v)}
-              watchedStatusEnabled={watchedStatusEnabled}
-              viewType={viewType}
-              onSetViewType={(nextViewType) => void handleViewTypeChange(nextViewType)}
-              onToggleReorder={canEdit && viewType === "list" ? () => setReorderMode((v) => !v) : undefined}
-              reorderMode={reorderMode}
-            />
+            <div className="flex items-center gap-1.5">
+              <MenuButton
+                onEdit={() => {
+                  setEditMode(true);
+                  setSelectedCoverImageUrl(list.cover_image_url || null);
+                }}
+                onAddItems={() => window.location.href = `/lists/${listId}/add-items`}
+                canEdit={isOwner || isCollaborator}
+                isOwner={isOwner}
+                onDelete={isOwner ? handleDeleteList : undefined}
+                onClone={handleCloneList}
+                onShare={handleShareList}
+                cloneLoading={cloningList}
+                onToggleWatchedStatus={() => setWatchedStatusEnabled(v => !v)}
+                watchedStatusEnabled={watchedStatusEnabled}
+                viewType={viewType}
+                onSetViewType={(nextViewType) => void handleViewTypeChange(nextViewType)}
+                onToggleReorder={canEdit && viewType === "list" ? () => setReorderMode((v) => !v) : undefined}
+                reorderMode={reorderMode}
+              />
+            </div>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">

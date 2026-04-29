@@ -168,7 +168,7 @@ export default function AddItemsToListPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
-      <div className="mx-auto max-w-6xl px-4 py-4 sm:p-8">
+      <div className="mx-auto max-w-6xl px-4 py-4 text-[#f5f0de] sm:p-8">
         {/* Header */}
         <Link
           href={`/lists/${listId}`}
@@ -178,8 +178,8 @@ export default function AddItemsToListPage() {
           Back to {list.name}
         </Link>
 
-        <h1 className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Add Items to List</h1>
-        <p className="mb-6 text-sm text-gray-600 sm:mb-8 sm:text-base">Search and add movies or shows to your list</p>
+        <h1 className="mb-1 text-2xl font-bold text-[#f5f0de] sm:text-3xl">Add Items to List</h1>
+        <p className="mb-6 text-sm text-white/55 sm:mb-8 sm:text-base">Search and add movies or shows to your list</p>
 
         {/* Search Section */}
         <div className="mb-6 sm:mb-8">
@@ -193,8 +193,8 @@ export default function AddItemsToListPage() {
               }}
               className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
                 selectedTab === "movie"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-[#ff7a1a] text-black"
+                  : "bg-white/5 text-[#f5f0de]/75 hover:bg-white/10"
               }`}
             >
               Movies
@@ -207,8 +207,8 @@ export default function AddItemsToListPage() {
               }}
               className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
                 selectedTab === "tv"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-[#ff7a1a] text-black"
+                  : "bg-white/5 text-[#f5f0de]/75 hover:bg-white/10"
               }`}
             >
               Shows
@@ -226,7 +226,7 @@ export default function AddItemsToListPage() {
                 handleSearch(e.target.value);
               }}
               placeholder={`Search ${selectedTab === "movie" ? "movies" : "shows"}...`}
-              className="w-full rounded-lg border border-gray-300 py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-base"
+              className="w-full rounded-lg border border-white/10 bg-[#111111] py-3 pl-12 pr-4 text-sm text-[#f5f0de] placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#ff7a1a]/30 sm:text-base"
             />
           </div>
         </div>
@@ -241,10 +241,10 @@ export default function AddItemsToListPage() {
               return (
                 <div
                   key={key}
-                  className="overflow-hidden rounded-lg bg-white shadow-md transition-shadow hover:shadow-lg"
+                  className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-md transition-shadow hover:shadow-lg"
                 >
                   {/* Poster */}
-                  <div className="relative aspect-[3/4] overflow-hidden bg-gray-200">
+                  <div className="relative aspect-[3/4] overflow-hidden bg-black">
                     {content.poster_url ? (
                       <img
                         src={content.poster_url}
@@ -252,7 +252,7 @@ export default function AddItemsToListPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <div className="flex h-full w-full items-center justify-center text-white/35">
                         No Image
                       </div>
                     )}
@@ -265,10 +265,10 @@ export default function AddItemsToListPage() {
 
                   {/* Content Info */}
                   <div className="p-2.5 sm:p-3">
-                    <h3 className="mb-1.5 line-clamp-2 text-[11px] font-semibold text-gray-900 sm:mb-2 sm:text-sm">
+                    <h3 className="mb-1.5 line-clamp-2 text-[11px] font-semibold text-[#f5f0de] sm:mb-2 sm:text-sm">
                       {content.title}
                     </h3>
-                    <p className="mb-2 text-[10px] text-gray-500 sm:mb-3 sm:text-xs">
+                    <p className="mb-2 text-[10px] text-white/55 sm:mb-3 sm:text-xs">
                       {content.release_date
                         ? new Date(content.release_date).getFullYear()
                         : "N/A"}
@@ -280,8 +280,8 @@ export default function AddItemsToListPage() {
                       disabled={isAdded}
                       className={`flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium transition-colors sm:py-2 sm:text-sm ${
                         isAdded
-                          ? "bg-green-100 text-green-700 cursor-not-allowed"
-                          : "bg-blue-600 hover:bg-blue-700 text-white active:bg-blue-800"
+                          ? "cursor-not-allowed bg-white/10 text-white/55"
+                          : "bg-[#ff7a1a] text-black hover:bg-[#ff8d3b] active:bg-[#ff6a0f]"
                       }`}
                     >
                       {isAdded ? (

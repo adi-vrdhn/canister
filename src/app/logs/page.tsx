@@ -15,6 +15,7 @@ import { deleteMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import { buildLogUrl } from "@/lib/log-url";
+import ShareLinkButton from "@/components/ShareLinkButton";
 import {
   Calendar,
   ChevronLeft,
@@ -169,10 +170,19 @@ function LogCard({
   isRewatch: boolean;
 }) {
   const hasReview = Boolean(log.notes && log.notes.trim().length > 0);
+  const shareHref = buildLogUrl(log);
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(log)}
-      className="group grid w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-2.5 text-left sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-4"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(log);
+        }
+      }}
+      className="group grid w-full cursor-pointer grid-cols-[3rem_minmax(0,1fr)] items-start gap-2.5 text-left sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-4"
     >
       <div className="relative flex flex-col items-center justify-center text-[#ff7a1a]">
         <span className="text-2xl font-black leading-none tracking-tight sm:text-3xl">
@@ -184,7 +194,7 @@ function LogCard({
       </div>
 
       <div className="rounded-[1.35rem] border border-white/10 bg-[#111111] p-2.5 shadow-[0_16px_35px_rgba(0,0,0,0.22)] transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_20px_45px_rgba(0,0,0,0.28)] sm:rounded-[1.5rem] sm:p-3">
-        <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto]">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)]">
           <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white/5 shadow-sm">
             {log.content.poster_url ? (
               <img
@@ -199,50 +209,53 @@ function LogCard({
             )}
           </div>
 
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold leading-tight text-[#f5f0de] sm:text-sm">
-              {log.content.title}
-            </p>
-            <p className="mt-0.5 truncate text-[10px] font-medium text-white/60 sm:text-xs">
-              Watched {formatWatchedDate(log.watched_date)}
-            </p>
-            {isUnavailableContent(log) && (
-              <span className="mt-2 inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-200">
-                Details unavailable
-              </span>
-            )}
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold leading-tight text-[#f5f0de] sm:text-sm">
+                {log.content.title}
+              </p>
+              <p className="mt-0.5 truncate text-[10px] font-medium text-white/60 sm:text-xs">
+                Watched {formatWatchedDate(log.watched_date)}
+              </p>
+              {isUnavailableContent(log) && (
+                <span className="mt-2 inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-200">
+                  Details unavailable
+                </span>
+              )}
 
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${getReactionClasses(log)}`}>
-                {getReactionLabel(log)}
-              </span>
-              {isRewatch && (
-                <span
-                  className="inline-flex items-center justify-center text-[#f5f0de]/80 transition group-hover:text-[#f5f0de]"
-                  aria-label="Rewatch"
-                  title="Rewatch"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${getReactionClasses(log)}`}>
+                  {getReactionLabel(log)}
                 </span>
-              )}
-              {hasReview && (
-                <span className="text-[10px] font-semibold text-white/45 transition group-hover:text-[#ffb36b] sm:hidden">
-                  Details
-                </span>
-              )}
+                {isRewatch && (
+                  <span
+                    className="inline-flex items-center justify-center text-[#f5f0de]/80 transition group-hover:text-[#f5f0de]"
+                    aria-label="Rewatch"
+                    title="Rewatch"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </span>
+                )}
+                {hasReview && (
+                  <span className="text-[10px] font-semibold text-white/45 transition group-hover:text-[#ffb36b] sm:hidden">
+                    Details
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="hidden justify-end sm:flex">
-            {hasReview && (
-              <span className="rounded-full border border-white/10 px-2 py-1 text-xs font-semibold text-white/45 transition group-hover:border-orange-500/30 group-hover:text-[#ffb36b]">
-                Details
-              </span>
-            )}
+            <ShareLinkButton
+              href={shareHref}
+              title={log.content.title}
+              text={`Take a look at ${log.content.title} on Canisterr.`}
+              showLabel
+              className="mt-0.5 shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-[#ff7a1a]/35 hover:bg-white/[0.08] hover:text-[#ffb36b]"
+              ariaLabel={`Share ${log.content.title}`}
+            />
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
