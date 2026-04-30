@@ -1,6 +1,7 @@
 import { TMDBMovie, TMDBSearchResponse } from "@/types";
 import { ParsedIntent } from "./nlp-parser";
 import { fetchTmdb } from "./tmdb-transport";
+import { getTmdbBackdropUrl, getTmdbImageUrl, getTmdbPosterUrl } from "./performance";
 
 // Genre ID mappings for TMDB discover API
 const GENRE_MAP: Record<string, number> = {
@@ -346,12 +347,8 @@ function normalizeMovieDetails(data: TMDBDetailedMovie) {
   return {
     id: data.id,
     title: data.title,
-    poster_url: data.poster_path
-      ? `https://image.tmdb.org/t/p/w500${data.poster_path}`
-      : null,
-    backdrop_url: data.backdrop_path
-      ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}`
-      : null,
+    poster_url: getTmdbPosterUrl(data.poster_path, "w500"),
+    backdrop_url: getTmdbBackdropUrl(data.backdrop_path, "w780"),
     genres: data.genres.map((g) => g.name),
     director,
     actors,
@@ -692,12 +689,10 @@ export async function getSimilarMovies(movieId: number, limit: number = 10) {
 
     const data: TMDBSearchResponse = await response.json();
 
-    return data.results.slice(0, limit).map((movie) => ({
+  return data.results.slice(0, limit).map((movie) => ({
       id: movie.id,
       title: movie.title,
-      poster_url: movie.poster_path
-        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-        : null,
+      poster_url: getTmdbPosterUrl(movie.poster_path, "w500"),
       backdrop_url: null,
       genres: null,
       director: null,
@@ -721,6 +716,5 @@ export function getTMDBImageUrl(
   path: string | null,
   size: "w300" | "w500" | "w780" | "original" = "w500"
 ) {
-  if (!path) return null;
-  return `https://image.tmdb.org/t/p/${size}${path}`;
+  return getTmdbImageUrl(path, size);
 }

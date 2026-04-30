@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getUserMovieLogs } from "@/lib/logs";
+import { getBlurDataUrl } from "@/lib/performance";
 
 type CinematicLoadingProps = {
   message?: string;
@@ -88,12 +89,16 @@ export default function CinematicLoading({
             {posters.map((poster, index) => (
               <div
                 key={`${poster.title}-${index}`}
-                className="h-40 w-28 flex-shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl shadow-black/40 sm:h-56 sm:w-36"
+                className="relative h-40 w-28 flex-shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl shadow-black/40 sm:h-56 sm:w-36"
               >
-                <img
+                <Image
                   src={poster.url}
                   alt={poster.title}
-                  className="h-full w-full object-cover"
+                  fill
+                  sizes="(max-width: 640px) 112px, 144px"
+                  className="object-cover"
+                  placeholder="blur"
+                  blurDataURL={getBlurDataUrl()}
                 />
               </div>
             ))}

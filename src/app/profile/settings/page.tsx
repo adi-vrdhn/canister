@@ -61,7 +61,11 @@ export default function ProfileSettingsIndexPage() {
           { href: "/terms", label: "Terms and Conditions" },
           { href: "/privacy", label: "Privacy Policy" },
           { href: "/credits", label: "Credits" },
-          { href: "https://form.typeform.com/to/vqAd3KQM", label: "Feedback", external: true },
+          {
+            href: "https://docs.google.com/forms/d/e/1FAIpQLSf7nTphksaZ23GKZGo8VnzI14EKaeiQ7T7cdtAdqoOFCeRqgQ/viewform?usp=publish-editor",
+            label: "Feedback",
+            external: true,
+          },
         ].map((link) => (
             link.external ? (
               <a

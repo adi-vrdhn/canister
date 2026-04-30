@@ -1,8 +1,9 @@
 import { db } from "@/lib/firebase";
-import { ref, set, get, push, remove, query, orderByChild, equalTo, onValue } from "firebase/database";
+import { ref, set, get, push, remove, onValue } from "firebase/database";
 import { List, ListItem, ListCollaborator, ListWithItems, ListItemWithContent, ListCollaboratorWithUser, User, Content } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
+import { getUsersByIds } from "./users";
 
 /**
  * Create a new list
@@ -98,8 +99,7 @@ export async function getUserLists(userId: string): Promise<List[]> {
  */
 export async function getPublicLists(limit: number = 20): Promise<List[]> {
   try {
-    const listsRef = ref(db, "lists");
-    const snapshot = await get(listsRef);
+    const snapshot = await get(ref(db, "lists"));
 
     if (!snapshot.exists()) return [];
 
@@ -144,13 +144,14 @@ export async function getListWithDetails(listId: string, allUsers?: Record<strin
       (collab: any) => collab.list_id === listId
     ) as ListCollaborator[];
 
-    // Fetch users if not provided
-    let usersData = allUsers || {};
-    if (Object.keys(usersData).length === 0) {
-      const usersRef = ref(db, "users");
-      const usersSnapshot = await get(usersRef);
-      usersData = usersSnapshot.exists() ? usersSnapshot.val() : {};
-    }
+    const requiredUserIds = Array.from(
+      new Set([
+        ...listItems.map((item) => item.added_by_user_id),
+        ...listCollaborators.map((collab) => collab.user_id),
+      ])
+    );
+    const usersData =
+      allUsers && Object.keys(allUsers).length > 0 ? allUsers : await getUsersByIds(requiredUserIds);
 
     // Enrich items with content and user info
     const enrichedItems: ListItemWithContent[] = await Promise.all(

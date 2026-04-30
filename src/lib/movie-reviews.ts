@@ -1,6 +1,7 @@
 import { ref, get } from "firebase/database";
 import { db } from "@/lib/firebase";
 import { MovieReviewWithUser, User } from "@/types";
+import { getUsersByIds } from "@/lib/users";
 
 function mapReactionToRating(reaction: 0 | 1 | 2 | undefined): 1 | 2 | 3 | 4 | 5 {
   if (reaction === 2) return 5;
@@ -36,16 +37,20 @@ export async function getMovieReviewFeed(
 
   const mergedReviews: MovieReviewWithUser[] = [];
 
-  const reviewsRef = ref(db, "reviews");
-  const reviewsSnapshot = await get(reviewsRef);
+  const reviewsSnapshot = await get(ref(db, "reviews"));
   if (reviewsSnapshot.exists()) {
-    const allReviews = reviewsSnapshot.val();
+    const allReviews = reviewsSnapshot.val() || {};
     const tableReviews = Object.entries(allReviews)
       .map(([key, review]: any) => ({ id: key, ...review }))
-      .filter((review: any) => Number(review.content_id) === contentId && review.content_type === contentType);
+      .filter(
+        (review: any) =>
+          Number(review.content_id) === contentId && review.content_type === contentType
+      );
+
+    const tableUsers = await getUsersByIds(tableReviews.map((review) => review.user_id));
 
     for (const review of tableReviews) {
-      const resolvedUser = await resolveUser(review.user_id);
+      const resolvedUser = tableUsers[review.user_id] || (await resolveUser(review.user_id));
       mergedReviews.push({
         id: String(review.id),
         user_id: review.user_id,
@@ -61,10 +66,9 @@ export async function getMovieReviewFeed(
     }
   }
 
-  const movieLogsRef = ref(db, "movie_logs");
-  const movieLogsSnapshot = await get(movieLogsRef);
+  const movieLogsSnapshot = await get(ref(db, "movie_logs"));
   if (movieLogsSnapshot.exists()) {
-    const allLogs = movieLogsSnapshot.val();
+    const allLogs = movieLogsSnapshot.val() || {};
     const logReviews = Object.entries(allLogs)
       .map(([key, log]: any) => ({ id: key, ...log }))
       .filter((log: any) => {
@@ -74,8 +78,10 @@ export async function getMovieReviewFeed(
         return log.notes.trim().length > 0;
       });
 
+    const logUsers = await getUsersByIds(logReviews.map((log) => log.user_id));
+
     for (const logReview of logReviews) {
-      const resolvedUser = await resolveUser(logReview.user_id);
+      const resolvedUser = logUsers[logReview.user_id] || (await resolveUser(logReview.user_id));
       mergedReviews.push({
         id: `log-${logReview.id}`,
         user_id: logReview.user_id,

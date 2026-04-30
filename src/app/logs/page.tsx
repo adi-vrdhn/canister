@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import TopActionBanner from "@/components/TopActionBanner";
@@ -15,6 +16,7 @@ import { deleteMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import { buildLogUrl } from "@/lib/log-url";
+import { getBlurDataUrl, getTmdbPosterUrl } from "@/lib/performance";
 import {
   Calendar,
   ChevronLeft,
@@ -197,10 +199,14 @@ function LogCard({
         <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)]">
           <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white/5 shadow-sm">
             {log.content.poster_url ? (
-              <img
+              <Image
                 src={log.content.poster_url}
                 alt={log.content.title}
-                className="h-[4.3rem] w-full object-cover sm:h-[5rem]"
+                fill
+                sizes="64px"
+                className="object-cover"
+                placeholder="blur"
+                blurDataURL={getBlurDataUrl()}
               />
             ) : (
               <div className="flex h-[4.3rem] w-full items-center justify-center px-1 text-center text-[9px] text-white/45 sm:h-[5rem]">
@@ -465,7 +471,7 @@ export default function LogsPage() {
       const movieResults = movies.map((movie) => ({
         id: movie.id,
         title: movie.title,
-        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+        poster_url: getTmdbPosterUrl(movie.poster_path, "w500"),
         genres: (movie.genres || []).map((genreId: number) => String(genreId)),
         release_date: movie.release_date || "",
         overview: movie.overview || "",
@@ -567,7 +573,7 @@ export default function LogsPage() {
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
       <TopActionBanner message={bannerMessage} />
-      <div className="brutalist mx-auto max-w-6xl space-y-5 px-1 pb-8 sm:space-y-6 sm:p-8">
+      <div className="brutalist mx-auto max-w-6xl space-y-5 px-1 pb-[calc(9rem+env(safe-area-inset-bottom))] sm:space-y-6 sm:p-8 sm:pb-[calc(10rem+env(safe-area-inset-bottom))]">
         <div className="flex flex-row items-center gap-3">
           <button
             onClick={() => {
@@ -664,10 +670,12 @@ export default function LogsPage() {
                       <div className="relative flex h-full w-full items-center justify-center">
                         {dayLogsInCell.slice(0, 3).map((log, idx) => (
                           log.content.poster_url ? (
-                            <img
+                            <Image
                               key={log.id}
                               src={log.content.poster_url}
                               alt={log.content.title}
+                              width={120}
+                              height={180}
                               className={`absolute h-full w-full object-cover shadow-[0_8px_18px_rgba(15,23,42,0.22)] transition duration-200 group-hover:-translate-y-0.5 ${getPosterStackClass(idx)}`}
                               style={{
                                 height: `calc(100% - ${stackHeightOffsetPx}px)`,
@@ -676,6 +684,8 @@ export default function LogsPage() {
                                 width: "100%",
                                 zIndex: 10 + idx,
                               }}
+                              placeholder="blur"
+                              blurDataURL={getBlurDataUrl("#e2e8f0")}
                             />
                           ) : (
                             <div
@@ -870,7 +880,17 @@ export default function LogsPage() {
                         className="flex cursor-pointer items-center gap-3 border-b border-white/10 p-4 transition-colors last:border-b-0 hover:bg-white/5"
                       >
                         {result.poster_url ? (
-                          <img src={result.poster_url} alt={result.title} className="h-20 w-14 rounded-xl object-cover sm:h-16 sm:w-12 sm:rounded" />
+                          <div className="relative h-20 w-14 overflow-hidden rounded-xl sm:h-16 sm:w-12 sm:rounded">
+                            <Image
+                              src={result.poster_url}
+                              alt={result.title}
+                              fill
+                              sizes="56px"
+                              className="object-cover"
+                              placeholder="blur"
+                              blurDataURL={getBlurDataUrl()}
+                            />
+                          </div>
                         ) : (
                           <div className="flex h-20 w-14 items-center justify-center rounded-xl bg-white/5 text-xs text-white/45 sm:h-16 sm:w-12 sm:rounded">
                             No Image
@@ -947,11 +967,19 @@ export default function LogsPage() {
 
             <div className="p-5 space-y-5">
               <div className="flex gap-4">
-                <img
-                  src={activeLog.content.poster_url || undefined}
-                  alt={activeLog.content.title}
-                  className="w-24 h-36 rounded object-cover"
-                />
+                <div className="relative h-36 w-24 overflow-hidden rounded bg-white/5">
+                  {activeLog.content.poster_url ? (
+                    <Image
+                      src={activeLog.content.poster_url}
+                      alt={activeLog.content.title}
+                      fill
+                      sizes="96px"
+                      className="object-cover"
+                      placeholder="blur"
+                      blurDataURL={getBlurDataUrl()}
+                    />
+                  ) : null}
+                </div>
                 <div>
                   <p className="text-2xl font-bold text-[#f5f0de]">{activeLog.content.title}</p>
                   {isUnavailableContent(activeLog) && (

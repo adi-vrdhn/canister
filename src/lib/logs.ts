@@ -1,9 +1,17 @@
 import { db } from "@/lib/firebase";
-import { ref, set, get, push, remove, query, orderByChild, equalTo, onValue } from "firebase/database";
+import {
+  ref,
+  set,
+  get,
+  push,
+  remove,
+  onValue,
+} from "firebase/database";
 import { MovieLog, MovieLogWithContent, User, Content, Movie } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 import { removeWatchedMovieSource, upsertWatchedMovie } from "./watched-movies";
+import { getUserProfile } from "./users";
 
 const IMPORTED_RATINGS_CSV_NOTE = "Imported from ratings CSV";
 
@@ -104,20 +112,6 @@ async function getContentMapForLogs(logs: MovieLog[]): Promise<Map<string, Conte
   });
 
   return new Map(contentEntries);
-}
-
-async function getUserForLogOwner(userId: string): Promise<User> {
-  const userRef = ref(db, `users/${userId}`);
-  const userSnapshot = await get(userRef);
-  const userData = userSnapshot.val();
-
-  return {
-    id: userData?.id || userId,
-    username: userData?.username || "",
-    name: userData?.name || "Unknown",
-    avatar_url: userData?.avatar_url || null,
-    created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
-  };
 }
 
 /**
@@ -239,20 +233,18 @@ export async function deleteMovieLog(logId: string): Promise<void> {
  */
 export async function getUserMovieLogs(userId: string, limit: number = 50): Promise<MovieLogWithContent[]> {
   try {
-    const logsRef = ref(db, "movie_logs");
-    const snapshot = await get(logsRef);
+    const snapshot = await get(ref(db, "movie_logs"));
 
     if (!snapshot.exists()) return [];
 
     const allLogs = snapshot.val();
     const userLogs = Object.values(allLogs)
-      .filter((log: any) => log.user_id === userId)
       .sort((a: any, b: any) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
       .slice(0, limit) as MovieLog[];
 
     const [contentMap, user] = await Promise.all([
       getContentMapForLogs(userLogs),
-      getUserForLogOwner(userId),
+      getUserProfile(userId),
     ]);
 
     const logsWithContent: MovieLogWithContent[] = userLogs.map((log) => ({
@@ -274,8 +266,7 @@ export async function getUserMovieLogs(userId: string, limit: number = 50): Prom
  */
 export async function getPublicMovieLogs(limit: number = 50): Promise<MovieLogWithContent[]> {
   try {
-    const logsRef = ref(db, "movie_logs");
-    const snapshot = await get(logsRef);
+    const snapshot = await get(ref(db, "movie_logs"));
 
     if (!snapshot.exists()) return [];
 
@@ -287,7 +278,7 @@ export async function getPublicMovieLogs(limit: number = 50): Promise<MovieLogWi
     const uniqueUserIds = Array.from(new Set(publicLogs.map((log) => log.user_id)));
     const [contentMap, userEntries] = await Promise.all([
       getContentMapForLogs(publicLogs),
-      mapWithConcurrency(uniqueUserIds, 6, async (userId) => [userId, await getUserForLogOwner(userId)] as const),
+      mapWithConcurrency(uniqueUserIds, 6, async (userId) => [userId, await getUserProfile(userId)] as const),
     ]);
     const usersById = new Map(userEntries);
 
@@ -320,17 +311,13 @@ export async function getLogsForContent(
   limit: number = 20
 ): Promise<MovieLogWithContent[]> {
   try {
-    const logsRef = ref(db, "movie_logs");
-    const snapshot = await get(logsRef);
+    const snapshot = await get(ref(db, "movie_logs"));
 
     if (!snapshot.exists()) return [];
 
     const allLogs = snapshot.val();
     const contentLogs = Object.values(allLogs)
-      .filter(
-        (log: any) =>
-          log.content_id === contentId && log.content_type === contentType
-      )
+      .filter((log: any) => log.content_type === contentType)
       .sort((a: any, b: any) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
       .slice(0, limit) as MovieLog[];
 
@@ -357,16 +344,7 @@ export async function getLogsForContent(
 
     const logsWithContent: MovieLogWithContent[] = await Promise.all(
       contentLogs.map(async (log) => {
-        const userRef = ref(db, `users/${log.user_id}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.val();
-        const user: User = {
-          id: userData?.id || log.user_id,
-          username: userData?.username || "",
-          name: userData?.name || "Unknown",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.created_at || new Date().toISOString(),
-        };
+        const user = await getUserProfile(log.user_id);
 
         return {
           ...log,
@@ -393,8 +371,7 @@ export async function hasUserLoggedContent(
   contentType: "movie" | "tv"
 ): Promise<MovieLog | null> {
   try {
-    const logsRef = ref(db, "movie_logs");
-    const snapshot = await get(logsRef);
+    const snapshot = await get(ref(db, "movie_logs"));
 
     if (!snapshot.exists()) return null;
 
@@ -423,8 +400,7 @@ export async function getUserLogStats(userId: string, days: number = 30): Promis
   mostWatchedGenre?: string;
 }> {
   try {
-    const logsRef = ref(db, "movie_logs");
-    const snapshot = await get(logsRef);
+    const snapshot = await get(ref(db, "movie_logs"));
 
     if (!snapshot.exists()) {
       return {
@@ -435,13 +411,11 @@ export async function getUserLogStats(userId: string, days: number = 30): Promis
       };
     }
 
-    const allLogs = snapshot.val();
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
 
-    const userLogs = Object.values(allLogs).filter(
-      (log: any) =>
-        log.user_id === userId && new Date(log.watched_date) >= dateThreshold
+    const userLogs = Object.values(snapshot.val()).filter(
+      (log: any) => new Date(log.watched_date) >= dateThreshold
     ) as MovieLog[];
 
     const totalLogged = userLogs.length;

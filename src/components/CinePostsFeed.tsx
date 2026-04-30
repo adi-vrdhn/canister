@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bookmark, ChevronLeft, ChevronRight, Heart, MessageCircle, Sparkles, X } from "lucide-react";
@@ -15,8 +16,7 @@ import {
 import { getPublicLists, getListWithDetails } from "@/lib/lists";
 import { getPopularMovies } from "@/lib/tmdb";
 import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
-import { db } from "@/lib/firebase";
-import { get, ref } from "firebase/database";
+import { getBlurDataUrl, getTmdbPosterUrl } from "@/lib/performance";
 
 interface CinePostsFeedProps {
   currentUser: User | null;
@@ -94,7 +94,7 @@ type DiscoverListItem = {
 };
 
 function tmdbPosterUrl(path: string | null): string | null {
-  return path ? `https://image.tmdb.org/t/p/w342${path}` : null;
+  return getTmdbPosterUrl(path, "w342");
 }
 
 function buildPopularRailItems(items: TMDBMovie[]): RailItem[] {
@@ -220,10 +220,14 @@ function DiscoveryRail({
               <div className="group">
                 <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
                   {item.posterUrl ? (
-                    <img
+                    <Image
                       src={item.posterUrl}
                       alt={item.label}
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                      fill
+                      sizes="(max-width: 640px) 120px, (max-width: 1024px) 140px, 180px"
+                      className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                      placeholder="blur"
+                      blurDataURL={getBlurDataUrl()}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs text-white/35">No poster</div>
@@ -321,10 +325,14 @@ function DiscoverListRail({
               <div className="group">
                 <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a]">
                   {item.coverImage ? (
-                    <img
+                    <Image
                       src={item.coverImage}
                       alt={item.name}
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                      fill
+                      sizes="(max-width: 640px) 120px, (max-width: 1024px) 140px, 180px"
+                      className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                      placeholder="blur"
+                      blurDataURL={getBlurDataUrl()}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs text-white/35">No poster</div>
@@ -521,11 +529,10 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
       setDiscoverLoading(true);
 
       try {
-        const [popular, suggested, publicListsBase, usersSnapshot] = await Promise.all([
+        const [popular, suggested, publicListsBase] = await Promise.all([
           getPopularMovies(1, 20),
           currentUser?.id ? getTasteBasedPopularMovies(currentUser.id, 10) : Promise.resolve([]),
           getPublicLists(8),
-          get(ref(db, "users")),
         ]);
 
         if (cancelled) return;
@@ -533,10 +540,9 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
         setPopularMovies(buildPopularRailItems(popular));
         setSuggestedMovies(buildSuggestedRailItems(suggested));
 
-        const allUsers = usersSnapshot.exists() ? usersSnapshot.val() : {};
         const detailedLists = await Promise.all(
           publicListsBase.slice(0, 5).map(async (list) => {
-            const details = await getListWithDetails(list.id, allUsers);
+            const details = await getListWithDetails(list.id);
             if (!details) return null;
             return {
               id: details.id,

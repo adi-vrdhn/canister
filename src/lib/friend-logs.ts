@@ -4,6 +4,7 @@ import { Content, MovieLog, MovieLogWithContent, User } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 import { getVisibleLogNotes } from "./logs";
+import { getUserProfile, getUsersByIds } from "./users";
 
 function createFallbackContentForLog(log: MovieLog): Content {
   if (log.content_type === "tv") {
@@ -50,8 +51,7 @@ function createFallbackContentForLog(log: MovieLog): Content {
 export async function getFriendLogs(userId: string, daysBack: number = 14, limit: number = 50): Promise<(MovieLogWithContent & { friend: User })[]> {
   try {
     // 1. Get list of users that current user is following
-    const followsRef = ref(db, "follows");
-    const followSnapshot = await get(followsRef);
+    const followSnapshot = await get(ref(db, "follows"));
 
     if (!followSnapshot.exists()) {
       return [];
@@ -88,8 +88,7 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
     }
 
     // 2. Get all movie logs
-    const logsRef = ref(db, "movie_logs");
-    const logsSnapshot = await get(logsRef);
+    const logsSnapshot = await get(ref(db, "movie_logs"));
 
     if (!logsSnapshot.exists()) {
       return [];
@@ -110,6 +109,8 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
       .slice(0, limit);
 
     // 4. Fetch content and user details for each log
+    const friendUsers = await getUsersByIds(friendLogs.map((log: any) => log.user_id));
+
     const logsWithDetails = await Promise.all(
       friendLogs.map(async (log: any) => {
         try {
@@ -122,16 +123,7 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
           }
 
           // Fetch friend user info
-          const userRef = ref(db, `users/${log.user_id}`);
-          const userSnapshot = await get(userRef);
-          const userData = userSnapshot.val();
-          const friend: User = {
-            id: userData?.id || log.user_id,
-            username: userData?.username || "Unknown",
-            name: userData?.name || "Unknown",
-            avatar_url: userData?.avatar_url || null,
-            created_at: userData?.created_at || new Date().toISOString(),
-          };
+          const friend = friendUsers[log.user_id] || (await getUserProfile(log.user_id));
 
           return {
             ...log,

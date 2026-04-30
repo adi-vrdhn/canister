@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import TopActionBanner from "@/components/TopActionBanner";
-import ShareModal from "@/components/ShareModal";
 import CinematicLoading from "@/components/CinematicLoading";
-import LogMovieModal from "@/components/LogMovieModal";
 import { User, ShareWithDetails, Content, MovieLogWithContent } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -17,11 +17,20 @@ import { searchShows } from "@/lib/tvmaze";
 import { buildLogUrl } from "@/lib/log-url";
 import { getFriendLogs } from "@/lib/friend-logs";
 import { reportAppError } from "@/lib/report-error";
+import { getAllUsersCached } from "@/lib/users";
+import { getBlurDataUrl } from "@/lib/performance";
+import { getTmdbPosterUrl } from "@/lib/performance";
 import Link from "next/link";
 import { Clapperboard, Film, Loader2, MessageCircle, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
 
-import CinePostsFeed from "@/components/CinePostsFeed";
-import CinePostModal from "@/components/CinePostModal";
+const CinePostsFeed = dynamic(() => import("@/components/CinePostsFeed"), {
+  ssr: false,
+  loading: () => <div className="min-h-[60vh] animate-pulse rounded-[2rem] border border-white/10 bg-white/5" />,
+});
+
+const ShareModal = dynamic(() => import("@/components/ShareModal"), { ssr: false });
+const LogMovieModal = dynamic(() => import("@/components/LogMovieModal"), { ssr: false });
+const CinePostModal = dynamic(() => import("@/components/CinePostModal"), { ssr: false });
 
 type SearchAccount = {
   id: string;
@@ -86,6 +95,10 @@ export default function DashboardPage() {
   const [quickLogSearching, setQuickLogSearching] = useState(false);
   const [quickLogFilter, setQuickLogFilter] = useState<"all" | "movie" | "tv">("all");
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const [searchTimerRef] = useState<{ current: ReturnType<typeof setTimeout> | null }>({ current: null });
+  const [searchRequestRef] = useState<{ current: number }>({ current: 0 });
+  const [quickLogTimerRef] = useState<{ current: ReturnType<typeof setTimeout> | null }>({ current: null });
+  const [quickLogRequestRef] = useState<{ current: number }>({ current: 0 });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -162,9 +175,7 @@ export default function DashboardPage() {
 
             // Fetch receivers for shares
             try {
-              const usersRef = ref(db, "users");
-              const usersSnapshot = await get(usersRef);
-              const usersData = usersSnapshot.val() || {};
+              const usersData = await getAllUsersCached();
 
               // Movie data is already in the share object, no need to fetch separately
               const sharesWithDetails: ShareWithDetails[] = sharesList.map(
@@ -225,90 +236,111 @@ export default function DashboardPage() {
     return () => window.clearTimeout(timer);
   }, [bannerMessage]);
 
-  const handleSearch = async (query: string) => {
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+      if (quickLogTimerRef.current) {
+        clearTimeout(quickLogTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSearch = (query: string) => {
     setSearchQuery(query);
+
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
 
     if (query.trim().length < 1) {
       setSearchResults([]);
       setAccountResults([]);
+      setSearching(false);
       return;
     }
 
     setSearching(true);
-    try {
-      const [movies, shows, usersSnapshot] = await Promise.all([
-        searchMovies(query),
-        searchShows(query),
-        get(ref(db, "users")),
-      ]);
+    const requestId = searchRequestRef.current + 1;
+    searchRequestRef.current = requestId;
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const [movies, shows, usersData] = await Promise.all([
+          searchMovies(query),
+          searchShows(query),
+          getAllUsersCached(),
+        ]);
 
-      const movieResults = movies.map((movie: any) => ({
-        id: movie.id,
-        title: movie.title,
-        poster_url: movie.poster_path
-          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-          : null,
-        genres: movie.genres || [],
-        release_date: movie.release_date || "",
-        overview: movie.overview || "",
-        runtime: movie.runtime || 0,
-        rating: typeof movie.vote_average === "number" ? movie.vote_average : 0,
-        type: "movie" as const,
-        platforms: [],
-        director: null,
-        created_at: new Date().toISOString(),
-      }));
+        if (requestId !== searchRequestRef.current) return;
 
-      const showResults = shows.map((show: any) => ({
-        id: show.id,
-        title: show.name || show.title,
-        name: show.name,
-        poster_url: show.poster_url,
-        genres: show.genres || [],
-        release_date: show.release_date || "",
-        overview: show.overview || "",
-        runtime: show.runtime || 0,
-        rating: typeof show.rating === "number" ? show.rating : 0,
-        type: "tv" as const,
-        status: show.status,
-        network: undefined,
-        created_at: new Date().toISOString(),
-      }));
+        const movieResults = movies.map((movie: any) => ({
+          id: movie.id,
+          title: movie.title,
+          poster_url: getTmdbPosterUrl(movie.poster_path, "w500"),
+          genres: movie.genres || [],
+          release_date: movie.release_date || "",
+          overview: movie.overview || "",
+          runtime: movie.runtime || 0,
+          rating: typeof movie.vote_average === "number" ? movie.vote_average : 0,
+          type: "movie" as const,
+          platforms: [],
+          director: null,
+          created_at: new Date().toISOString(),
+        }));
 
-      const combined = rankSearchResults(
-        [...movieResults.slice(0, 12), ...showResults.slice(0, 12)],
-        query
-      ).slice(0, 20);
-      setSearchResults(combined);
+        const showResults = shows.map((show: any) => ({
+          id: show.id,
+          title: show.name || show.title,
+          name: show.name,
+          poster_url: show.poster_url,
+          genres: show.genres || [],
+          release_date: show.release_date || "",
+          overview: show.overview || "",
+          runtime: show.runtime || 0,
+          rating: typeof show.rating === "number" ? show.rating : 0,
+          type: "tv" as const,
+          status: show.status,
+          network: undefined,
+          created_at: new Date().toISOString(),
+        }));
 
-      const allUsers = usersSnapshot.val() || {};
-      const normalizedQuery = query.trim().toLowerCase();
-      const usersMatched = Object.values(allUsers)
-        .filter((entry: any) => {
-          const username = String(entry?.username || "").toLowerCase();
-          const name = String(entry?.name || "").toLowerCase();
-          return username.includes(normalizedQuery) || name.includes(normalizedQuery);
-        })
-        .slice(0, 20)
-        .map((entry: any) => ({
-          id: entry?.id || "",
-          username: entry?.username || "",
-          name: entry?.name || "User",
-          avatar_url: entry?.avatar_url || null,
-        }))
-        .filter((entry: SearchAccount) => entry.username);
+        const combined = rankSearchResults(
+          [...movieResults.slice(0, 12), ...showResults.slice(0, 12)],
+          query
+        ).slice(0, 20);
+        setSearchResults(combined);
 
-      setAccountResults(usersMatched);
-      setShowSearchModal(true);
-    } catch (error) {
-      reportAppError({
-        title: "Search failed",
-        message: "We could not complete the search.",
-        details: error instanceof Error ? error.stack || error.message : String(error),
-      });
-    } finally {
-      setSearching(false);
-    }
+        const normalizedQuery = query.trim().toLowerCase();
+        const usersMatched = Object.values(usersData)
+          .filter((entry: any) => {
+            const username = String(entry?.username || "").toLowerCase();
+            const name = String(entry?.name || "").toLowerCase();
+            return username.includes(normalizedQuery) || name.includes(normalizedQuery);
+          })
+          .slice(0, 20)
+          .map((entry: any) => ({
+            id: entry?.id || "",
+            username: entry?.username || "",
+            name: entry?.name || "User",
+            avatar_url: entry?.avatar_url || null,
+          }))
+          .filter((entry: SearchAccount) => entry.username);
+
+        setAccountResults(usersMatched);
+        setShowSearchModal(true);
+      } catch (error) {
+        reportAppError({
+          title: "Search failed",
+          message: "We could not complete the search.",
+          details: error instanceof Error ? error.stack || error.message : String(error),
+        });
+      } finally {
+        if (requestId === searchRequestRef.current) {
+          setSearching(false);
+        }
+      }
+    }, 250);
   };
 
   const handleSearchShare = (movieId: number) => {
@@ -319,60 +351,73 @@ export default function DashboardPage() {
     setAccountResults([]);
   };
 
-  const handleQuickLogSearch = async (queryText: string) => {
+  const handleQuickLogSearch = (queryText: string) => {
     setQuickLogQuery(queryText);
+
+    if (quickLogTimerRef.current) {
+      clearTimeout(quickLogTimerRef.current);
+    }
 
     if (queryText.trim().length < 1) {
       setQuickLogResults([]);
+      setQuickLogSearching(false);
       return;
     }
 
     setQuickLogSearching(true);
-    try {
-      const movies = quickLogFilter === "tv" ? [] : await searchMovies(queryText);
-      const shows = quickLogFilter === "movie" ? [] : await searchShows(queryText);
+    const requestId = quickLogRequestRef.current + 1;
+    quickLogRequestRef.current = requestId;
+    quickLogTimerRef.current = setTimeout(async () => {
+      try {
+        const movies = quickLogFilter === "tv" ? [] : await searchMovies(queryText);
+        const shows = quickLogFilter === "movie" ? [] : await searchShows(queryText);
 
-      const movieResults = movies.map((movie: any) => ({
-        id: movie.id,
-        title: movie.title,
-        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
-        genres: (movie.genres || []).map((genreId: number) => String(genreId)),
-        release_date: movie.release_date || "",
-        overview: movie.overview || "",
-        runtime: movie.runtime || 0,
-        rating: typeof movie.vote_average === "number" ? movie.vote_average : 0,
-        type: "movie" as const,
-        platforms: [],
-        director: null,
-        created_at: new Date().toISOString(),
-      }));
+        if (requestId !== quickLogRequestRef.current) return;
 
-      const showResults = shows.map((show: any) => ({
-        id: show.id,
-        title: show.name || show.title || "",
-        name: show.name,
-        poster_url: show.poster_url || null,
-        genres: show.genres || [],
-        release_date: show.release_date || "",
-        overview: show.overview || "",
-        runtime: show.runtime || 0,
-        rating: typeof show.rating === "number" ? show.rating : 0,
-        type: "tv" as const,
-        status: show.status || null,
-        network: undefined,
-        created_at: new Date().toISOString(),
-      }));
+        const movieResults = movies.map((movie: any) => ({
+          id: movie.id,
+          title: movie.title,
+          poster_url: getTmdbPosterUrl(movie.poster_path, "w500"),
+          genres: (movie.genres || []).map((genreId: number) => String(genreId)),
+          release_date: movie.release_date || "",
+          overview: movie.overview || "",
+          runtime: movie.runtime || 0,
+          rating: typeof movie.vote_average === "number" ? movie.vote_average : 0,
+          type: "movie" as const,
+          platforms: [],
+          director: null,
+          created_at: new Date().toISOString(),
+        }));
 
-      setQuickLogResults([...movieResults, ...showResults].slice(0, 20));
-    } catch (error) {
-      reportAppError({
-        title: "Quick search failed",
-        message: "We could not load search results.",
-        details: error instanceof Error ? error.stack || error.message : String(error),
-      });
-    } finally {
-      setQuickLogSearching(false);
-    }
+        const showResults = shows.map((show: any) => ({
+          id: show.id,
+          title: show.name || show.title || "",
+          name: show.name,
+          poster_url: show.poster_url || null,
+          genres: show.genres || [],
+          release_date: show.release_date || "",
+          overview: show.overview || "",
+          runtime: show.runtime || 0,
+          rating: typeof show.rating === "number" ? show.rating : 0,
+          type: "tv" as const,
+          status: show.status || null,
+          network: undefined,
+          created_at: new Date().toISOString(),
+        }));
+
+        setQuickLogResults([...movieResults, ...showResults].slice(0, 20));
+      } catch (error) {
+        reportAppError({
+          title: "Quick search failed",
+          message: "We could not load search results.",
+          details: error instanceof Error ? error.stack || error.message : String(error),
+        });
+      } finally {
+        if (requestId === quickLogRequestRef.current) {
+          setQuickLogSearching(false);
+        }
+      }
+    }, 250);
   };
 
   useEffect(() => {
@@ -522,12 +567,16 @@ export default function DashboardPage() {
                       >
                         <div className="flex items-center gap-3 border-b border-white/10 p-3 transition-colors last:border-b-0 hover:bg-white/5">
                           {/* Poster thumbnail */}
-                          <div className="w-12 h-16 flex-shrink-0 overflow-hidden border border-white/10 bg-[#1a1a1a]">
+                          <div className="relative h-16 w-12 flex-shrink-0 overflow-hidden border border-white/10 bg-[#1a1a1a]">
                             {result.poster_url ? (
-                              <img
+                              <Image
                                 src={result.poster_url}
                                 alt={result.title}
-                                className="w-full h-full object-cover"
+                                fill
+                                sizes="48px"
+                                className="object-cover"
+                                placeholder="blur"
+                                blurDataURL={getBlurDataUrl()}
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center bg-[#1a1a1a] text-xs text-white/35">
@@ -644,10 +693,14 @@ export default function DashboardPage() {
                     >
                       <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a] sm:h-64 sm:aspect-auto">
                         {item.poster_url ? (
-                          <img
+                          <Image
                             src={item.poster_url}
                             alt={item.title}
-                            className="h-full w-full object-cover"
+                            fill
+                            sizes="(max-width: 640px) 96px, 180px"
+                            className="object-cover"
+                            placeholder="blur"
+                            blurDataURL={getBlurDataUrl()}
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-xs text-white/40">
@@ -804,8 +857,8 @@ export default function DashboardPage() {
         )}
 
         {showQuickLogSearch && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 p-2 sm:items-center sm:p-4">
-            <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden border border-white/10 bg-[#111111] text-[#f5f0de] shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:max-h-[90vh]">
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 p-2 pt-2 sm:items-center sm:p-4">
+            <div className="flex h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden border border-white/10 bg-[#111111] text-[#f5f0de] shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:h-auto sm:max-h-[90vh]">
               <div className="flex items-center justify-between border-b border-white/10 p-4 sm:p-6">
                 <div>
                   <h2 className="text-lg font-black text-[#f5f0de] sm:text-xl">Search & Log Movie</h2>
@@ -853,7 +906,7 @@ export default function DashboardPage() {
                     ))}
                   </div>
 
-                  <div className="flex-1 overflow-y-auto overscroll-contain">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                     {filteredQuickLogResults.map((result) => (
                       <button
                         key={`${result.type}-${result.id}`}
@@ -862,10 +915,14 @@ export default function DashboardPage() {
                         className="flex w-full cursor-pointer items-center gap-3 border-b border-white/10 p-4 text-left transition-colors last:border-b-0 hover:bg-white/5"
                       >
                         {result.poster_url ? (
-                          <img
+                          <Image
                             src={result.poster_url}
                             alt={result.title}
+                            width={56}
+                            height={80}
                             className="h-20 w-14 object-cover"
+                            placeholder="blur"
+                            blurDataURL={getBlurDataUrl()}
                           />
                         ) : (
                           <div className="flex h-20 w-14 items-center justify-center bg-[#1a1a1a] text-xs text-white/35">

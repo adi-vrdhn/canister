@@ -4,6 +4,7 @@ import { Movie, TVShow, Content } from "@/types";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, Flame } from "lucide-react";
+import { getBlurDataUrl } from "@/lib/performance";
 
 interface MovieCardProps {
   movie?: Movie | TVShow | Content;
@@ -41,20 +42,20 @@ export default function MovieCard({
   const movieId = movie.id;
   const detailPageLink = isTV ? `/tv/${movieId}` : `/movie/${movieId}`;
 
-  console.log("MovieCard received:", title);
-  console.log("Poster URL:", movie.poster_url);
-
   const cardContent = (
     <div className="group cursor-pointer w-full transition-transform duration-200 hover:scale-105 hover:shadow-[0_0_16px_4px_rgba(59,130,246,0.3)]">
       {/* Poster Container */}
       <div className="relative w-full aspect-[3/4] bg-gray-200 rounded-lg overflow-hidden shadow-md group-hover:shadow-lg transition-shadow">
         {/* Image */}
         {movie.poster_url ? (
-          <img
+          <Image
             src={movie.poster_url}
             alt={title}
-            className="w-full h-full object-cover"
-            onError={(e) => console.error("Image load failed for", title, movie.poster_url, e)}
+            fill
+            sizes={compact ? "160px" : "240px"}
+            className="object-cover"
+            placeholder="blur"
+            blurDataURL={getBlurDataUrl()}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-300 text-gray-500">

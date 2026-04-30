@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import { getBlurDataUrl } from "@/lib/performance";
 
 interface SearchData {
   id: string | number;
@@ -36,6 +38,7 @@ export default function SearchBar({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const requestIdRef = useRef(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isBrutalist = theme === "brutalist";
 
@@ -66,20 +69,29 @@ export default function SearchBar({
     if (query.length < minChars) {
       setResults([]);
       setIsOpen(false);
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     debounceTimer.current = setTimeout(async () => {
       try {
         const data = await onSearch(query);
+        if (requestId !== requestIdRef.current) return;
         setResults(rankResults(data, query));
         setIsOpen(true);
       } catch (error) {
         // Silently ignore search errors
-        setResults([]);
+        if (requestId === requestIdRef.current) {
+          setResults([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (requestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }, debounceMs);
 
@@ -159,10 +171,14 @@ export default function SearchBar({
                     }`}
                   >
                     {item.image && (
-                      <img
+                      <Image
                         src={item.image}
                         alt={item.title}
+                        width={64}
+                        height={96}
                         className="h-20 w-14 flex-shrink-0 rounded-xl object-cover shadow-sm sm:h-24 sm:w-16 sm:rounded-2xl"
+                        placeholder="blur"
+                        blurDataURL={getBlurDataUrl()}
                       />
                     )}
                     <div className="flex-1 min-w-0">

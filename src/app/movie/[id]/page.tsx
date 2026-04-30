@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useParams, usePathname, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import TopActionBanner from "@/components/TopActionBanner";
 import AddToListModal from "@/components/AddToListModal";
@@ -60,7 +60,13 @@ function getReactionBadgeClass(rating: number): string {
 export default function MoviePage() {
   const router = useRouter();
   const params = useParams();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const movieId = params.id;
+  const searchParamsString = searchParams.toString();
+  const currentUrl = searchParamsString ? `${pathname}?${searchParamsString}` : pathname;
+  const isScanLogFlow = searchParams.get("log") === "1" && searchParams.get("from") === "scan";
+  const autoOpenScanLogRef = useRef(false);
 
   const [user, setUser] = useState<User | null>(null);
   const [movie, setMovie] = useState<Movie | null>(null);
@@ -68,6 +74,7 @@ export default function MoviePage() {
   const [reviews, setReviews] = useState<MovieReviewWithUser[]>([]);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
   const [showLogMovieModal, setShowLogMovieModal] = useState(false);
+  const [showScanThanksModal, setShowScanThanksModal] = useState(false);
   const [reactionBreakdown, setReactionBreakdown] = useState({ bad: 0, good: 0, masterpiece: 0, total: 0 });
   const [userLogHistory, setUserLogHistory] = useState<MovieLog[]>([]);
   const [friendLogs, setFriendLogs] = useState<MovieLogWithContent[]>([]);
@@ -131,7 +138,7 @@ export default function MoviePage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        router.push("/auth/login");
+        router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
         return;
       }
 
@@ -189,7 +196,21 @@ export default function MoviePage() {
     });
 
     return () => unsubscribe();
-  }, [movieId, router]);
+  }, [currentUrl, movieId, router]);
+
+  useEffect(() => {
+    if (!isScanLogFlow) {
+      autoOpenScanLogRef.current = false;
+      return;
+    }
+
+    if (loading || !movie || !user || autoOpenScanLogRef.current) {
+      return;
+    }
+
+    autoOpenScanLogRef.current = true;
+    setShowLogMovieModal(true);
+  }, [isScanLogFlow, loading, movie, user]);
 
   const handleSignOut = async () => {
     try {
@@ -554,11 +575,40 @@ export default function MoviePage() {
         content={movie as Content}
         user={user}
         onLogCreated={(message) => {
-          setBannerMessage(message);
+          if (isScanLogFlow) {
+            setShowScanThanksModal(true);
+          } else {
+            setBannerMessage(message);
+          }
           if (!user) return;
           void loadMovieLogData(user.id);
         }}
       />
+
+      {showScanThanksModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/65 p-3 backdrop-blur-md sm:items-center">
+          <div className="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-[#0c0c0c] px-5 py-6 text-center text-[#f5f0de] shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[#ff8a1e]/25 bg-[#ff8a1e]/10 text-[#ffb36b]">
+              <LogsIcon className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-2xl font-black tracking-tight">Thanks for submitting your review.</h3>
+            <p className="mt-3 text-sm leading-7 text-white/65">
+              Your log is saved. Explore Canisterr for more movies, reviews, and logs.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setShowScanThanksModal(false);
+                router.push("/dashboard");
+              }}
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-[#ff8a1e] px-5 py-3 text-sm font-black text-black transition-transform hover:translate-y-[-1px]"
+            >
+              Explore Canisterr
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }

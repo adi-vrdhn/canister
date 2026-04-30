@@ -94,12 +94,12 @@ export default function PageLayout({
       >
         <Link
           href="/profile"
-          className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition ${
+          className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition lg:hidden ${
             isBrutalist
               ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
               : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
           }`}
-          aria-label="Go to profile"
+          aria-label="Open profile"
         >
           {user?.avatar_url ? (
             <Image
@@ -110,14 +110,9 @@ export default function PageLayout({
               className="h-full w-full object-cover"
             />
           ) : (
-            <Image
-              src="/logo.png"
-              alt=""
-              width={32}
-              height={32}
-              className="h-full w-full object-cover"
-              aria-hidden="true"
-            />
+            <span className={`text-[10px] font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+            </span>
           )}
         </Link>
 

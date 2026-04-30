@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
@@ -14,6 +15,8 @@ import { auth, db } from "@/lib/firebase";
 import { getFriendLogs } from "@/lib/friend-logs";
 import { buildLogUrl } from "@/lib/log-url";
 import { MovieLogWithContent, ShareWithDetails, User } from "@/types";
+import { getBlurDataUrl } from "@/lib/performance";
+import { getAllUsersCached } from "@/lib/users";
 
 type ActivityFilter = "all" | "shared" | "logged";
 type ShareFilter = "recent" | "watched";
@@ -114,8 +117,7 @@ export default function AllMoviesPage() {
             );
 
           try {
-            const usersSnapshot = await get(ref(db, "users"));
-            const usersData = usersSnapshot.val() || {};
+            const usersData = await getAllUsersCached();
             setShares(
               sharesList.map((share: any) => ({
                 ...share,
@@ -347,7 +349,15 @@ export default function AllMoviesPage() {
               >
                 <div className={viewMode === "grid" ? "relative aspect-[3/4] overflow-hidden bg-slate-100 sm:h-64 sm:aspect-auto" : "relative h-28 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100"}>
                   {item.poster_url ? (
-                    <img src={item.poster_url} alt={item.title} className="h-full w-full object-cover" />
+                    <Image
+                      src={item.poster_url}
+                      alt={item.title}
+                      fill
+                      sizes={viewMode === "grid" ? "(max-width: 768px) 33vw, 20vw" : "80px"}
+                      className="object-cover"
+                      placeholder="blur"
+                      blurDataURL={getBlurDataUrl("#e2e8f0")}
+                    />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
                       No poster

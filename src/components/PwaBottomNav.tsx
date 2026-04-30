@@ -29,12 +29,13 @@ export default function PwaBottomNav() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const isAuthRoute = pathname.startsWith("/auth");
+  const isScanRoute = pathname.startsWith("/scan");
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted || isAuthRoute) {
+  if (!mounted || isAuthRoute || isScanRoute) {
     return null;
   }
 

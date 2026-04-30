@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { RotateCcw, Upload, X } from "lucide-react";
+import { Check, Upload, X } from "lucide-react";
 import { Content, MovieLog, MovieLogWithContent, User } from "@/types";
 import { createLogCinePost } from "@/lib/cineposts";
 import { createMovieLog, getUserMovieLogs, updateMovieLog } from "@/lib/logs";
@@ -73,6 +73,8 @@ export default function LogMovieModal({
   const [postCaption, setPostCaption] = useState("");
   const [ticketImageUrl, setTicketImageUrl] = useState<string | null>(null);
   const [ticketUploading, setTicketUploading] = useState(false);
+  const [showReviewEditor, setShowReviewEditor] = useState(false);
+  const [reviewDraft, setReviewDraft] = useState("");
   const ticketInputRef = useRef<HTMLInputElement | null>(null);
 
   // Context Log
@@ -102,6 +104,9 @@ export default function LogMovieModal({
 
         if (!cancelled) {
           setPreviousWatchDates(priorLogs);
+          if (!isEditMode) {
+            setIsRewatch(priorLogs.length > 0);
+          }
         }
       } catch (err) {
         reportAppError({
@@ -133,6 +138,8 @@ export default function LogMovieModal({
       setReaction((typeof existingLog.reaction === "number" ? existingLog.reaction : 1) as 0 | 1 | 2);
       setNotes(existingLog.notes || "");
       setTicketImageUrl(existingLog.ticket_image_url || null);
+      setShowReviewEditor(false);
+      setReviewDraft(existingLog.notes || "");
 
       const existingContext = existingLog.context_log || {};
       setShowContextLog(Boolean(existingContext.location || existingContext.watched_with || existingContext.mood));
@@ -154,12 +161,24 @@ export default function LogMovieModal({
       setLocation("");
       setWatchedWith("");
       setIsRewatch(false);
+      setShowReviewEditor(false);
+      setReviewDraft("");
       setError("");
     }
     setTicketUploading(false);
   }, [existingLog, isEditMode, isOpen, content.id]);
 
   if (!user) return null;
+
+  const openReviewEditor = () => {
+    setReviewDraft(notes);
+    setShowReviewEditor(true);
+  };
+
+  const saveReviewDraft = () => {
+    setNotes(reviewDraft);
+    setShowReviewEditor(false);
+  };
 
   const handleTicketUploadClick = () => {
     ticketInputRef.current?.click();
@@ -282,6 +301,8 @@ export default function LogMovieModal({
       setLocation("");
       setWatchedWith("");
       setIsRewatch(false);
+      setShowReviewEditor(false);
+      setReviewDraft("");
 
       const contentLabel = contentType === "tv" ? "TV show" : "Movie";
       const successMessage = isEditMode
@@ -309,10 +330,65 @@ export default function LogMovieModal({
   if (!isOpen) return null;
 
   const hasPreviousWatch = previousWatchDates.length > 0;
-  const isRewatchSelected = isRewatch || hasPreviousWatch;
 
   return (
-    <div className="log-modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-md sm:items-center sm:p-3 md:p-4">
+    <>
+      {showReviewEditor && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-2 backdrop-blur-md sm:p-3 md:p-4"
+          onClick={() => setShowReviewEditor(false)}
+        >
+          <div
+            className={`log-modal-panel surface-strong mobile-scroll-panel relative flex w-full max-w-xl max-h-[84dvh] flex-col overflow-hidden rounded-[1.25rem] sm:rounded-[1.5rem] ${
+              isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : "border border-slate-200 bg-white text-slate-900"
+            }`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              className={`sticky top-0 z-10 border-b p-3 backdrop-blur-xl sm:p-4 ${
+                isBrutalist ? "border-white/10 bg-[#111111]/92" : "border-slate-200 bg-white/90"
+              }`}
+            >
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#ffb36b]">
+                Review editor
+              </p>
+              <h3 className={`mt-1 text-base font-semibold sm:text-lg ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                Expand your review
+              </h3>
+              <p className={`mt-1 text-xs sm:text-sm ${isBrutalist ? "text-white/60" : "text-slate-600"}`}>
+                Write freely here, then save to return to the log form.
+              </p>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+              <textarea
+                value={reviewDraft}
+                onChange={(e) => setReviewDraft(e.target.value)}
+                placeholder="Write your review"
+                className="field min-h-[44dvh] flex-1 resize-none rounded-[1.25rem] py-4"
+              />
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReviewEditor(false)}
+                  className="action px-4 py-2 text-sm sm:px-5"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={saveReviewDraft}
+                  className="action-primary px-4 py-2 text-sm sm:px-5"
+                >
+                  Save review
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="log-modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-md sm:items-center sm:p-3 md:p-4">
       <div
         className={`log-modal-panel surface-strong mobile-scroll-panel relative w-full max-w-xl max-h-[84dvh] overflow-x-hidden overflow-y-auto rounded-[1.25rem] sm:rounded-[1.5rem] ${
           isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : "border border-slate-200 bg-white text-slate-900"
@@ -400,57 +476,36 @@ export default function LogMovieModal({
           )}
 
           {!isEditMode && (
-            <label
-              className={`flex cursor-pointer items-start gap-3 rounded-[1.25rem] px-3 py-3 transition-all ${
-                isBrutalist
-                  ? "border border-white/10 bg-white/[0.04] shadow-[0_12px_30px_rgba(0,0,0,0.18)] hover:bg-white/[0.06]"
-                  : "border border-slate-200 bg-slate-50 shadow-sm hover:bg-slate-100"
-              }`}
+            <button
+              type="button"
+              onClick={() => setIsRewatch((value) => !value)}
+              className={`flex w-full items-start gap-3 text-left transition-opacity hover:opacity-95`}
             >
-              <input
-                type="checkbox"
-                checked={isRewatchSelected}
-                onChange={(e) => setIsRewatch(e.target.checked)}
-                className="sr-only"
-              />
-              <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border ${
-                isRewatchSelected
-                  ? isBrutalist
-                    ? "border-[#ff7a1a]/40 bg-[#ff7a1a]/12 text-[#ffb36b]"
-                    : "border-orange-200 bg-orange-50 text-orange-600"
-                  : isBrutalist
-                    ? "border-white/10 bg-white/5 text-white/45"
-                    : "border-slate-200 bg-white text-slate-400"
-              }`}>
-                <RotateCcw className={`h-4 w-4 ${isRewatchSelected ? "rewatch-icon-spin" : ""}`} />
+              <div
+                className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[0.65rem] border ${
+                  isRewatch
+                    ? isBrutalist
+                      ? "border-[#ff7a1a]/45 bg-[#ff7a1a]/14 text-[#ffb36b]"
+                      : "border-slate-900 bg-slate-900 text-white"
+                    : isBrutalist
+                      ? "border-white/15 bg-white/5 text-white/35"
+                      : "border-slate-300 bg-white text-slate-300"
+                }`}
+              >
+                <Check className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Rewatch</p>
-                  {hasPreviousWatch ? (
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
-                      isBrutalist ? "bg-white/5 text-[#ffb36b]" : "bg-orange-100 text-orange-700"
-                    }`}>
-                      Seen before
-                    </span>
-                  ) : (
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${
-                      isBrutalist ? "bg-white/5 text-white/55" : "bg-slate-100 text-slate-500"
-                    }`}>
-                      Fresh watch
-                    </span>
-                  )}
-                </div>
+                <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Revisited</p>
                 <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                  Tick this if you have watched it before. A new log entry will still be created.
+                  Mark this if you&apos;ve revisited this title before.
                 </p>
                 {hasPreviousWatch && (
-                  <p className={`mt-2 text-xs ${isBrutalist ? "text-white/70" : "text-slate-600"}`}>
-                    Previously logged {previousWatchDates.length} time{previousWatchDates.length === 1 ? "" : "s"}.
+                  <p className={`mt-1 text-xs ${isBrutalist ? "text-white/70" : "text-slate-600"}`}>
+                    Revisited {previousWatchDates.length} time{previousWatchDates.length === 1 ? "" : "s"} before.
                   </p>
                 )}
               </div>
-            </label>
+            </button>
           )}
 
           {error && (
@@ -540,117 +595,102 @@ export default function LogMovieModal({
             <label className={`mb-1 block text-sm font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
               Review
             </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Write your review"
-              className="field min-h-40 resize-none py-4"
-              rows={6}
-            />
+            <button
+              type="button"
+              onClick={openReviewEditor}
+              className="w-full text-left transition-opacity hover:opacity-90"
+            >
+              <span className={`block whitespace-pre-wrap text-sm leading-6 ${
+                notes.trim() ? (isBrutalist ? "text-[#f5f0de]" : "text-slate-900") : (isBrutalist ? "text-white/40" : "text-slate-400")
+              }`}>
+                {notes.trim() || "Tap to write your review"}
+              </span>
+            </button>
+            <p className={`mt-1 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+              Opens the full review editor.
+            </p>
           </div>
 
           {!isEditMode && (
-          <div className={`rounded-[1.25rem] border p-3 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={shareAsPost}
-                onChange={(e) => setShareAsPost(e.target.checked)}
-                className={`mt-1 h-4 w-4 rounded focus:ring-blue-500 ${isBrutalist ? "border-white/20 text-[#ff7a1a]" : "border-slate-300 text-[#f5f0de]"}`}
-              />
-              <div className="min-w-0">
-                <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Share as post</p>
-                <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                  Creates a post like &quot;Just watched {content.title} - Good&quot; so friends can like, save, and reply.
-                </p>
-              </div>
-            </label>
-
-            {shareAsPost && (
-              <div className="mt-4">
-                <label className={`mb-1 block text-xs font-semibold ${isBrutalist ? "text-white/55" : "text-slate-600"}`}>
-                  Optional post caption
-                </label>
-                <textarea
-                  value={postCaption}
-                  onChange={(e) => setPostCaption(e.target.value)}
-                  placeholder="Add a quick thought for the feed..."
-                  className="field min-h-20 resize-none py-3 text-sm"
-                  rows={2}
+            <div className="pt-1">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={shareAsPost}
+                  onChange={(e) => setShareAsPost(e.target.checked)}
+                  className={`mt-1 h-4 w-4 rounded focus:ring-blue-500 ${isBrutalist ? "border-white/20 text-[#ff7a1a]" : "border-slate-300 text-[#f5f0de]"}`}
                 />
-                <p className={`mt-1 text-xs ${isBrutalist ? "text-white/45" : "text-slate-500"}`}>
-                  If empty, your review will be used as the caption.
-                </p>
-              </div>
-            )}
-          </div>
+                <div className="min-w-0">
+                  <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Share as post</p>
+                  <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                    Creates a post like &quot;Just watched {content.title} - Good&quot; so friends can like, save, and reply.
+                  </p>
+                </div>
+              </label>
+
+              {shareAsPost && (
+                <div className="mt-3">
+                  <label className={`mb-1 block text-xs font-semibold ${isBrutalist ? "text-white/55" : "text-slate-600"}`}>
+                    Optional post caption
+                  </label>
+                  <textarea
+                    value={postCaption}
+                    onChange={(e) => setPostCaption(e.target.value)}
+                    placeholder="Add a quick thought for the feed..."
+                    className="field min-h-20 resize-none py-3 text-sm"
+                    rows={2}
+                  />
+                  <p className={`mt-1 text-xs ${isBrutalist ? "text-white/45" : "text-slate-500"}`}>
+                    If empty, your review will be used as the caption.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
-          <div className={`rounded-[1.15rem] border p-2.5 sm:p-3 ${isBrutalist ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-                  {isEditMode ? "Edit ticket or memory image" : "Ticket or memory image"}
-                </p>
-                <p className={`mt-0.5 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                  Front stays the poster. Back becomes your ticket, receipt, or memory shot.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleTicketUploadClick}
-                disabled={ticketUploading}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-3.5 py-1.75 text-[10px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-[#ff8d3b] disabled:opacity-60"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                {ticketImageUrl ? "Replace image" : ticketUploading ? "Uploading" : "Upload image"}
-              </button>
-            </div>
-
+          <div className="space-y-2 pt-2">
+            <button
+              type="button"
+              onClick={handleTicketUploadClick}
+              disabled={ticketUploading}
+              className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-3.5 py-1.75 text-[10px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-[#ff8d3b] disabled:opacity-60"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {ticketImageUrl ? "Replace" : ticketUploading ? "Uploading" : "Upload"}
+            </button>
             {ticketImageUrl ? (
-              <div className="mt-2.5 overflow-hidden rounded-[0.9rem] border border-white/10 bg-black/20">
+              <div className="flex items-center gap-3">
                 <img
                   src={ticketImageUrl}
                   alt="Uploaded ticket or memory"
-                  className="h-28 w-full object-cover sm:h-32"
+                  className="h-14 w-14 shrink-0 rounded-lg object-cover"
                 />
-                <div className="flex items-center justify-between gap-3 px-3 py-2">
-                  <p className={`truncate text-xs ${isBrutalist ? "text-white/60" : "text-slate-500"}`}>
-                    Uploaded and ready for this log.
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                    Image uploaded with preview
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setTicketImageUrl(null)}
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${
-                      isBrutalist ? "bg-white/5 text-white/60 hover:bg-white/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    Remove
-                  </button>
+                  <p className={`mt-1 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                    Your attachment is ready for this log.
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setTicketImageUrl(null)}
+                  className={`shrink-0 text-xs font-medium ${isBrutalist ? "text-white/60 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
+                >
+                  Remove
+                </button>
               </div>
             ) : (
-              <div
-                className={`mt-2.5 rounded-[0.9rem] border border-dashed px-4 py-4 text-center text-sm ${
-                  isBrutalist ? "border-white/10 bg-black/20 text-white/50" : "border-slate-200 bg-white text-slate-500"
-                }`}
-              >
-                No image selected yet.
-              </div>
+              <p className={`min-w-0 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                Add one image attachment if you want a ticket or memory preview.
+              </p>
             )}
-
-            <input
-              ref={ticketInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleTicketFileChange}
-            />
+            <input ref={ticketInputRef} type="file" accept="image/*" className="hidden" onChange={handleTicketFileChange} />
           </div>
 
           {/* Context Log Section */}
-          <div className={`border-t pt-3 ${isBrutalist ? "border-white/10" : "border-slate-200"}`}>
+          <div className="pt-3">
             <button
               type="button"
               onClick={() => setShowContextLog(!showContextLog)}
@@ -660,7 +700,7 @@ export default function LogMovieModal({
             </button>
 
             {showContextLog && (
-              <div className={`space-y-3 rounded-[1.25rem] p-3 ${isBrutalist ? "bg-white/[0.03]" : "bg-slate-50"}`}>
+              <div className="space-y-3">
                 {/* Location */}
                 <div>
                   <label className={`mb-1 block text-xs font-medium ${isBrutalist ? "text-white/55" : "text-slate-600"}`}>
@@ -703,5 +743,6 @@ export default function LogMovieModal({
         </form>
       </div>
     </div>
+    </>
   );
 }

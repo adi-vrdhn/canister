@@ -15,6 +15,7 @@ import {
 import { getListCoverImages } from "./lists";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
+import { getAllUsersCached } from "./users";
 
 type CreateCinePostInput = {
   user: User;
@@ -196,8 +197,7 @@ function scoreComment(comment: CinePostComment, replyCount: number): number {
 }
 
 async function getUsersById(): Promise<Record<string, User>> {
-  const usersSnapshot = await get(ref(db, "users"));
-  const usersRaw = usersSnapshot.val() || {};
+  const usersRaw = (await getAllUsersCached()) || {};
 
   return Object.fromEntries(
     Object.entries(usersRaw).map(([id, value]) => [id, normalizeUser(id, value)])
