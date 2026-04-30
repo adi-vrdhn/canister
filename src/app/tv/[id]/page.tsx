@@ -10,12 +10,10 @@ import ContentCinePosts from "@/components/ContentCinePosts";
 import { User, TVShow, Content } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { ref, get, push, set } from "firebase/database";
-import { signOut as authSignOut } from "@/lib/auth";
+import { ref, get } from "firebase/database";
 import { getShowDetails } from "@/lib/tvmaze";
-// Removed unused imports
 import LogMovieModal from "@/components/LogMovieModal";
-import { ArrowLeft, Share2, Star, Network, Calendar, Tv, Users, MessageCircle, Zap, Bookmark } from "lucide-react";
+import { ArrowLeft, Share2 } from "lucide-react";
 import Link from "next/link";
 
 export default function TVShowPage() {
@@ -70,15 +68,6 @@ export default function TVShowPage() {
 
     return () => unsubscribe();
   }, [showId, router]);
-
-  const handleSignOut = async () => {
-    try {
-      await authSignOut();
-      router.push("/auth/login");
-    } catch (error) {
-      console.error("Sign out error:", error);
-    }
-  };
 
   useEffect(() => {
     if (!bannerMessage) return;
@@ -166,9 +155,10 @@ export default function TVShowPage() {
                   Add to List
                 </button>
                 <button
-                  className="w-full bg-neutral-800 hover:bg-neutral-900 text-white font-semibold py-2 rounded-lg shadow"
-                  onClick={() => navigator.share ? navigator.share({ title: show.title, url: window.location.href }) : null}
+                  className="inline-flex w-full items-center justify-center gap-2 bg-neutral-800 py-2 font-semibold text-white shadow hover:bg-neutral-900 rounded-lg"
+                  onClick={() => router.push(`/share?show_id=${show.id}&panel=share`)}
                 >
+                  <Share2 className="h-4 w-4" />
                   Share
                 </button>
               </div>

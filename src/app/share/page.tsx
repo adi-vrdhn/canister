@@ -149,7 +149,11 @@ function SharePageContent() {
               try {
                 const show = await getShowDetails(showId);
                 if (show) {
-                  setSelectedContent(show as Content);
+                  setSelectedContent({
+                    ...show,
+                    type: "tv",
+                    created_at: new Date().toISOString(),
+                  });
                   setCurrentStep(2);
                 }
               } catch (error) {
@@ -163,7 +167,11 @@ function SharePageContent() {
                 if (typeParam === "tv") {
                   const show = await getShowDetails(contentId);
                   if (show) {
-                    setSelectedContent(show as Content);
+                    setSelectedContent({
+                      ...show,
+                      type: "tv",
+                      created_at: new Date().toISOString(),
+                    });
                     setCurrentStep(2);
                   }
                 } else {
@@ -424,7 +432,11 @@ function SharePageContent() {
       if (item.type === "tv") {
         const showDetails = await getShowDetails(item.originalId);
         if (showDetails) {
-          setSelectedContent(showDetails as Content);
+          setSelectedContent({
+            ...showDetails,
+            type: "tv",
+            created_at: new Date().toISOString(),
+          });
         }
       } else {
         const movieDetails = await getMovieDetails(item.originalId);
@@ -950,13 +962,13 @@ function SharePageContent() {
             <section>
               <div className="px-0 py-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Share History</p>
-                <h2 className="mt-1 text-xl font-semibold text-[#f5f0de] sm:text-2xl">Movies You Shared</h2>
+                <h2 className="mt-1 text-xl font-semibold text-[#f5f0de] sm:text-2xl">Titles You Shared</h2>
               </div>
 
               <div className="py-3">
                 <input
                   type="text"
-                  placeholder="Search shared movies..."
+                  placeholder="Search shared titles..."
                   value={sharedSearchQuery}
                   onChange={(e) => setSharedSearchQuery(e.target.value)}
                   className="field mb-4"
@@ -1026,7 +1038,7 @@ function SharePageContent() {
                 ) : (
                   <div className="py-12 text-center">
                     <p className="text-[#f5f0de]">No shares yet</p>
-                    <p className="mt-1 text-sm text-white/45">Share your first movie!</p>
+                    <p className="mt-1 text-sm text-white/45">Share your first title!</p>
                   </div>
                 )}
               </div>
