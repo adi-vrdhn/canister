@@ -15,6 +15,7 @@ import { getMovieDetails, searchMovies } from "@/lib/tmdb";
 import { getShowDetails, searchShows, ShowDetails } from "@/lib/tvmaze";
 import { hasUserWatchedContent } from "@/lib/watched-movies";
 import { isUsernameBlocked, mergeSettings } from "@/lib/settings";
+import { createShareReceivedNotification } from "@/lib/notifications";
 import { ChevronLeft, ChevronRight, SendHorizontal, Trash2 } from "lucide-react";
 
 type SearchResultItem = {
@@ -475,6 +476,7 @@ function SharePageContent() {
     const contentType = selectedContent.type === "tv" ? "tv" : "movie";
     for (const recipient of recipients) {
       const shareId = `share-${user.id}-${recipient.id}-${contentType}-${selectedContent.id}-${Date.now()}`;
+      const createdAt = new Date().toISOString();
 
       await set(ref(db, `shares/${shareId}`), {
         id: shareId,
@@ -485,8 +487,20 @@ function SharePageContent() {
         movie: selectedContent,
         content: selectedContent,
         note: shareNote || null,
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
       });
+
+      await createShareReceivedNotification(
+        recipient.id,
+        shareId,
+        selectedContent.type === "tv"
+          ? selectedContent.name || selectedContent.title || "a title"
+          : selectedContent.title || "a title",
+        contentType,
+        user,
+        createdAt,
+        shareNote || null
+      );
     }
   };
 

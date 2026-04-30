@@ -1113,7 +1113,12 @@ export default function ListDetailPage() {
               <h3 className="mb-4 text-xl font-bold text-[#f5f0de]">Collaborators</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
                 {(Array.isArray(list.collaborators) ? list.collaborators : []).map((collaborator, idx) => (
-                  <div key={`collab-${idx}`} className="flex items-center gap-2 border border-white/10 bg-white/[0.03] p-3">
+                  <Link
+                    key={`collab-${idx}`}
+                    href={`/profile/${collaborator.user.username}`}
+                    onClick={() => setShowCollaboratorsModal(false)}
+                    className="flex items-center gap-2 border border-white/10 bg-white/[0.03] p-3 transition hover:bg-white/[0.06]"
+                  >
                     {collaborator.user.avatar_url && (
                       <img
                         src={collaborator.user.avatar_url}
@@ -1127,7 +1132,7 @@ export default function ListDetailPage() {
                       </p>
                       <p className="capitalize text-xs text-white/55">{collaborator.role}</p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
               <button

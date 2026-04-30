@@ -22,7 +22,9 @@ export interface SettingsData {
   };
   notifications: {
     followRequests: boolean;
-    likesAndComments: boolean;
+    likeNotifications: boolean;
+    commentNotifications: boolean;
+    shareNotifications: boolean;
     collaborationInvites: boolean;
     matcherUpdates: boolean;
     emailNotifications: boolean;
@@ -53,7 +55,9 @@ export const DEFAULT_SETTINGS: SettingsData = {
   },
   notifications: {
     followRequests: true,
-    likesAndComments: true,
+    likeNotifications: true,
+    commentNotifications: true,
+    shareNotifications: true,
     collaborationInvites: true,
     matcherUpdates: true,
     emailNotifications: false,
@@ -75,6 +79,8 @@ export const DEFAULT_SETTINGS: SettingsData = {
 };
 
 export function mergeSettings(raw: any): SettingsData {
+  const legacyLikesAndComments = raw?.notifications?.likesAndComments;
+
   return {
     privacy: {
       profileVisibility: raw?.privacy?.profileVisibility || DEFAULT_SETTINGS.privacy.profileVisibility,
@@ -85,7 +91,10 @@ export function mergeSettings(raw: any): SettingsData {
     },
     notifications: {
       followRequests: raw?.notifications?.followRequests ?? DEFAULT_SETTINGS.notifications.followRequests,
-      likesAndComments: raw?.notifications?.likesAndComments ?? DEFAULT_SETTINGS.notifications.likesAndComments,
+      likeNotifications: raw?.notifications?.likeNotifications ?? legacyLikesAndComments ?? DEFAULT_SETTINGS.notifications.likeNotifications,
+      commentNotifications:
+        raw?.notifications?.commentNotifications ?? legacyLikesAndComments ?? DEFAULT_SETTINGS.notifications.commentNotifications,
+      shareNotifications: raw?.notifications?.shareNotifications ?? DEFAULT_SETTINGS.notifications.shareNotifications,
       collaborationInvites: raw?.notifications?.collaborationInvites ?? DEFAULT_SETTINGS.notifications.collaborationInvites,
       matcherUpdates: raw?.notifications?.matcherUpdates ?? DEFAULT_SETTINGS.notifications.matcherUpdates,
       emailNotifications: raw?.notifications?.emailNotifications ?? DEFAULT_SETTINGS.notifications.emailNotifications,

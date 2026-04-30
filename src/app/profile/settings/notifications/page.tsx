@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, Bell, LoaderCircle, MessageSquare, Mail, Smartphone, Sparkles, Users } from "lucide-react";
+import { AlertCircle, Bell, LoaderCircle, MessageSquare, Mail, SendHorizontal, Smartphone, Sparkles, Users } from "lucide-react";
 import SettingsPageFrame from "@/components/SettingsPageFrame";
 import { useSettingsUser } from "../settings-shared";
 import { SettingLine, CompactToggle } from "../settings-ui";
@@ -173,11 +173,27 @@ export default function SettingsNotificationsPage() {
           />
         </SettingLine>
 
-        <SettingLine icon={Sparkles} title="Likes and comments" description="Post and log reactions land here.">
+        <SettingLine icon={Sparkles} title="Like notifications" description="Likes and saves on your posts, logs, and comments.">
           <CompactToggle
-            checked={settings.notifications.likesAndComments}
-            onChange={(next) => void updateSection("notifications", { likesAndComments: next })}
-            label={settings.notifications.likesAndComments ? "On" : "Off"}
+            checked={settings.notifications.likeNotifications}
+            onChange={(next) => void updateSection("notifications", { likeNotifications: next })}
+            label={settings.notifications.likeNotifications ? "On" : "Off"}
+          />
+        </SettingLine>
+
+        <SettingLine icon={MessageSquare} title="Comment notifications" description="Comments and replies on your posts, logs, and shares.">
+          <CompactToggle
+            checked={settings.notifications.commentNotifications}
+            onChange={(next) => void updateSection("notifications", { commentNotifications: next })}
+            label={settings.notifications.commentNotifications ? "On" : "Off"}
+          />
+        </SettingLine>
+
+        <SettingLine icon={SendHorizontal} title="Share notifications" description="When someone sends you a movie or TV recommendation.">
+          <CompactToggle
+            checked={settings.notifications.shareNotifications}
+            onChange={(next) => void updateSection("notifications", { shareNotifications: next })}
+            label={settings.notifications.shareNotifications ? "On" : "Off"}
           />
         </SettingLine>
 

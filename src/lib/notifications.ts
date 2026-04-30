@@ -1,4 +1,4 @@
-import { get, ref, remove, set } from "firebase/database";
+import { get, push, ref, remove, set } from "firebase/database";
 import { db } from "@/lib/firebase";
 import type { User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
@@ -15,6 +15,7 @@ export type NotificationType =
   | "comment_reply"
   | "like"
   | "share_reply"
+  | "share_received"
   | "log_comment"
   | "log_comment_reply"
   | "log_comment_like"
@@ -80,6 +81,10 @@ function stripUndefinedFields<T>(value: T): T {
   return value;
 }
 
+function sanitizeNotificationKeyPart(value: string): string {
+  return value.replace(/[.#$/[\]]/g, "-");
+}
+
 export function parseNotificationItems(raw: unknown): NotificationItem[] {
   if (!raw || typeof raw !== "object") return [];
 
@@ -117,6 +122,9 @@ export function notificationHref(note: NotificationItem): string {
   if (note.type === "share_reply" && note.shareId) {
     return `/share?share_id=${note.shareId}&panel=history`;
   }
+  if (note.type === "share_received" && note.shareId) {
+    return `/share?share_id=${note.shareId}&panel=history`;
+  }
   if (note.type === "matcher_update" && note.subjectUsername) {
     return `/movie-matcher/${note.subjectUsername}`;
   }
@@ -146,6 +154,8 @@ export function notificationText(note: NotificationItem): string {
       return "liked your log.";
     case "share_reply":
       return note.shareTitle ? `replied to your share of ${note.shareTitle}.` : "replied to your share.";
+    case "share_received":
+      return note.shareTitle ? `shared ${note.shareTitle} with you.` : "shared a title with you.";
     case "matcher_update":
       return note.subjectName ? `updated your movie matcher with ${note.subjectName}.` : "updated your movie matcher.";
     case "log_comment":
@@ -458,8 +468,10 @@ export async function createCollaborationRequestNotification(
 ): Promise<void> {
   if (!(await shouldDeliverNotificationToUser(userId, "collaboration_request"))) return;
 
+  const notificationId = sanitizeNotificationKeyPart(`${listId}-${fromUser.id}-${createdAt}`);
+
   await set(
-    ref(db, `notifications/${userId}/${listId}-${fromUser.id}-${createdAt}`),
+    ref(db, `notifications/${userId}/${notificationId}`),
     stripUndefinedFields({
       type: "collaboration_request",
       seen: false,
@@ -482,7 +494,55 @@ export async function createCollaborationRequestNotification(
     body: listName ? `Open Canisterr to join ${listName}.` : "Open Canisterr to view the invite.",
     url: `/lists/${listId}`,
     type: "collaboration_request",
-    notificationId: `${listId}-${fromUser.id}-${createdAt}`,
+    notificationId,
+  });
+}
+
+export async function createShareReceivedNotification(
+  userId: string,
+  shareId: string,
+  shareTitle: string,
+  shareType: "movie" | "tv",
+  fromUser: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url?: string | null;
+  },
+  createdAt: string,
+  note?: string | null
+): Promise<void> {
+  if (!(await shouldDeliverNotificationToUser(userId, "share_received"))) return;
+
+  const notificationRef = push(ref(db, `notifications/${userId}`));
+
+  await set(
+    notificationRef,
+    stripUndefinedFields({
+      type: "share_received",
+      seen: false,
+      shareId,
+      shareTitle,
+      contentType: shareType,
+      content: note || undefined,
+      fromUser: {
+        id: fromUser.id,
+        username: fromUser.username,
+        name: fromUser.name,
+        avatar_url: fromUser.avatar_url || null,
+      },
+      created_at: createdAt,
+      createdAt,
+    })
+  );
+
+  await sendPushNotification({
+    userId,
+    title: `${fromUser.name} shared a ${shareType === "tv" ? "show" : "movie"} with you`,
+    body: shareTitle ? `Open Canisterr to see ${shareTitle}.` : "Open Canisterr to see the recommendation.",
+    url: `/share?share_id=${shareId}&panel=history`,
+    type: "share_received",
+    notificationId: shareId,
   });
 }
 
@@ -500,7 +560,7 @@ export async function createMatcherUpdateNotification(
 ): Promise<void> {
   if (!(await shouldDeliverNotificationToUser(userId, "matcher_update"))) return;
 
-  const notificationId = `${fromUser.id}-${subjectUsername}-${createdAt}`;
+  const notificationId = sanitizeNotificationKeyPart(`${fromUser.id}-${subjectUsername}-${createdAt}`);
   await set(
     ref(db, `notifications/${userId}/${notificationId}`),
     stripUndefinedFields({

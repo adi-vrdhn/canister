@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, onValue, ref } from "firebase/database";
-import { Bell, Check, Trash2, X } from "lucide-react";
+import { Bell, Check, Settings, Trash2, X } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
 import { auth, db } from "@/lib/firebase";
@@ -31,7 +31,7 @@ type NotificationFilter = "all" | "requests" | "posts" | "shares" | "logs" | "ma
 
 function getNotificationFilter(note: NotificationItem): Exclude<NotificationFilter, "all"> {
   if (note.type === "follow_request" || note.type === "collaboration_request") return "requests";
-  if (note.type === "share_reply") return "shares";
+  if (note.type === "share_reply" || note.type === "share_received") return "shares";
   if (note.type === "matcher_update") return "matcher";
   if (note.type === "post_like" || note.type === "post_save" || note.type === "post_comment" || note.type === "comment_reply") return "posts";
   return "logs";
@@ -189,6 +189,13 @@ export default function NotificationsPage() {
           >
             Clear all
           </button>
+          <Link
+            href="/profile/settings/notifications"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[#f5f0de]/65 transition hover:text-[#f5f0de]"
+          >
+            <Settings className="h-4 w-4" />
+            Settings
+          </Link>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2 border-b border-white/10 pb-4">

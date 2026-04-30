@@ -96,14 +96,14 @@ function PeopleModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center">
-      <div className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center">
+      <div className="w-full max-w-md border border-white/10 bg-[#111111] p-4 text-[#f5f0de] shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-black text-slate-950">{title}</h3>
+          <h3 className="text-lg font-black text-[#f5f0de]">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+            className="rounded-full border border-white/10 p-2 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -113,11 +113,11 @@ function PeopleModal({
         {loading ? (
           <div className="space-y-2">
             {[0, 1, 2].map((item) => (
-              <div key={item} className="h-12 animate-pulse rounded-2xl bg-slate-100" />
+              <div key={item} className="h-12 animate-pulse bg-white/5" />
             ))}
           </div>
         ) : users.length === 0 ? (
-          <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No one here yet.</p>
+          <p className="bg-white/5 p-4 text-sm text-white/55">No one here yet.</p>
         ) : (
           <div className="max-h-80 space-y-2 overflow-y-auto">
             {users.map((user) => (
@@ -125,10 +125,10 @@ function PeopleModal({
                 key={user.id}
                 href={profileHref(user)}
                 onClick={onClose}
-                className="flex items-center gap-3 rounded-2xl p-2 transition hover:bg-slate-50"
+                className="flex items-center gap-3 p-2 transition hover:bg-white/5"
               >
                 <Avatar user={user} />
-                <p className="truncate text-sm font-bold text-slate-950">{user.name}</p>
+                <p className="truncate text-sm font-bold text-[#f5f0de]">{user.name}</p>
               </Link>
             ))}
           </div>
@@ -663,7 +663,7 @@ export default function CinePostPage() {
                   type="button"
                   onClick={() => openPeopleModal("like", "Liked by")}
                   disabled={post.likes_count === 0}
-                  className="rounded-full px-1 py-2 text-sm font-black text-rose-300 disabled:text-white/30"
+                  className="rounded-full px-1 py-2 text-sm font-black text-[#ffb36b] disabled:text-white/30"
                 >
                   {post.likes_count} like{post.likes_count === 1 ? "" : "s"}
                 </button>
