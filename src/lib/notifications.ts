@@ -32,6 +32,7 @@ export type NotificationItem = {
   createdAt: string;
   seen?: boolean;
   followRequestState?: FollowRequestState;
+  followedBack?: boolean;
   ref_id?: string;
   listId?: string;
   listName?: string;
@@ -130,8 +131,7 @@ export function notificationHref(note: NotificationItem): string {
 export function notificationText(note: NotificationItem): string {
   switch (note.type) {
     case "follow_request":
-      if (note.followRequestState === "accepted") return "is now following you.";
-      return "requested to follow you.";
+      return "is now following you.";
     case "collaboration_request":
       return `sent you a collaboration request${note.listName ? ` for ${note.listName}` : ""}.`;
     case "post_like":
@@ -286,7 +286,7 @@ export async function sendFollowRequest(
     id: followId,
     follower_id: fromUser.id,
     following_id: targetUser.id,
-    status: "pending" as const,
+    status: "accepted" as const,
     created_at: createdAt,
     createdAt,
   };
@@ -299,7 +299,7 @@ export async function sendFollowRequest(
       stripUndefinedFields({
         type: "follow_request",
         seen: false,
-        followRequestState: "pending",
+        followRequestState: "accepted",
         fromUser: {
           id: fromUser.id,
           username: fromUser.username,
@@ -313,13 +313,55 @@ export async function sendFollowRequest(
 
     await sendPushNotification({
       userId: targetUser.id,
-      title: `${fromUser.name} sent you a follow request`,
-      body: "Open Canisterr to confirm or decline it.",
+      title: `${fromUser.name} is now following you`,
+      body: "Open Canisterr to follow back or view their profile.",
       url: "/notifications",
       type: "follow_request",
       notificationId: followId,
     });
   }
+}
+
+export async function followBackUser(
+  fromUser: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url?: string | null;
+  },
+  targetUser: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url?: string | null;
+  }
+): Promise<void> {
+  if (!fromUser || !targetUser || fromUser.id === targetUser.id) return;
+
+  const followsRef = ref(db, "follows");
+  const snapshot = await get(followsRef);
+
+  let existingFollow: { id: string; createdAt?: string; created_at?: string } | null = null;
+  if (snapshot.exists()) {
+    existingFollow =
+      (Object.values(snapshot.val() as Record<string, any>).find(
+        (follow: any) => follow?.follower_id === fromUser.id && follow?.following_id === targetUser.id
+      ) as any) || null;
+  }
+
+  const followId = existingFollow?.id || `${fromUser.id}-${targetUser.id}-${Date.now()}`;
+  const createdAt = existingFollow?.createdAt || existingFollow?.created_at || new Date().toISOString();
+  const acceptedFollow = {
+    id: followId,
+    follower_id: fromUser.id,
+    following_id: targetUser.id,
+    status: "accepted" as const,
+    created_at: createdAt,
+    createdAt,
+  };
+
+  await set(ref(db, `follows/${followId}`), acceptedFollow);
+  await createFollowAcceptedNotification(targetUser.id, followId, fromUser, createdAt);
 }
 
 export async function createFollowRequestNotification(
@@ -340,7 +382,7 @@ export async function createFollowRequestNotification(
     stripUndefinedFields({
       type: "follow_request",
       seen: false,
-      followRequestState: "pending",
+      followRequestState: "accepted",
       fromUser: {
         id: fromUser.id,
         username: fromUser.username,
@@ -354,8 +396,8 @@ export async function createFollowRequestNotification(
 
   await sendPushNotification({
     userId,
-    title: `${fromUser.name} sent you a follow request`,
-    body: "Open Canisterr to confirm or decline it.",
+    title: `${fromUser.name} is now following you`,
+    body: "Open Canisterr to follow back or view their profile.",
     url: "/notifications",
     type: "follow_request",
     notificationId: followId,

@@ -10,6 +10,13 @@ export default function Home() {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
+    const cachedUser = auth.currentUser;
+    if (cachedUser) {
+      router.replace("/dashboard");
+      setChecked(true);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       router.replace(firebaseUser ? "/dashboard" : "/auth/login");
       setChecked(true);

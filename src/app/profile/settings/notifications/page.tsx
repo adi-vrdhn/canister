@@ -119,7 +119,7 @@ export default function SettingsNotificationsPage() {
           </div>
         ) : null}
 
-        <SettingLine icon={Users} title="Follow requests" description="Let people know when they want to follow you.">
+        <SettingLine icon={Users} title="Follow notifications" description="Let people know when someone follows you.">
           <CompactToggle
             checked={settings.notifications.followRequests}
             onChange={(next) => void updateSection("notifications", { followRequests: next })}

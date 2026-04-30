@@ -8,15 +8,13 @@ import { db } from "@/lib/firebase";
 import type { User } from "@/types";
 import { mergeSettings, shouldShowNotificationForSettings } from "@/lib/settings";
 import {
-  acceptFollowRequest as acceptFollowRequestAction,
   clearAllNotifications,
-  declineFollowRequest as declineFollowRequestAction,
   formatNotificationDate,
   notificationHref,
   notificationText,
   parseNotificationItems,
   removeNotification,
-  sendFollowRequest,
+  followBackUser,
   sortNotificationItems,
   type NotificationItem,
 } from "@/lib/notifications";
@@ -95,19 +93,14 @@ export default function NotificationBell({
     setOpen(false);
   };
 
-  const acceptFollowRequest = async (note: NotificationItem) => {
-    if (!user) return;
-    await acceptFollowRequestAction(user.id, note, { keepNotification: true, actorUser: user });
-  };
-
-  const declineFollowRequest = async (note: NotificationItem) => {
-    if (!user) return;
-    await declineFollowRequestAction(user.id, note);
-  };
-
   const followBack = async (note: NotificationItem) => {
     if (!user || !note.fromUser) return;
-    await sendFollowRequest(user, note.fromUser);
+    await followBackUser(user, note.fromUser);
+    setNotifications((prev) =>
+      prev.map((item) =>
+        item.id === note.id ? { ...item, followedBack: true, followRequestState: "accepted" } : item
+      )
+    );
   };
 
   if (!user) return null;
@@ -187,7 +180,13 @@ export default function NotificationBell({
                           {content}
                         </Link>
                         <div className="mt-3 grid grid-cols-2 gap-2 pl-[3.25rem]">
-                          {note.followRequestState === "accepted" ? (
+                          {note.followedBack ? (
+                            <div
+                              className={`px-3 py-2 text-center text-xs font-black ${isBrutalist ? "bg-[#ff7a1a] text-[#0a0a0a]" : "rounded-full bg-slate-950 text-white"}`}
+                            >
+                              Following
+                            </div>
+                          ) : (
                             <>
                               <button
                                 type="button"
@@ -202,23 +201,6 @@ export default function NotificationBell({
                                 className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-white/5 text-[#f5f0de] hover:bg-white/10" : "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
                               >
                                 Delete
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => acceptFollowRequest(note)}
-                                className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white" : "rounded-full bg-slate-950 text-white hover:bg-slate-800"}`}
-                              >
-                                Confirm
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => declineFollowRequest(note)}
-                                className={`px-3 py-2 text-xs font-black transition ${isBrutalist ? "bg-white/5 text-[#f5f0de] hover:bg-white/10" : "rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-                              >
-                                Decline
                               </button>
                             </>
                           )}

@@ -12,16 +12,14 @@ import { auth, db } from "@/lib/firebase";
 import { signOut as authSignOut } from "@/lib/auth";
 import type { User } from "@/types";
 import {
-  acceptFollowRequest,
   clearAllNotifications,
   clearSelectedNotifications,
-  declineFollowRequest,
   formatNotificationDate,
   notificationHref,
   notificationText,
   parseNotificationItems,
+  followBackUser,
   sortNotificationItems,
-  sendFollowRequest,
   type NotificationItem,
 } from "@/lib/notifications";
 
@@ -136,38 +134,17 @@ export default function NotificationsPage() {
     }
   };
 
-  const handleAccept = async (note: NotificationItem) => {
-    if (!user) return;
-
-    setBusyId(note.id);
-    try {
-      await acceptFollowRequest(user.id, note, { keepNotification: true, actorUser: user });
-    } catch (error) {
-      console.error("Error accepting follow request:", error);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleDecline = async (note: NotificationItem) => {
-    if (!user) return;
-
-    setBusyId(note.id);
-    try {
-      await declineFollowRequest(user.id, note);
-    } catch (error) {
-      console.error("Error declining follow request:", error);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const handleFollowBack = async (note: NotificationItem) => {
     if (!user || !note.fromUser) return;
 
     setBusyId(note.id);
     try {
-      await sendFollowRequest(user, note.fromUser);
+      await followBackUser(user, note.fromUser);
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id === note.id ? { ...item, followedBack: true, followRequestState: "accepted" } : item
+        )
+      );
     } catch (error) {
       console.error("Error following back from notification:", error);
     } finally {
@@ -276,7 +253,12 @@ export default function NotificationsPage() {
 
                   {note.type === "follow_request" && (
                     <div className="flex flex-wrap gap-3">
-                      {note.followRequestState === "accepted" ? (
+                      {note.followedBack ? (
+                        <span className="inline-flex items-center gap-2 text-xs font-black text-[#ff7a1a]">
+                          <Check className="h-3.5 w-3.5" />
+                          Following
+                        </span>
+                      ) : (
                         <>
                           <button
                             type="button"
@@ -295,27 +277,6 @@ export default function NotificationsPage() {
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleAccept(note)}
-                            disabled={busyId === note.id}
-                            className="inline-flex items-center gap-2 text-xs font-black text-[#ffb36b] transition hover:text-[#ff7a1a] disabled:opacity-50"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDecline(note)}
-                            disabled={busyId === note.id}
-                            className="inline-flex items-center gap-2 text-xs font-black text-[#f5f0de]/60 transition hover:text-[#f5f0de] disabled:opacity-50"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                            Decline
                           </button>
                         </>
                       )}

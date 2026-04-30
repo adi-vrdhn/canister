@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref, remove, set } from "firebase/database";
-import { ArrowLeft, Loader2, MoreHorizontal, Sparkles, Upload, Users } from "lucide-react";
+import { ArrowLeft, Ban, Loader2, MoreHorizontal, Share2, Sparkles, Upload } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import StatsInsights from "@/components/StatsInsights";
 import CinematicLoading from "@/components/CinematicLoading";
@@ -28,6 +28,7 @@ import {
   canViewListSurface,
   canViewProfileSurface,
   isUsernameBlocked,
+  normalizeUsername,
   mergeSettings,
   shouldDeliverNotificationToUser,
 } from "@/lib/settings";
@@ -38,27 +39,12 @@ import {
   updateUserProfile,
 } from "@/lib/profile";
 import {
-  acceptFollowRequest as persistAcceptFollowRequest,
-  createFollowRequestNotification,
   createFollowAcceptedNotification,
 } from "@/lib/notifications";
 import { signOut as authSignOut } from "@/lib/auth";
 import type { List, ListWithItems, MovieLogWithContent, User } from "@/types";
 
-type FollowModalType = "followers" | "following" | "requests" | "sent-requests";
-
-interface SocialNotification {
-  id: string;
-  type: "follow_request" | "collaboration_request" | "post_like" | "post_save" | "post_comment" | "comment_reply" | "share_reply" | "matcher_update";
-  fromUser: User;
-  createdAt: string;
-  followRequestState?: "pending" | "accepted";
-  listId?: string;
-  listName?: string;
-  ref_id?: string;
-  subjectUsername?: string;
-  subjectName?: string;
-}
+type FollowModalType = "followers" | "following";
 
 interface FollowRecord {
   id: string;
@@ -137,7 +123,6 @@ function ProfilePageInner() {
   const [recentMoodGenres, setRecentMoodGenres] = useState<string[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   const [listsLoading, setListsLoading] = useState(false);
-  const [notifications, setNotifications] = useState<SocialNotification[]>([]);
   const [allFollows, setAllFollows] = useState<FollowRecord[]>([]);
   const [usersById, setUsersById] = useState<Record<string, User>>({});
   const [followers, setFollowers] = useState<User[]>([]);
@@ -150,7 +135,9 @@ function ProfilePageInner() {
   const [updatingDisplayList, setUpdatingDisplayList] = useState(false);
   const [displayListMenuOpen, setDisplayListMenuOpen] = useState(false);
   const [displayListConnectOpen, setDisplayListConnectOpen] = useState(false);
+  const [showProfileActionsMenu, setShowProfileActionsMenu] = useState(false);
   const displayListMenuRef = useRef<HTMLDivElement | null>(null);
+  const profileActionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   // --- End state declarations ---
 
@@ -198,10 +185,9 @@ function ProfilePageInner() {
   const [followActionLoading, setFollowActionLoading] = useState<string | null>(null);
   const [profileFollowActionLoading, setProfileFollowActionLoading] = useState(false);
   const [profilePageError, setProfilePageError] = useState<string | null>(null);
-  const [followRequestError, setFollowRequestError] = useState<string | null>(null);
   const [displayListError, setDisplayListError] = useState<string | null>(null);
   const [followRemovalPrompt, setFollowRemovalPrompt] = useState<{
-    kind: "following" | "follower" | "request";
+    kind: "following" | "follower";
     user: User;
   } | null>(null);
 
@@ -217,6 +203,19 @@ function ProfilePageInner() {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [displayListMenuOpen]);
+
+  useEffect(() => {
+    if (!showProfileActionsMenu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (profileActionsMenuRef.current && !profileActionsMenuRef.current.contains(event.target as Node)) {
+        setShowProfileActionsMenu(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [showProfileActionsMenu]);
 
   useEffect(() => {
     const ownsProfile = !!currentUser && !!profileUser && currentUser.id === profileUser.id;
@@ -335,14 +334,10 @@ function ProfilePageInner() {
         const [
           followersSnap,
           usersSnap,
-          notificationsSnap,
           connectedDisplayList,
         ] = await Promise.all([
           get(ref(db, `follows`)),
           get(ref(db, `users`)),
-          isOwnProfile
-            ? get(ref(db, `notifications/${profileUserObj.id}`))
-            : Promise.resolve(null),
           profileUserObj.display_list_id
             ? getListWithDetails(profileUserObj.display_list_id).catch(() => null)
             : Promise.resolve(null),
@@ -379,34 +374,6 @@ function ProfilePageInner() {
         setAllFollows(allFollowsRaw);
         setUsersById(allUsersRaw);
 
-        if (notificationsSnap?.exists()) {
-          const notificationRows: SocialNotification[] = notificationsSnap.exists()
-            ? Object.entries(notificationsSnap.val()).map(([id, raw]: any) => ({
-                id,
-                type: raw.type,
-                fromUser: raw.fromUser || {
-                  id: "",
-                  username: "user",
-                  name: "Someone",
-                  avatar_url: null,
-                  created_at: new Date().toISOString(),
-                },
-                createdAt: raw.createdAt || raw.created_at || new Date().toISOString(),
-                followRequestState: raw.followRequestState || "pending",
-                listId: raw.listId,
-                listName: raw.listName,
-                ref_id: raw.ref_id,
-              }))
-            : [];
-          setNotifications(
-            notificationRows.sort(
-              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            )
-          );
-        } else {
-          setNotifications([]);
-        }
-
         if (profileUserObj.display_list_id) {
           setDisplayList(
             connectedDisplayList &&
@@ -442,20 +409,7 @@ function ProfilePageInner() {
     );
   }, [allFollows, currentUser, profileUser]);
 
-  const profileToViewerPendingFollow = useMemo(() => {
-    if (!currentUser || !profileUser) return null;
-    return (
-      allFollows.find(
-        (follow) =>
-          follow.follower_id === profileUser.id &&
-          follow.following_id === currentUser.id &&
-          follow.status === "pending"
-      ) || null
-    );
-  }, [allFollows, currentUser, profileUser]);
-
   const isFollowingProfile = viewerToProfileFollow?.status === "accepted";
-  const isFollowRequestSent = viewerToProfileFollow?.status === "pending";
   const profileFollowsCurrentUser = useMemo(() => {
     if (!currentUser || !profileUser) return null;
     return (
@@ -464,41 +418,34 @@ function ProfilePageInner() {
           follow.follower_id === profileUser.id &&
           follow.following_id === currentUser.id &&
           follow.status === "accepted"
-      ) || null
+    ) || null
     );
   }, [allFollows, currentUser, profileUser]);
-  const profileFollowVisibility = profileUserSettings.privacy.profileVisibility;
-  const profileFollowState: "follow" | "follow-back" | "following" | "requested" = isFollowRequestSent
-    ? "requested"
-    : isFollowingProfile
-      ? "following"
-      : profileFollowsCurrentUser
-        ? "follow-back"
-        : "follow";
-  const hasIncomingFollowRequestFromProfile = !!profileToViewerPendingFollow;
+  const profileFollowState: "follow" | "follow-back" | "following" = isFollowingProfile
+    ? "following"
+    : profileFollowsCurrentUser
+      ? "follow-back"
+      : "follow";
   const isBlockedByProfile =
     !!currentUser && !!profileUser && isUsernameBlocked(profileUserSettings, currentUser.username);
   const isBlockingProfile =
     !!currentUser && !!profileUser && isUsernameBlocked(currentUserSettings, profileUser.username);
+  const hasBlockRelationship = isBlockedByProfile || isBlockingProfile;
   const canAccessProfile =
     !!profileUser &&
     (isOwnProfile ||
-      (canViewProfileSurface(profileUserSettings, false, isFollowingProfile) &&
-        !isBlockedByProfile &&
-        !isBlockingProfile));
+      canViewProfileSurface(profileUserSettings, false, isFollowingProfile) ||
+      hasBlockRelationship);
   const canAccessLists =
     !!profileUser && (isOwnProfile || canViewListSurface(profileUserSettings, false, isFollowingProfile));
   const canAccessActivity =
     !!profileUser && (isOwnProfile || canViewActivitySurface(profileUserSettings, false, isFollowingProfile));
   const canShowSharedMoviesLink =
-    !!profileUser && !isOwnProfile && isFollowingProfile && canShowSharedMovies(profileUserSettings, false, true);
-  const canSendFollowRequest =
     !!profileUser &&
     !isOwnProfile &&
-    !isBlockedByProfile &&
-    !isBlockingProfile &&
-    profileFollowVisibility !== "public";
-
+    !hasBlockRelationship &&
+    isFollowingProfile &&
+    canShowSharedMovies(profileUserSettings, false, true);
   useEffect(() => {
     if (!profileUser || !canAccessActivity) {
       setRecentMoodGenres([]);
@@ -625,12 +572,6 @@ function ProfilePageInner() {
   }, [activeTab, followModalType]);
 
   useEffect(() => {
-    if (!isOwnProfile && (followModalType === "requests" || followModalType === "sent-requests")) {
-      setFollowModalType("followers");
-    }
-  }, [isOwnProfile, followModalType]);
-
-  useEffect(() => {
     if (!isOwnProfile && activeTab === "saved-posts") {
       setActiveTab("posts");
     }
@@ -653,10 +594,6 @@ function ProfilePageInner() {
   }, [recentMoodGenres]);
 
   const shownUsers = useMemo(() => {
-    if (followModalType === "requests" || followModalType === "sent-requests") {
-      return [];
-    }
-
     const list = followModalType === "followers" ? followers : following;
     const query = followSearch.trim().toLowerCase();
 
@@ -670,26 +607,6 @@ function ProfilePageInner() {
       return name.includes(query) || uname.includes(query);
     });
   }, [followModalType, followers, following, followSearch]);
-
-  const followRequests = useMemo(
-    () => notifications.filter((notification) => notification.type === "follow_request"),
-    [notifications]
-  );
-
-  const sentFollowRequests = useMemo(() => {
-    if (!currentUser) return [];
-    return allFollows.filter(
-      (follow) => follow.follower_id === currentUser.id && follow.status === "pending"
-    );
-  }, [allFollows, currentUser]);
-
-  const sentRequestUsers = useMemo(
-    () =>
-      sentFollowRequests
-        .map((follow) => usersById[follow.following_id])
-        .filter(Boolean),
-    [sentFollowRequests, usersById]
-  );
 
   const getMyAcceptedFollowRecordToUser = (targetUserId: string) => {
     if (!currentUser) return null;
@@ -742,13 +659,13 @@ function ProfilePageInner() {
       id: followId,
       follower_id: currentUser.id,
       following_id: targetUser.id,
-      status: "pending",
+      status: "accepted",
       created_at: createdAt,
       createdAt,
     };
 
     await set(ref(db, `follows/${followId}`), newFollow);
-    await createFollowRequestNotification(targetUser.id, followId, currentUser, createdAt);
+    await createFollowAcceptedNotification(targetUser.id, followId, currentUser, createdAt);
     setAllFollows((prev) => [...prev, newFollow]);
   };
 
@@ -799,30 +716,8 @@ function ProfilePageInner() {
     }
   };
 
-  const handleSendFollowRequest = async () => {
-    if (!currentUser || !profileUser || isOwnProfile || profileFollowActionLoading) return;
-    if (!canSendFollowRequest) {
-      setFollowRequestError("This user is not accepting follow requests.");
-      return;
-    }
-    setFollowRequestError(null);
-    try {
-      setProfileFollowActionLoading(true);
-      await sendFollowRequestToUser(profileUser);
-    } catch (error) {
-      setFollowRequestError("Failed to send follow request. Please try again.");
-    } finally {
-      setProfileFollowActionLoading(false);
-    }
-  };
-
   const handlePrimaryProfileFollowAction = async () => {
     if (!currentUser || !profileUser || isOwnProfile || profileFollowActionLoading) return;
-
-    if (profileFollowState === "requested") {
-      openFollowRemovalPrompt("request", profileUser);
-      return;
-    }
 
     if (profileFollowState === "following") {
       openFollowRemovalPrompt("following", profileUser);
@@ -841,113 +736,28 @@ function ProfilePageInner() {
       return;
     }
 
-    if (profileFollowVisibility === "public") {
-      try {
-        setProfileFollowActionLoading(true);
-        await followBackToUser(profileUser);
-      } catch (error) {
-        console.error("Error following profile:", error);
-      } finally {
-        setProfileFollowActionLoading(false);
-      }
-      return;
+    try {
+      setProfileFollowActionLoading(true);
+      await followBackToUser(profileUser);
+    } catch (error) {
+      console.error("Error following profile:", error);
+    } finally {
+      setProfileFollowActionLoading(false);
     }
-
-    await handleSendFollowRequest();
   };
 
   const handleUnfollowProfile = async () => {
     if (!viewerToProfileFollow || !profileUser || viewerToProfileFollow.status !== "accepted") return;
 
-    setFollowRequestError(null);
     try {
       setProfileFollowActionLoading(true);
       await removeFollowRecord(viewerToProfileFollow.id);
       setFollowers((prev) => prev.filter((entry) => entry.id !== currentUser?.id));
       setFollowerCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
-      setFollowRequestError("Failed to unfollow. Please try again.");
+      console.error("Failed to unfollow:", error);
     } finally {
       setProfileFollowActionLoading(false);
-    }
-  };
-
-  const handleAcceptFollowRequest = async (note: SocialNotification) => {
-    if (!currentUser) return;
-    const followRecord = allFollows.find((follow) => follow.id === note.id);
-    if (!followRecord) return;
-
-    const loadingKey = isOwnProfile ? note.fromUser?.id || note.id : null;
-
-    try {
-      if (loadingKey) {
-        setFollowActionLoading(loadingKey);
-      } else {
-        setProfileFollowActionLoading(true);
-      }
-
-      const updatedFollow: FollowRecord = { ...followRecord, status: "accepted" };
-      await set(ref(db, `follows/${note.id}`), updatedFollow);
-      await persistAcceptFollowRequest(currentUser.id, note, { keepNotification: true, actorUser: currentUser });
-
-      setAllFollows((prev) => prev.map((follow) => (follow.id === note.id ? updatedFollow : follow)));
-      setNotifications((prev) =>
-        prev.map((notification) =>
-          notification.id === note.id
-            ? { ...notification, followRequestState: "accepted", seen: true }
-            : notification
-        )
-      );
-
-      if (isOwnProfile) {
-        setFollowers((prev) =>
-          prev.some((follower) => follower.id === note.fromUser.id) ? prev : [note.fromUser, ...prev]
-        );
-        setFollowerCount((prev) => prev + 1);
-      }
-    } catch (error) {
-      console.error("Error accepting follow request:", error);
-    } finally {
-      if (loadingKey) {
-        setFollowActionLoading(null);
-      } else {
-        setProfileFollowActionLoading(false);
-      }
-    }
-  };
-
-  const handleDeclineFollowRequest = async (followId: string) => {
-    try {
-      await removeFollowRecord(followId);
-      if (currentUser) {
-        await remove(ref(db, `notifications/${currentUser.id}/${followId}`));
-      }
-      setNotifications((prev) => prev.filter((notification) => notification.id !== followId));
-    } catch (error) {
-      console.error("Error declining follow request:", error);
-    }
-  };
-
-  const handleDeleteFollowRequestNotification = async (noteId: string) => {
-    if (!currentUser) return;
-
-    try {
-      await remove(ref(db, `notifications/${currentUser.id}/${noteId}`));
-      setNotifications((prev) => prev.filter((notification) => notification.id !== noteId));
-    } catch (error) {
-      console.error("Error deleting follow request notification:", error);
-    }
-  };
-
-  const handleFollowBackFromRequest = async (note: SocialNotification) => {
-    if (!note.fromUser || !currentUser) return;
-    try {
-      setFollowActionLoading(note.fromUser.id);
-      await followBackToUser(note.fromUser);
-    } catch (error) {
-      console.error("Error following back from request:", error);
-    } finally {
-      setFollowActionLoading(null);
     }
   };
 
@@ -972,28 +782,7 @@ function ProfilePageInner() {
     }
   };
 
-  const handleCancelSentFollowRequest = async (targetUserId: string) => {
-    const pendingFollow = allFollows.find(
-      (follow) =>
-        currentUser &&
-        follow.follower_id === currentUser.id &&
-        follow.following_id === targetUserId &&
-        follow.status === "pending"
-    );
-    if (!pendingFollow) return;
-
-    try {
-      setFollowActionLoading(targetUserId);
-      await removeFollowRecord(pendingFollow.id);
-      await remove(ref(db, `notifications/${targetUserId}/${pendingFollow.id}`));
-    } catch (error) {
-      console.error("Error cancelling follow request:", error);
-    } finally {
-      setFollowActionLoading(null);
-    }
-  };
-
-  const openFollowRemovalPrompt = (kind: "following" | "follower" | "request", user: User) => {
+  const openFollowRemovalPrompt = (kind: "following" | "follower", user: User) => {
     setOpenFollowMenuUserId(null);
     setFollowRemovalPrompt({ kind, user });
   };
@@ -1011,11 +800,6 @@ function ProfilePageInner() {
       }
 
       await handleUnfollowProfile();
-      return;
-    }
-
-    if (kind === "request") {
-      await handleCancelSentFollowRequest(user.id);
       return;
     }
 
@@ -1050,6 +834,90 @@ function ProfilePageInner() {
     } finally {
       setFollowActionLoading(null);
       setOpenFollowMenuUserId(null);
+    }
+  };
+
+  const removeMutualFollowLinks = async (targetUserId: string) => {
+    if (!currentUser) return;
+
+    const relatedFollows = allFollows.filter(
+      (follow) =>
+        (follow.follower_id === currentUser.id && follow.following_id === targetUserId) ||
+        (follow.follower_id === targetUserId && follow.following_id === currentUser.id)
+    );
+
+    await Promise.all(relatedFollows.map((follow) => removeFollowRecord(follow.id)));
+
+    setFollowers((prev) => prev.filter((entry) => entry.id !== currentUser.id && entry.id !== targetUserId));
+    setFollowing((prev) => prev.filter((entry) => entry.id !== currentUser.id && entry.id !== targetUserId));
+    setFollowerCount((prev) => Math.max(0, prev - (followers.some((entry) => entry.id === currentUser.id) ? 1 : 0)));
+    setFollowingCount((prev) => Math.max(0, prev - (following.some((entry) => entry.id === targetUserId) ? 1 : 0)));
+    setAllFollows((prev) =>
+      prev.filter(
+        (follow) =>
+          !(
+            (follow.follower_id === currentUser.id && follow.following_id === targetUserId) ||
+            (follow.follower_id === targetUserId && follow.following_id === currentUser.id)
+          )
+      )
+    );
+  };
+
+  const handleShareProfile = async () => {
+    if (!profileUser || typeof window === "undefined") return;
+
+    const profileUrl = new URL(`/profile/${profileUser.username}`, window.location.origin).toString();
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: profileUser.name,
+          text: `Take a look at ${profileUser.name}'s profile on Canisterr.`,
+          url: profileUrl,
+        });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(profileUrl);
+        return;
+      }
+    } catch (error) {
+      console.error("Share profile failed:", error);
+    }
+
+    window.prompt("Copy this link", profileUrl);
+  };
+
+  const handleToggleBlockProfile = async () => {
+    if (!currentUser || !profileUser || isOwnProfile) return;
+
+    const normalizedTarget = normalizeUsername(profileUser.username);
+    const nextBlockedUsers = isBlockingProfile
+      ? currentUserSettings.social.blockedUsers.filter(
+          (entry) => normalizeUsername(entry) !== normalizedTarget
+        )
+      : Array.from(new Set([...currentUserSettings.social.blockedUsers, normalizedTarget].filter(Boolean)));
+
+    const nextSettings = {
+      ...currentUserSettings,
+      social: {
+        ...currentUserSettings.social,
+        blockedUsers: nextBlockedUsers,
+      },
+    };
+
+    try {
+      setCurrentUserSettings(nextSettings);
+      await set(ref(db, `users/${currentUser.id}/settings`), nextSettings);
+      if (!isBlockingProfile) {
+        await removeMutualFollowLinks(profileUser.id);
+      }
+    } catch (error) {
+      console.error("Error updating blocked users:", error);
+      setCurrentUserSettings(currentUserSettings);
+    } finally {
+      setShowProfileActionsMenu(false);
     }
   };
 
@@ -1320,11 +1188,6 @@ function ProfilePageInner() {
           {profilePageError}
         </div>
       )}
-      {followRequestError && (
-        <div className="relative z-10 mx-auto mt-4 w-full max-w-7xl rounded-[1.25rem] border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100 backdrop-blur">
-          {followRequestError}
-        </div>
-      )}
       {displayListError && (
         <div className="relative z-10 mx-auto mt-4 w-full max-w-7xl rounded-[1.25rem] border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100 backdrop-blur">
           {displayListError}
@@ -1339,6 +1202,45 @@ function ProfilePageInner() {
             <ArrowLeft className="h-4 w-4" />
             Back to Home
           </button>
+          <div ref={profileActionsMenuRef} className="relative ml-auto">
+            <button
+              type="button"
+              onClick={() => setShowProfileActionsMenu((prev) => !prev)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[#f5f0de] transition hover:bg-white/10"
+              aria-label="Profile actions"
+              aria-expanded={showProfileActionsMenu}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+
+            {showProfileActionsMenu && (
+              <div className="absolute right-0 top-12 z-30 min-w-[200px] overflow-hidden rounded-2xl border border-white/10 bg-[#111111] p-2 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleShareProfile();
+                    setShowProfileActionsMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#f5f0de] transition hover:bg-white/5"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share profile
+                </button>
+                {!isOwnProfile && currentUser && (
+                  <button
+                    type="button"
+                    onClick={handleToggleBlockProfile}
+                    className={`mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-white/5 ${
+                      isBlockingProfile ? "text-[#f5f0de]" : "text-rose-200"
+                    }`}
+                  >
+                    <Ban className="h-4 w-4" />
+                    {isBlockingProfile ? "Unblock user" : "Block user"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
         </div>
 
@@ -1422,63 +1324,27 @@ function ProfilePageInner() {
             <div className="mt-4 grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-center">
               {!isOwnProfile && currentUser && (
                 <div className="contents">
-                  {hasIncomingFollowRequestFromProfile ? (
-                    <>
-                      <button
-                        onClick={() =>
-                          profileToViewerPendingFollow &&
-                          handleAcceptFollowRequest({
-                            id: profileToViewerPendingFollow.id,
-                            type: "follow_request",
-                            fromUser: profileUser,
-                            createdAt:
-                              profileToViewerPendingFollow.created_at ||
-                              profileToViewerPendingFollow.createdAt ||
-                              new Date().toISOString(),
-                          })
-                        }
-                        disabled={profileFollowActionLoading}
-                        className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-[#ff7a1a] bg-[#ff7a1a] px-2 py-2 text-[11px] font-black text-black transition hover:bg-[#ff8d33] disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        onClick={() =>
-                          profileToViewerPendingFollow &&
-                          handleDeclineFollowRequest(profileToViewerPendingFollow.id)
-                        }
-                        disabled={profileFollowActionLoading}
-                        className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-50 sm:px-5 sm:py-2.5 sm:text-sm"
-                      >
-                        Decline
-                      </button>
-                    </>
+                  {hasBlockRelationship ? (
+                    <div className="col-span-2 inline-flex w-full min-w-0 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-[11px] font-black text-rose-200 sm:px-5 sm:py-2.5 sm:text-sm">
+                      Blocked
+                    </div>
                   ) : (
                     <button
                       onClick={handlePrimaryProfileFollowAction}
-                      disabled={
-                        profileFollowActionLoading ||
-                        (profileFollowState === "follow" && profileFollowVisibility === "private" && !canSendFollowRequest)
-                      }
+                      disabled={profileFollowActionLoading}
                       className={`inline-flex w-full min-w-0 items-center justify-center rounded-full px-2 py-2 text-[11px] font-black transition sm:px-5 sm:py-2.5 sm:text-sm ${
                         profileFollowState === "following"
                           ? "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
-                          : profileFollowState === "requested"
-                          ? "border border-white/10 bg-white/5 text-[#ffb36b] hover:bg-white/10"
                           : profileFollowState === "follow-back"
                           ? "border border-[#ff7a1a] bg-[#ff7a1a] text-black hover:bg-[#ff8d33]"
-                          : profileFollowVisibility === "private" && !canSendFollowRequest
-                          ? "border border-white/10 bg-white/5 text-white/35"
                           : "border border-[#ff7a1a] bg-[#ff7a1a] text-black hover:bg-[#ff8d33]"
                       } disabled:cursor-not-allowed disabled:opacity-70`}
                     >
                       {profileFollowState === "following"
                         ? "Following"
-                        : profileFollowState === "requested"
-                          ? "Requested"
-                          : profileFollowState === "follow-back"
-                            ? "Follow Back"
-                            : "Follow"}
+                        : profileFollowState === "follow-back"
+                          ? "Follow Back"
+                          : "Follow"}
                     </button>
                   )}
                 </div>
@@ -1509,7 +1375,7 @@ function ProfilePageInner() {
                       Shared Movies
                     </Link>
                   )}
-                  {canAccessProfile && currentUser && (
+                  {canAccessProfile && currentUser && !hasBlockRelationship && (
                     <Link
                       href={`/movie-matcher/${profileUser.username}`}
                       className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
@@ -1521,17 +1387,6 @@ function ProfilePageInner() {
               )}
             </div>
 
-            {isOwnProfile && followRequests.length > 0 && (
-              <button
-                onClick={() => {
-                  setFollowModalType("requests");
-                  setIsFollowModalOpen(true);
-                }}
-                className="mt-4 text-xs font-bold text-[#ffb36b] transition hover:text-[#ff7a1a] sm:text-sm"
-              >
-                {followRequests.length} requests
-              </button>
-            )}
           </div>
         </section>
 
@@ -1741,13 +1596,7 @@ function ProfilePageInner() {
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.32em] text-[#ffb36b]/75">People</p>
                     <h2 className="mt-2 text-2xl font-black tracking-tight text-[#f5f0de] sm:text-3xl">
-                      {followModalType === "followers"
-                        ? "Followers"
-                        : followModalType === "following"
-                          ? "Following"
-                          : followModalType === "requests"
-                            ? "Received Requests"
-                            : "Sent Requests"}
+                      {followModalType === "followers" ? "Followers" : "Following"}
                     </h2>
                   </div>
                   <button
@@ -1759,370 +1608,187 @@ function ProfilePageInner() {
                   </button>
                 </div>
 
-                <div className="mb-5 grid gap-2 sm:grid-cols-2">
+                <div className="mb-5 grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setFollowModalType("followers")}
-                    className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`flex items-center justify-center rounded-lg border px-4 py-3 text-center transition ${
                       followModalType === "followers"
                         ? "border-[#ff7a1a]/40 bg-[#ff7a1a] text-black shadow-[0_0_0_1px_rgba(255,122,26,0.18)]"
                         : "border-white/10 bg-white/[0.04] text-[#f5f0de] hover:bg-white/[0.07]"
                     }`}
                   >
-                    <span className="text-sm font-bold">Followers</span>
-                    <span className="text-sm font-black">{followerCount}</span>
+                    <span className="flex flex-col items-center gap-1">
+                      <span className="text-sm font-black">Followers</span>
+                      <span className="text-xs font-black opacity-75">{followerCount}</span>
+                    </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setFollowModalType("following")}
-                    className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`flex items-center justify-center rounded-lg border px-4 py-3 text-center transition ${
                       followModalType === "following"
                         ? "border-[#ff7a1a]/40 bg-[#ff7a1a] text-black shadow-[0_0_0_1px_rgba(255,122,26,0.18)]"
                         : "border-white/10 bg-white/[0.04] text-[#f5f0de] hover:bg-white/[0.07]"
                     }`}
                   >
-                    <span className="text-sm font-bold">Following</span>
-                    <span className="text-sm font-black">{followingCount}</span>
+                    <span className="flex flex-col items-center gap-1">
+                      <span className="text-sm font-black">Following</span>
+                      <span className="text-xs font-black opacity-75">{followingCount}</span>
+                    </span>
                   </button>
-                  {isOwnProfile && (
-                    <button
-                      type="button"
-                      onClick={() => setFollowModalType("requests")}
-                      className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
-                        followModalType === "requests"
-                          ? "border-[#ff7a1a]/40 bg-[#ff7a1a] text-black shadow-[0_0_0_1px_rgba(255,122,26,0.18)]"
-                          : "border-white/10 bg-white/[0.04] text-[#f5f0de] hover:bg-white/[0.07]"
-                      }`}
-                    >
-                      <span className="text-sm font-bold">Received</span>
-                      <span className="text-sm font-black">{followRequests.length}</span>
-                    </button>
-                  )}
-                  {isOwnProfile && (
-                    <button
-                      type="button"
-                      onClick={() => setFollowModalType("sent-requests")}
-                      className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
-                        followModalType === "sent-requests"
-                          ? "border-[#ff7a1a]/40 bg-[#ff7a1a] text-black shadow-[0_0_0_1px_rgba(255,122,26,0.18)]"
-                          : "border-white/10 bg-white/[0.04] text-[#f5f0de] hover:bg-white/[0.07]"
-                      }`}
-                    >
-                      <span className="text-sm font-bold">Sent</span>
-                      <span className="text-sm font-black">{sentRequestUsers.length}</span>
-                    </button>
-                  )}
                 </div>
 
-                {followModalType !== "requests" && followModalType !== "sent-requests" && (
-                  <div className="mb-5">
-                    <input
-                      value={followSearch}
-                      onChange={(e) => setFollowSearch(e.target.value)}
-                      placeholder={`Search ${followModalType}...`}
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[#f5f0de] outline-none placeholder:text-white/35 transition focus:border-[#ff7a1a]/50 focus:bg-white/[0.06]"
-                    />
-                  </div>
-                )}
+                <div className="mb-5">
+                  <input
+                    value={followSearch}
+                    onChange={(e) => setFollowSearch(e.target.value)}
+                    placeholder={`Search ${followModalType}...`}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[#f5f0de] outline-none placeholder:text-white/35 transition focus:border-[#ff7a1a]/50 focus:bg-white/[0.06]"
+                  />
+                </div>
 
-                {followModalType === "requests" && isOwnProfile ? (
-                  <section className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-                    <div className="mb-1 flex items-center gap-2">
-                      <Users className="h-5 w-5 text-[#ff7a1a]" />
-                      <h2 className="text-lg font-black text-[#f5f0de]">Received Requests</h2>
+                <div className="space-y-3">
+                  {shownUsers.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-white/55">
+                      No users found.
                     </div>
-                    {followRequests.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-white/55">
-                        No incoming requests yet.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {followRequests.map((note) => {
-                          const requesterFollowFromCurrentUser = getMyFollowRecordToUser(note.fromUser.id);
-                          const isFollowingRequester = requesterFollowFromCurrentUser?.status === "accepted";
-                          const hasPendingRequestToRequester = requesterFollowFromCurrentUser?.status === "pending";
+                  ) : (
+                    shownUsers.map((listedUser) => {
+                      const isMenuOpen = openFollowMenuUserId === listedUser.id;
+                      const myFollowToListedUser = getMyFollowRecordToUser(listedUser.id);
+                      const followerToMe = getFollowerRecordToMe(listedUser.id);
+                      const isFollowingListedUser = myFollowToListedUser?.status === "accepted";
+                      const followsYou = !!followerToMe;
+                      const rowFollowState: "follow" | "follow-back" | "following" = isFollowingListedUser
+                        ? "following"
+                        : followsYou
+                          ? "follow-back"
+                          : "follow";
+                      const canShowActionMenu =
+                        isOwnProfile &&
+                        followModalType === "following" &&
+                        myFollowToListedUser?.status === "accepted";
+                      const canShowFollowerMenu =
+                        isOwnProfile &&
+                        followModalType === "followers" &&
+                        followerToMe?.status === "accepted" &&
+                        !isFollowingListedUser;
 
-                          return (
-                            <div
-                              key={note.id}
-                              className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 transition hover:border-white/15 hover:bg-white/[0.05]"
-                            >
-                              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div className="flex min-w-0 items-center gap-3">
-                                  {note.fromUser.avatar_url ? (
-                                    <img
-                                      src={note.fromUser.avatar_url}
-                                      alt={note.fromUser.name}
-                                      className="h-11 w-11 rounded-full object-cover ring-1 ring-white/10"
-                                    />
-                                  ) : (
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-black text-sm font-bold text-[#f5f0de] ring-1 ring-white/10">
-                                      {note.fromUser.name.charAt(0).toUpperCase()}
-                                    </div>
-                                  )}
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-bold text-[#f5f0de]">{note.fromUser.name}</p>
-                                    <p className="truncate text-xs text-white/50">@{note.fromUser.username}</p>
-                                    <p className="mt-1 text-xs text-white/45">
-                                      {note.followRequestState === "accepted"
-                                        ? "Request accepted"
-                                        : "Wants to follow you"}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2 sm:justify-end">
-                                  {isFollowingRequester ? (
-                                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-[#f5f0de]">
-                                      Following
-                                    </span>
-                                  ) : hasPendingRequestToRequester ? (
-                                    <>
-                                      <span className="inline-flex items-center rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-bold text-black">
-                                        Requested
-                                      </span>
-                                      <button
-                                        type="button"
-                                        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-[#f5f0de] transition hover:bg-white/10"
-                                        onClick={() => handleCancelSentFollowRequest(note.fromUser.id)}
-                                        disabled={followActionLoading === note.fromUser.id}
-                                      >
-                                        {followActionLoading === note.fromUser.id ? "Deleting..." : "Cancel"}
-                                      </button>
-                                    </>
-                                  ) : note.followRequestState === "accepted" ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="inline-flex items-center rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ff8d33]"
-                                        onClick={() => handleFollowBackFromRequest(note)}
-                                        disabled={followActionLoading === note.fromUser.id}
-                                      >
-                                        {followActionLoading === note.fromUser.id ? "Sending..." : "Follow back"}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-[#f5f0de] transition hover:bg-white/10"
-                                        onClick={() => handleDeleteFollowRequestNotification(note.id)}
-                                      >
-                                        Delete
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="inline-flex items-center rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ff8d33]"
-                                        onClick={() => handleAcceptFollowRequest(note)}
-                                        disabled={followActionLoading === note.fromUser.id || profileFollowActionLoading}
-                                      >
-                                        {followActionLoading === note.fromUser.id || profileFollowActionLoading
-                                          ? "Confirming..."
-                                          : "Confirm"}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-[#f5f0de] transition hover:bg-white/10"
-                                        onClick={() => handleDeclineFollowRequest(note.id)}
-                                        disabled={followActionLoading === note.fromUser.id || profileFollowActionLoading}
-                                      >
-                                        Decline
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
-                ) : followModalType === "sent-requests" && isOwnProfile ? (
-                  <section className="space-y-3">
-                    {sentRequestUsers.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-white/55">
-                        No pending requests sent.
-                      </div>
-                    ) : (
-                      sentRequestUsers.map((user) => (
+                      return (
                         <div
-                          key={user.id}
+                          key={listedUser.id}
                           className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3 transition hover:border-white/15 hover:bg-white/[0.05]"
                         >
-                          <Link href={`/profile/${user.username}`} className="flex min-w-0 flex-1 items-center gap-3">
-                            {user.avatar_url ? (
+                          <Link href={`/profile/${listedUser.username}`} className="flex min-w-0 flex-1 items-center gap-3">
+                            {listedUser.avatar_url ? (
                               <img
-                                src={user.avatar_url}
-                                alt={user.name}
+                                src={listedUser.avatar_url}
+                                alt={listedUser.name}
                                 className="h-10 w-10 rounded-full object-cover ring-1 ring-white/10"
                               />
                             ) : (
                               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-[#f5f0de] ring-1 ring-white/10">
-                                {user.name.charAt(0).toUpperCase()}
+                                {listedUser.name.charAt(0).toUpperCase()}
                               </div>
                             )}
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-[#f5f0de]">{user.name}</p>
-                              <p className="truncate text-xs text-white/55">@{user.username}</p>
+                              <p className="truncate text-sm font-semibold text-[#f5f0de]">{listedUser.name}</p>
+                              <p className="truncate text-xs text-white/55">@{listedUser.username}</p>
                             </div>
                           </Link>
 
-                          <button
-                            type="button"
-                            onClick={() => handleCancelSentFollowRequest(user.id)}
-                            disabled={followActionLoading === user.id}
-                            className="ml-3 inline-flex items-center rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
-                          >
-                            {followActionLoading === user.id ? "Updating..." : "Cancel"}
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </section>
-                ) : (
-                  <div className="space-y-3">
-                    {shownUsers.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-white/55">
-                        No users found.
-                      </div>
-                    ) : (
-                      shownUsers.map((listedUser) => {
-                        const isMenuOpen = openFollowMenuUserId === listedUser.id;
-                        const myFollowToListedUser = getMyFollowRecordToUser(listedUser.id);
-                        const followerToMe = getFollowerRecordToMe(listedUser.id);
-                        const isFollowingListedUser = myFollowToListedUser?.status === "accepted";
-                        const followsYou = !!followerToMe;
-                        const rowFollowState: "follow" | "follow-back" | "following" = isFollowingListedUser
-                          ? "following"
-                          : followsYou
-                            ? "follow-back"
-                            : "follow";
-                        const canShowActionMenu =
-                          isOwnProfile &&
-                          followModalType === "following" &&
-                          myFollowToListedUser?.status === "accepted";
-                        const canShowFollowerMenu =
-                          isOwnProfile &&
-                          followModalType === "followers" &&
-                          followerToMe?.status === "accepted" &&
-                          !isFollowingListedUser;
+                          <div className="ml-3 flex items-center gap-2">
+                            {rowFollowState === "following" ? (
+                              <button
+                                type="button"
+                                onClick={() => openFollowRemovalPrompt("following", listedUser)}
+                                disabled={followActionLoading === listedUser.id}
+                                className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
+                              >
+                                {followActionLoading === listedUser.id ? "Updating..." : "Following"}
+                              </button>
+                            ) : rowFollowState === "follow-back" ? (
+                              <button
+                                type="button"
+                                onClick={() => handleFollowBack(listedUser)}
+                                disabled={followActionLoading === listedUser.id}
+                                className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ff8d33]"
+                              >
+                                {followActionLoading === listedUser.id ? "Sending..." : "Follow Back"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleFollowBack(listedUser)}
+                                disabled={profileFollowActionLoading}
+                                className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ff8d33]"
+                              >
+                                Follow
+                              </button>
+                            )}
 
-                        return (
-                          <div
-                            key={listedUser.id}
-                            className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3 transition hover:border-white/15 hover:bg-white/[0.05]"
-                          >
-                            <Link href={`/profile/${listedUser.username}`} className="flex min-w-0 flex-1 items-center gap-3">
-                              {listedUser.avatar_url ? (
-                                <img
-                                  src={listedUser.avatar_url}
-                                  alt={listedUser.name}
-                                  className="h-10 w-10 rounded-full object-cover ring-1 ring-white/10"
-                                />
-                              ) : (
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-semibold text-[#f5f0de] ring-1 ring-white/10">
-                                  {listedUser.name.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-[#f5f0de]">{listedUser.name}</p>
-                                <p className="truncate text-xs text-white/55">@{listedUser.username}</p>
+                            {canShowFollowerMenu && (
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setOpenFollowMenuUserId((prev) => (prev === listedUser.id ? null : listedUser.id))
+                                  }
+                                  className="rounded-full p-1 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]"
+                                  aria-label="Open follower actions"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </button>
+
+                                {isMenuOpen && (
+                                  <div className="absolute right-0 top-8 z-20 min-w-[190px] rounded-xl border border-white/10 bg-[#111111] p-1 shadow-lg">
+                                    <button
+                                      type="button"
+                                      onClick={() => openFollowRemovalPrompt("follower", listedUser)}
+                                      disabled={followActionLoading === listedUser.id}
+                                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
+                                    >
+                                      {followActionLoading === listedUser.id ? "Updating..." : "Remove as follower"}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            </Link>
+                            )}
 
-                            <div className="ml-3 flex items-center gap-2">
-                              {rowFollowState === "following" ? (
+                            {canShowActionMenu && (
+                              <div className="relative">
                                 <button
                                   type="button"
-                                  onClick={() => openFollowRemovalPrompt("following", listedUser)}
-                                  disabled={followActionLoading === listedUser.id}
-                                  className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#f5f0de] transition hover:bg-white/10 disabled:opacity-60"
+                                  onClick={() =>
+                                    setOpenFollowMenuUserId((prev) => (prev === listedUser.id ? null : listedUser.id))
+                                  }
+                                  className="rounded-full p-1 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]"
+                                  aria-label="Open follow actions"
                                 >
-                                  {followActionLoading === listedUser.id ? "Updating..." : "Following"}
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </button>
-                              ) : rowFollowState === "follow-back" ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleFollowBack(listedUser)}
-                                  disabled={followActionLoading === listedUser.id}
-                                  className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ff8d33] disabled:opacity-60"
-                                >
-                                  {followActionLoading === listedUser.id ? "Sending..." : "Follow Back"}
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleFollowBack(listedUser)}
-                                  disabled={profileFollowActionLoading}
-                                  className="rounded-full bg-[#ff7a1a] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ff8d33] disabled:opacity-60"
-                                >
-                                  Follow
-                                </button>
-                              )}
 
-                              {canShowFollowerMenu && (
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setOpenFollowMenuUserId((prev) => (prev === listedUser.id ? null : listedUser.id))
-                                    }
-                                    className="rounded-full p-1 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]"
-                                    aria-label="Open follower actions"
-                                  >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </button>
-
-                                  {isMenuOpen && (
-                                    <div className="absolute right-0 top-8 z-20 min-w-[190px] rounded-xl border border-white/10 bg-[#111111] p-1 shadow-lg">
-                                      <button
-                                        type="button"
-                                        onClick={() => openFollowRemovalPrompt("follower", listedUser)}
-                                        disabled={followActionLoading === listedUser.id}
-                                        className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
-                                      >
-                                        {followActionLoading === listedUser.id ? "Updating..." : "Remove as follower"}
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {canShowActionMenu && (
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setOpenFollowMenuUserId((prev) => (prev === listedUser.id ? null : listedUser.id))
-                                    }
-                                    className="rounded-full p-1 text-white/55 hover:bg-white/5 hover:text-[#f5f0de]"
-                                    aria-label="Open follow actions"
-                                  >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </button>
-
-                                  {isMenuOpen && (
-                                    <div className="absolute right-0 top-8 z-20 min-w-[170px] rounded-xl border border-white/10 bg-[#111111] p-1 shadow-lg">
-                                      <button
-                                        type="button"
-                                        onClick={() => openFollowRemovalPrompt("following", listedUser)}
-                                        disabled={followActionLoading === listedUser.id}
-                                        className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
-                                      >
-                                        {followActionLoading === listedUser.id ? "Updating..." : "Remove as following"}
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                                {isMenuOpen && (
+                                  <div className="absolute right-0 top-8 z-20 min-w-[170px] rounded-xl border border-white/10 bg-[#111111] p-1 shadow-lg">
+                                    <button
+                                      type="button"
+                                      onClick={() => openFollowRemovalPrompt("following", listedUser)}
+                                      disabled={followActionLoading === listedUser.id}
+                                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#ffb36b] hover:bg-white/5 disabled:opacity-60"
+                                    >
+                                      {followActionLoading === listedUser.id ? "Updating..." : "Remove as following"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -2302,15 +1968,11 @@ function ProfilePageInner() {
               <h3 className="mt-2 text-xl font-black text-[#f5f0de]">
                 {followRemovalPrompt.kind === "following"
                   ? `Remove ${followRemovalPrompt.user.name} from following?`
-                  : followRemovalPrompt.kind === "request"
-                    ? `Cancel request to ${followRemovalPrompt.user.name}?`
-                    : `Remove ${followRemovalPrompt.user.name} as a follower?`}
+                  : `Remove ${followRemovalPrompt.user.name} as a follower?`}
               </h3>
               <p className="mt-2 text-sm leading-6 text-white/55">
                 {followRemovalPrompt.kind === "following"
                   ? `This will stop you from following @${followRemovalPrompt.user.username}.`
-                  : followRemovalPrompt.kind === "request"
-                    ? `This will cancel your follow request to @${followRemovalPrompt.user.username}.`
                   : `This will remove @${followRemovalPrompt.user.username} from your followers list.`}
               </p>
             </div>
@@ -2334,9 +1996,7 @@ function ProfilePageInner() {
               >
                 {followActionLoading === followRemovalPrompt.user.id || profileFollowActionLoading
                   ? "Removing..."
-                  : followRemovalPrompt.kind === "request"
-                    ? "Cancel Request"
-                    : "Remove"}
+                  : "Remove"}
               </button>
             </div>
           </div>

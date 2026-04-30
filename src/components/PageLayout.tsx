@@ -1,8 +1,7 @@
 "use client";
 
-import Sidebar from "./Sidebar";
 import EmailVerificationBadge from "./EmailVerificationBadge";
-import NotificationBell from "./NotificationBell";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { User } from "@/types";
@@ -11,6 +10,9 @@ import { Settings } from "lucide-react";
 import { onValue, ref } from "firebase/database";
 import { db } from "@/lib/firebase";
 import { DEFAULT_SETTINGS, mergeSettings, resolveThemePreference } from "@/lib/settings";
+
+const SidebarShell = dynamic(() => import("./Sidebar"), { ssr: false });
+const NotificationBellShell = dynamic(() => import("./NotificationBell"), { ssr: false });
 
 interface PageLayoutProps {
   user: User | null;
@@ -151,12 +153,12 @@ export default function PageLayout({
             <Settings className="h-5 w-5" />
           </Link>
         ) : (
-          <NotificationBell user={user} theme={theme} />
+          <NotificationBellShell user={user} theme={theme} />
         )}
       </header>
 
       {/* Sidebar: hidden on mobile, slide-in on open */}
-      <Sidebar
+      <SidebarShell
         user={user}
         onSignOut={onSignOut}
         mobileOpen={sidebarOpen}

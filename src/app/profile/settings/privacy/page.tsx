@@ -32,7 +32,7 @@ export default function SettingsPrivacyPage() {
           </select>
         </SettingLine>
 
-        <SettingLine icon={Users} title="Follow requests" description="Who can send you a follow request.">
+        <SettingLine icon={Users} title="Who can follow you" description="Who can follow your profile.">
           <select
             className={selectClass}
             value={settings.privacy.followRequests}
