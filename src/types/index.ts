@@ -261,6 +261,7 @@ export interface MovieLog {
   };
 
   ticket_image_url?: string | null; // Custom image/ticket uploaded for the log
+  imported_from_csv?: boolean; // Marks logs created from a ratings CSV import
 
   created_at: string;
   updated_at: string;

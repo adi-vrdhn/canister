@@ -3,6 +3,7 @@ import { ref, get } from "firebase/database";
 import { Content, MovieLog, MovieLogWithContent, User } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
+import { getVisibleLogNotes } from "./logs";
 
 function createFallbackContentForLog(log: MovieLog): Content {
   if (log.content_type === "tv") {
@@ -134,6 +135,7 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
 
           return {
             ...log,
+            notes: getVisibleLogNotes(log),
             content: content || createFallbackContentForLog(log),
             friend,
           };

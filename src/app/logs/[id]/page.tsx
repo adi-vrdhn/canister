@@ -6,7 +6,7 @@ import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
 import LogMovieModal from "@/components/LogMovieModal";
 import { MovieLog, MovieLogWithContent, User, Content, LogCommentWithUser } from "@/types";
-import { deleteMovieLog, updateMovieLog, getLogsForContent } from "@/lib/logs";
+import { deleteMovieLog, updateMovieLog, getLogsForContent, getVisibleLogNotes } from "@/lib/logs";
 import { likeLog, unlikeLog, getLogLikes } from "@/lib/log-likes";
 import { getMovieDetails } from "@/lib/tmdb";
 import { getShowDetails } from "@/lib/tvmaze";
@@ -536,7 +536,7 @@ export default function LogDetailPage() {
           content_type: contentType,
           watched_date: logData.watched_date || new Date().toISOString().slice(0, 10),
           reaction: typeof logData.reaction === "number" ? logData.reaction : 1,
-          notes: logData.notes || "",
+          notes: getVisibleLogNotes(logData),
           created_at: logData.created_at || new Date().toISOString(),
           updated_at: logData.updated_at || new Date().toISOString(),
           content,

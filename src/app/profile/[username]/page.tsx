@@ -1152,7 +1152,11 @@ function ProfilePageInner() {
           "movie",
           watchedDate,
           getReactionFromRating(ratingValue),
-          "Imported from ratings CSV"
+          "",
+          undefined,
+          undefined,
+          undefined,
+          true
         );
 
         imported += 1;

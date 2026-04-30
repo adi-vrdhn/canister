@@ -67,6 +67,13 @@ export async function POST(request: NextRequest) {
         notificationId: body.notificationId || "",
       },
       webpush: {
+        notification: {
+          title,
+          body: messageBody,
+          icon: "/logo.png",
+          badge: "/logo.png",
+          tag: body.tag || body.notificationId || body.type || "canisterr",
+        },
         fcmOptions: {
           link: body.url || "/notifications",
         },

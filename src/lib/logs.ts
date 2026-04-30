@@ -5,6 +5,16 @@ import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 import { removeWatchedMovieSource, upsertWatchedMovie } from "./watched-movies";
 
+const IMPORTED_RATINGS_CSV_NOTE = "Imported from ratings CSV";
+
+export function isImportedRatingsCsvLog(log: Pick<MovieLog, "notes" | "imported_from_csv">): boolean {
+  return Boolean(log.imported_from_csv) || (log.notes || "").trim() === IMPORTED_RATINGS_CSV_NOTE;
+}
+
+export function getVisibleLogNotes(log: Pick<MovieLog, "notes" | "imported_from_csv">): string {
+  return isImportedRatingsCsvLog(log) ? "" : (log.notes || "");
+}
+
 function createFallbackMovieContent(movieId: number): Movie {
   return {
     id: movieId,
@@ -126,7 +136,8 @@ export async function createMovieLog(
     watched_with?: string;
     mood?: string;
   },
-  ticketImageUrl?: string | null
+  ticketImageUrl?: string | null,
+  importedFromCsv?: boolean
 ): Promise<MovieLog> {
   const logRef = push(ref(db, "movie_logs"));
   const logId = logRef.key;
@@ -164,6 +175,10 @@ export async function createMovieLog(
 
   if (ticketImageUrl) {
     newLog.ticket_image_url = ticketImageUrl;
+  }
+
+  if (importedFromCsv) {
+    newLog.imported_from_csv = true;
   }
 
   await set(logRef, newLog);
@@ -242,6 +257,7 @@ export async function getUserMovieLogs(userId: string, limit: number = 50): Prom
 
     const logsWithContent: MovieLogWithContent[] = userLogs.map((log) => ({
       ...log,
+      notes: getVisibleLogNotes(log),
       content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
       user,
     }));
@@ -277,6 +293,7 @@ export async function getPublicMovieLogs(limit: number = 50): Promise<MovieLogWi
 
     const logsWithContent: MovieLogWithContent[] = publicLogs.map((log) => ({
       ...log,
+      notes: getVisibleLogNotes(log),
       content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
       user: usersById.get(log.user_id) || {
         id: log.user_id,
@@ -353,6 +370,7 @@ export async function getLogsForContent(
 
         return {
           ...log,
+          notes: getVisibleLogNotes(log),
           content,
           user,
         };
@@ -569,6 +587,7 @@ export async function getUserWatchlist(userId: string): Promise<MovieLogWithCont
 
         return {
           ...log,
+          notes: getVisibleLogNotes(log),
           content,
           user,
         };

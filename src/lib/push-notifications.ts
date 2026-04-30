@@ -24,6 +24,14 @@ export type PushEnableResult =
       message: string;
     };
 
+export type PushSendResult = {
+  ok: boolean;
+  skipped?: string;
+  successCount?: number;
+  failureCount?: number;
+  error?: string;
+};
+
 function readStorage(key: string): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -109,8 +117,16 @@ export async function enablePushNotificationsForUser(userId: string): Promise<Pu
   const messaging = getMessaging(app);
   const registration = await ensurePushServiceWorkerRegistration();
   const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+  if (!vapidKey) {
+    return {
+      ok: false,
+      reason: "token" as const,
+      message: "Missing NEXT_PUBLIC_FIREBASE_VAPID_KEY, so this browser cannot register for push.",
+    };
+  }
+
   const token = await getToken(messaging, {
-    ...(vapidKey ? { vapidKey } : {}),
+    vapidKey,
     ...(registration ? { serviceWorkerRegistration: registration } : {}),
   });
 
@@ -120,6 +136,14 @@ export async function enablePushNotificationsForUser(userId: string): Promise<Pu
       reason: "token" as const,
       message: "Could not create a push token for this device.",
     };
+  }
+
+  const existingTokensRef = ref(db, `users/${userId}/push_tokens`);
+  const existingTokensSnapshot = await get(existingTokensRef);
+  if (existingTokensSnapshot.exists()) {
+    const existingTokens = existingTokensSnapshot.val() as Record<string, { token?: string }>;
+    const duplicateEntries = Object.entries(existingTokens).filter(([, value]) => value?.token === token);
+    await Promise.all(duplicateEntries.map(([key]) => remove(ref(db, `users/${userId}/push_tokens/${key}`))));
   }
 
   const tokenRef = push(ref(db, `users/${userId}/push_tokens`));
@@ -155,15 +179,72 @@ export async function sendPushNotification(input: PushDeliveryInput): Promise<vo
   if (typeof window === "undefined") return;
 
   try {
-    await fetch("/api/push/send", {
+    const response = await fetch("/api/push/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(input),
     });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      console.warn("Push notification dispatch failed:", payload?.error || response.statusText);
+      return;
+    }
+
+    const payload = (await response.json().catch(() => null)) as PushSendResult | null;
+    if (!payload?.ok) {
+      console.warn("Push notification dispatch failed:", payload?.error || "Unknown push error");
+      return;
+    }
+
+    if (payload.skipped) {
+      console.warn("Push notification skipped:", payload.skipped);
+    }
   } catch (error) {
     console.warn("Push notification dispatch failed:", error);
+  }
+}
+
+export async function sendTestPushNotification(userId: string): Promise<PushSendResult> {
+  if (typeof window === "undefined") {
+    return { ok: false, error: "Test notifications must be sent from a browser session." };
+  }
+
+  if (!userId) {
+    return { ok: false, error: "Missing user id for test push notification." };
+  }
+
+  try {
+    const response = await fetch("/api/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId,
+        title: "Canisterr test notification",
+        body: "Push notifications are working on this device.",
+        url: "/notifications",
+        tag: "canisterr-test",
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as PushSendResult | null;
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: payload?.error || "The push send route returned an error.",
+      };
+    }
+
+    return payload || { ok: false, error: "No response from push send route." };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to send a test notification.",
+    };
   }
 }
 

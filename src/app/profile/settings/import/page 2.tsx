@@ -163,7 +163,7 @@ export default function SettingsImportPage() {
         }
 
         const watchedDate = isValidDateString(row.date) ? row.date : new Date().toISOString().split("T")[0];
-        await createMovieLog(auth.currentUser.uid, match.id, "movie", watchedDate, getReactionFromRating(ratingValue), "Imported from ratings CSV");
+        await createMovieLog(auth.currentUser.uid, match.id, "movie", watchedDate, getReactionFromRating(ratingValue), "", undefined, undefined, undefined, true);
         imported += 1;
       }
 
@@ -233,7 +233,7 @@ export default function SettingsImportPage() {
       const removals: Promise<void>[] = [];
       let removed = 0;
       Object.entries(logsSnap.val() as Record<string, MovieLog>).forEach(([id, log]) => {
-        if (log.user_id === user.id && log.notes === "Imported from ratings CSV") {
+        if (log.user_id === user.id && (log.imported_from_csv || log.notes === "Imported from ratings CSV")) {
           removals.push(remove(ref(db, `movie_logs/${id}`)));
           removed += 1;
         }

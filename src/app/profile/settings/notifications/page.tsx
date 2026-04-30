@@ -9,6 +9,7 @@ import {
   disablePushNotificationsForUser,
   enablePushNotificationsForUser,
   getPushEnrollmentState,
+  sendTestPushNotification,
   type PushEnrollmentState,
 } from "@/lib/push-notifications";
 
@@ -20,6 +21,7 @@ export default function SettingsNotificationsPage() {
     enabled: false,
   });
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushTestBusy, setPushTestBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string>("");
 
   useEffect(() => {
@@ -72,6 +74,37 @@ export default function SettingsNotificationsPage() {
     }
   };
 
+  const handlePushTest = async () => {
+    if (!user || pushTestBusy) return;
+
+    setPushTestBusy(true);
+    setPushMessage("");
+    try {
+      const result = await sendTestPushNotification(user.id);
+      if (!result.ok) {
+        setPushMessage(result.error || "Could not send a test notification.");
+        return;
+      }
+
+      if (result.skipped) {
+        setPushMessage(`Test notification skipped: ${result.skipped}.`);
+        return;
+      }
+
+      if ((result.successCount || 0) > 0) {
+        setPushMessage("Test notification sent. If this tab is open, you may see it instantly or in the browser tray.");
+        return;
+      }
+
+      setPushMessage(result.error || "The test notification did not reach any registered device tokens.");
+    } catch (error) {
+      console.error("Error sending test push notification:", error);
+      setPushMessage("Could not send a test notification right now.");
+    } finally {
+      setPushTestBusy(false);
+    }
+  };
+
   const pushStatusText = !pushState.supported
     ? "Not supported in this browser."
     : pushState.permission === "denied"
@@ -96,19 +129,32 @@ export default function SettingsNotificationsPage() {
         >
           <div className="flex flex-col items-end gap-2">
             <p className="text-right text-xs font-semibold text-white/55">{pushStatusText}</p>
-            <button
-              type="button"
-              onClick={() => void handlePushToggle()}
-              disabled={pushBusy || (!pushState.supported && !pushState.enabled)}
-              className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black transition ${
-                pushState.enabled
-                  ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white"
-                  : "bg-[#ff7a1a] text-[#0a0a0a] hover:bg-[#ff8d3b]"
-              } disabled:cursor-not-allowed disabled:opacity-60`}
-            >
-              {pushBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {pushState.enabled ? "Disable" : "Enable on this device"}
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              {pushState.enabled ? (
+                <button
+                  type="button"
+                  onClick={() => void handlePushTest()}
+                  disabled={pushBusy || pushTestBusy}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-[#f5f0de] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {pushTestBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  Send test
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void handlePushToggle()}
+                disabled={pushBusy || pushTestBusy || (!pushState.supported && !pushState.enabled)}
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black transition ${
+                  pushState.enabled
+                    ? "bg-[#f5f0de] text-[#0a0a0a] hover:bg-white"
+                    : "bg-[#ff7a1a] text-[#0a0a0a] hover:bg-[#ff8d3b]"
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                {pushBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {pushState.enabled ? "Disable" : "Enable on this device"}
+              </button>
+            </div>
           </div>
         </SettingLine>
 

@@ -15,7 +15,7 @@ import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getMovieDetails } from "@/lib/tmdb";
 import { getMovieReviewFeed } from "@/lib/movie-reviews";
-import { getLogsForContent } from "@/lib/logs";
+import { getLogsForContent, getVisibleLogNotes } from "@/lib/logs";
 import { buildLogUrl } from "@/lib/log-url";
 import { ArrowLeft, Share2, MessageCircle, Bookmark, LogsIcon, Users, ChevronRight } from "lucide-react";
 import Link from "next/link";
@@ -115,7 +115,7 @@ export default function MoviePage() {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
 
-    setUserLogHistory(history);
+    setUserLogHistory(history.map((log) => ({ ...log, notes: getVisibleLogNotes(log) })));
   };
 
   useEffect(() => {
