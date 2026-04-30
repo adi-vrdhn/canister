@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, List, NotebookText, ScanSearch, Share2 } from "lucide-react";
+import { House, LayoutList, NotebookPen, ScanSearch, SendHorizontal } from "lucide-react";
 
 type NavItem = {
   href: string;
@@ -13,9 +13,9 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: House, exact: false },
-  { href: "/share", label: "Share", icon: Share2, exact: false },
-  { href: "/logs", label: "Log", icon: NotebookText, exact: false },
-  { href: "/lists", label: "List", icon: List, exact: false },
+  { href: "/share", label: "Share", icon: SendHorizontal, exact: false },
+  { href: "/logs", label: "Log", icon: NotebookPen, exact: false },
+  { href: "/lists", label: "List", icon: LayoutList, exact: false },
   { href: "/movie-matcher", label: "Matcher", icon: ScanSearch, exact: false },
 ];
 
@@ -30,28 +30,29 @@ export default function PwaBottomNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 lg:hidden">
       <div className="grid h-[calc(4.75rem+env(safe-area-inset-bottom))] grid-cols-5 border-t border-white/10 bg-[#050505]/98 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-          {NAV_ITEMS.map(({ href, label, icon: Icon, exact }) => {
-            const active = isActivePath(pathname, href, exact);
+        {NAV_ITEMS.map(({ href, label, icon: Icon, exact }) => {
+          const active = isActivePath(pathname, href, exact);
 
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={`relative flex h-full flex-col items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
-                  active ? "text-[#f5f0de]" : "text-white/55 hover:text-white/80"
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className={`relative flex h-full flex-col items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
+                active ? "text-[#ff7a1a]" : "text-white/55 hover:text-white/80"
+              }`}
+              aria-label={label}
+            >
+              <Icon
+                className={`relative z-10 h-6 w-6 transition-all duration-200 ${
+                  active ? "text-[#ff7a1a]" : "text-white/70"
                 }`}
-                aria-label={label}
-              >
-                <Icon className={`h-6 w-6 ${active ? "text-[#f5f0de]" : "text-white/70"}`} />
-                <span
-                  className={`absolute bottom-0 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[#ff7a1a] transition-opacity ${
-                    active ? "opacity-100" : "opacity-0"
-                  }`}
-                />
-              </Link>
-            );
-          })}
+                strokeWidth={active ? 2.9 : 2.2}
+                fill={active ? "currentColor" : "none"}
+              />
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );

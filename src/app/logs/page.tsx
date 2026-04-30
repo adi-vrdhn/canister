@@ -15,11 +15,11 @@ import { deleteMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import { buildLogUrl } from "@/lib/log-url";
-import ShareLinkButton from "@/components/ShareLinkButton";
 import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Image as ImageIcon,
   Loader2,
   Pencil,
   Plus,
@@ -170,7 +170,7 @@ function LogCard({
   isRewatch: boolean;
 }) {
   const hasReview = Boolean(log.notes && log.notes.trim().length > 0);
-  const shareHref = buildLogUrl(log);
+  const hasTicketImage = Boolean(log.ticket_image_url);
   return (
     <div
       role="button"
@@ -182,9 +182,9 @@ function LogCard({
           onOpen(log);
         }
       }}
-      className="group grid w-full cursor-pointer grid-cols-[3rem_minmax(0,1fr)] items-start gap-2.5 text-left sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-4"
+      className="group grid w-full cursor-pointer grid-cols-[3rem_minmax(0,1fr)] items-stretch gap-2.5 text-left sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-4"
     >
-      <div className="relative flex flex-col items-center justify-center text-[#ff7a1a]">
+      <div className="relative flex self-stretch flex-col items-center justify-center text-[#ff7a1a]">
         <span className="text-2xl font-black leading-none tracking-tight sm:text-3xl">
           {getDayDD(log.watched_date)}
         </span>
@@ -223,35 +223,35 @@ function LogCard({
                 </span>
               )}
 
-              <div className="mt-1 flex items-center gap-1.5">
+              <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${getReactionClasses(log)}`}>
                   {getReactionLabel(log)}
                 </span>
                 {isRewatch && (
                   <span
-                    className="inline-flex items-center justify-center text-[#f5f0de]/80 transition group-hover:text-[#f5f0de]"
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-1 text-[#f5f0de]/80 transition group-hover:text-[#f5f0de]"
                     aria-label="Rewatch"
                     title="Rewatch"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                   </span>
                 )}
+                {hasTicketImage && (
+                  <span
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-1 text-[#f5f0de]/80 transition group-hover:text-[#ffb36b]"
+                    aria-label="Ticket image"
+                    title="Ticket image"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" />
+                  </span>
+                )}
                 {hasReview && (
                   <span className="text-[10px] font-semibold text-white/45 transition group-hover:text-[#ffb36b] sm:hidden">
-                    Details
+                    Review
                   </span>
                 )}
               </div>
             </div>
-
-            <ShareLinkButton
-              href={shareHref}
-              title={log.content.title}
-              text={`Take a look at ${log.content.title} on Canisterr.`}
-              showLabel
-              className="mt-0.5 shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-[#ff7a1a]/35 hover:bg-white/[0.08] hover:text-[#ffb36b]"
-              ariaLabel={`Share ${log.content.title}`}
-            />
           </div>
         </div>
       </div>

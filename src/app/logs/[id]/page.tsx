@@ -19,6 +19,7 @@ import {
   Heart,
   Sparkles,
   CalendarDays,
+  Image as ImageIcon,
   X,
   MessageCircle,
   Send,
@@ -848,6 +849,7 @@ export default function LogDetailPage() {
   };
 
   const releaseYear = log?.content.release_date ? new Date(log.content.release_date).getFullYear() : null;
+  const hasTicketImage = Boolean(ticketImageUrl);
   const sortedComments = useMemo(() => sortLogCommentTree(comments, "top", log?.user_id), [comments, log?.user_id]);
   const contentHref = log
     ? log.content_type === "tv"
@@ -1009,35 +1011,10 @@ export default function LogDetailPage() {
                       ticketSide === "front" ? "pointer-events-auto" : "pointer-events-none"
                     }`}
                   >
-                    <Link
-                      href={contentHref}
-                      className="absolute inset-0 z-0 block"
-                      aria-label={`Open ${log.content.title}`}
-                    >
-                      {log.content.poster_url ? (
-                        <img
-                          src={log.content.poster_url}
-                          alt={log.content.title}
-                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.01]"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-white/3 text-xs uppercase tracking-[0.2em] text-white/30">
-                          No poster
-                        </div>
-                      )}
-                    </Link>
-                  </div>
-
-                  <div
-                    className={`absolute inset-0 [backface-visibility:hidden] ${
-                      ticketSide === "back" ? "pointer-events-auto" : "pointer-events-none"
-                    }`}
-                    style={{ transform: "rotateY(180deg)" }}
-                  >
-                    {ticketImageUrl ? (
+                    {hasTicketImage ? (
                       <div className="relative h-full w-full">
                         <img
-                          src={ticketImageUrl}
+                          src={ticketImageUrl || ""}
                           alt={`${log.content.title} ticket`}
                           className="h-full w-full object-cover"
                         />
@@ -1052,6 +1029,51 @@ export default function LogDetailPage() {
                           </button>
                         )}
                       </div>
+                    ) : (
+                      <Link
+                        href={contentHref}
+                        className="absolute inset-0 z-0 block"
+                        aria-label={`Open ${log.content.title}`}
+                      >
+                        {log.content.poster_url ? (
+                          <img
+                            src={log.content.poster_url}
+                            alt={log.content.title}
+                            className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.01]"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-white/3 text-xs uppercase tracking-[0.2em] text-white/30">
+                            No poster
+                          </div>
+                        )}
+                      </Link>
+                    )}
+                  </div>
+
+                  <div
+                    className={`absolute inset-0 [backface-visibility:hidden] ${
+                      ticketSide === "back" ? "pointer-events-auto" : "pointer-events-none"
+                    }`}
+                    style={{ transform: "rotateY(180deg)" }}
+                  >
+                    {hasTicketImage ? (
+                      <Link
+                        href={contentHref}
+                        className="absolute inset-0 z-0 block"
+                        aria-label={`Open ${log.content.title}`}
+                      >
+                        {log.content.poster_url ? (
+                          <img
+                            src={log.content.poster_url}
+                            alt={log.content.title}
+                            className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.01]"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-white/3 text-xs uppercase tracking-[0.2em] text-white/30">
+                            No poster
+                          </div>
+                        )}
+                      </Link>
                     ) : isOwnLog ? (
                       <div className="flex h-full flex-col items-center justify-center px-4 text-center">
                         <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffb36b]/75">
@@ -1090,7 +1112,7 @@ export default function LogDetailPage() {
                   onClick={() => setTicketSide("front")}
                   className={ticketSide === "front" ? "text-[#ff7a1a]" : "text-white/45 hover:text-[#f5f0de]"}
                 >
-                  Front
+                  {hasTicketImage ? "Picture" : "Front"}
                 </button>
                 <span className="text-white/15">/</span>
                 <button
@@ -1098,7 +1120,7 @@ export default function LogDetailPage() {
                   onClick={() => setTicketSide("back")}
                   className={ticketSide === "back" ? "text-[#ff7a1a]" : "text-white/45 hover:text-[#f5f0de]"}
                 >
-                  Back
+                  {hasTicketImage ? "Poster" : "Back"}
                 </button>
                 {isOwnLog && ticketImageUrl && (
                   <>
@@ -1139,25 +1161,16 @@ export default function LogDetailPage() {
 
               <div className="mt-4 space-y-2 text-[13px] text-white/72 sm:text-sm">
                 {releaseYear && (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
-                    <span>{releaseYear}</span>
-                  </div>
+                  <p>Year {releaseYear}</p>
                 )}
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
-                  <span className="inline-flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    Watched {formatDate(log.watched_date)}
-                  </span>
-                </div>
+                <p className="inline-flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Watched {formatDate(log.watched_date)}
+                </p>
                 {log.content.genres?.length ? (
-                  <div className="flex items-start gap-2">
-                    <span className="mt-2 inline-flex h-2 w-2 rounded-full bg-[#ff7a1a]" />
-                    <p className="leading-6 text-[#f5f0de]/76">
-                      {log.content.genres.slice(0, 4).join(" • ")}
-                    </p>
-                  </div>
+                  <p className="leading-6 text-[#f5f0de]/76">
+                    {log.content.genres.slice(0, 4).join(", ")}
+                  </p>
                 ) : null}
                 <div className="pt-3 text-[10px] uppercase tracking-[0.22em] text-[#ffb36b]/75">
                   {log.content_type === "tv" ? "TV Show" : "Movie"}
@@ -1176,11 +1189,22 @@ export default function LogDetailPage() {
                 const reaction = getReactionDisplay(log.reaction as 0 | 1 | 2);
                 const reactionLabel = <span className={reaction.textClass}>{reaction.label}</span>;
                 return (
-                  <span
-                    className={`inline-flex items-center gap-2 border px-4 py-1.5 text-sm font-bold ${reaction.badgeClass}`}
-                  >
-                    {reactionLabel}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-2 border px-4 py-1.5 text-sm font-bold ${reaction.badgeClass}`}
+                    >
+                      {reactionLabel}
+                    </span>
+                    {ticketImageUrl && (
+                      <span
+                        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-1.5 text-[#f5f0de]/80"
+                        aria-label="Ticket image attached"
+                        title="Ticket image attached"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                  </div>
                 );
               })()}
             </div>

@@ -1330,7 +1330,7 @@ function ProfilePageInner() {
           {displayListError}
         </div>
       )}
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-6 sm:pb-12 lg:px-8">
         <div className="mb-5 flex items-center justify-between gap-3">
           <button
             onClick={() => router.push("/dashboard")}
@@ -1727,7 +1727,7 @@ function ProfilePageInner() {
         </section>
 
         {isFollowModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-3 backdrop-blur-md sm:items-center">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-3 pb-[calc(8rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:items-center sm:pb-3">
             <button
               type="button"
               className="absolute inset-0 cursor-default"
@@ -1736,7 +1736,7 @@ function ProfilePageInner() {
             />
             <div className="relative w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#0f0f0f] shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:rounded-[2rem]">
               <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,rgba(255,122,26,0.18),transparent_55%)]" />
-              <div className="relative max-h-[86dvh] overflow-y-auto p-4 sm:p-6">
+              <div className="relative max-h-[78dvh] overflow-y-auto p-4 sm:max-h-[82dvh] sm:p-6">
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.32em] text-[#ffb36b]/75">People</p>

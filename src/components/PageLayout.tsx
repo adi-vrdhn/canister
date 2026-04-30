@@ -172,7 +172,11 @@ export default function PageLayout({
         />
       )}
 
-      <div className={`min-w-0 flex-1 overflow-auto pt-16 lg:pl-72 ${isBrutalist ? "bg-[#0a0a0a]" : ""} ${showPwaBottomNav ? "pb-28" : ""}`}>
+      <div
+        className={`min-w-0 flex-1 overflow-auto pt-16 lg:pl-72 ${isBrutalist ? "bg-[#0a0a0a]" : ""} ${
+          showPwaBottomNav ? "pb-[calc(7.5rem+env(safe-area-inset-bottom))]" : ""
+        }`}
+      >
         <EmailVerificationBadge className="mx-auto mt-3 w-full max-w-[1600px] px-1 sm:px-2" />
         <div className={fullWidth ? "w-full" : "mx-auto w-full max-w-[1600px] px-3 py-2 sm:px-4 md:px-6 lg:px-8"}>
           {children}

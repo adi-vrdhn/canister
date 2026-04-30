@@ -361,7 +361,7 @@ function PeopleModal({
   const isBrutalist = theme === "brutalist";
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-end justify-center p-3 backdrop-blur-sm sm:items-center ${
+    <div className={`fixed inset-0 z-50 flex items-end justify-center p-3 pb-[calc(8rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-3 ${
       isBrutalist ? "bg-black/70" : "bg-slate-950/45"
     }`}>
       <div
@@ -398,7 +398,7 @@ function PeopleModal({
             No one here yet.
           </p>
         ) : (
-          <div className="max-h-80 space-y-2 overflow-y-auto">
+          <div className="max-h-[70dvh] space-y-2 overflow-y-auto sm:max-h-80">
             {users.map((user) => (
               <Link
                 key={user.id}

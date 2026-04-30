@@ -30,7 +30,7 @@ export default function SettingsPageFrame({
 
   return (
     <PageLayout user={user} onSignOut={onSignOut}>
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-3xl px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-6 sm:pb-10">
         <Link href={backHref} className="inline-flex items-center gap-2 text-sm font-semibold text-white/60 transition hover:text-[#ffb36b]">
           <ArrowLeft className="h-4 w-4" />
           Back
