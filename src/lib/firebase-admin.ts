@@ -1,17 +1,57 @@
-import { cert, getApps, getApp, initializeApp, type App, applicationDefault } from "firebase-admin/app";
+import { cert, getApps, getApp, initializeApp, type App, applicationDefault, type ServiceAccount } from "firebase-admin/app";
 import { getDatabase } from "firebase-admin/database";
 import { getMessaging } from "firebase-admin/messaging";
 
 let cachedAdminApp: App | null = null;
+
+type ServiceAccountShape = ServiceAccount & {
+  project_id?: string;
+  client_email?: string;
+  private_key?: string;
+};
+
+function stripWrappingQuotes(value: string) {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function normalizeServiceAccount(candidate: ServiceAccountShape) {
+  if (!candidate || typeof candidate !== "object") {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON did not parse into an object.");
+  }
+
+  if (!candidate.project_id || !candidate.client_email || !candidate.private_key) {
+    throw new Error(
+      "FIREBASE_SERVICE_ACCOUNT_JSON is missing required Firebase service account fields."
+    );
+  }
+
+  return {
+    ...candidate,
+    private_key: candidate.private_key.replace(/\\n/g, "\n"),
+  };
+}
 
 function getServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw);
+    return normalizeServiceAccount(JSON.parse(stripWrappingQuotes(raw)));
   } catch (error) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.");
+    try {
+      const decoded = Buffer.from(stripWrappingQuotes(raw), "base64").toString("utf8");
+      return normalizeServiceAccount(JSON.parse(decoded));
+    } catch {
+      const reason = error instanceof Error ? error.message : "Unknown parse error.";
+      throw new Error(`FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON. ${reason}`);
+    }
   }
 }
 

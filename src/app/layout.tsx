@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import HydrationFix from "@/components/HydrationFix";
+import AutoPushPrompt from "@/components/AutoPushPrompt";
 import ForegroundPushListener from "@/components/ForegroundPushListener";
 import GlobalErrorListener from "@/components/GlobalErrorListener";
 import LocalhostServiceWorkerCleanup from "@/components/LocalhostServiceWorkerCleanup";
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         <LocalhostServiceWorkerCleanup />
         <HydrationFix>{children}</HydrationFix>
+        <AutoPushPrompt />
         <ForegroundPushListener />
         <GlobalErrorListener />
         <PwaBottomNav />
