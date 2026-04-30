@@ -32,6 +32,10 @@ export type PushSendResult = {
   error?: string;
 };
 
+function getCurrentPushToken(): string | null {
+  return readStorage(PUSH_TOKEN_VALUE_KEY);
+}
+
 function readStorage(key: string): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -216,6 +220,14 @@ export async function sendTestPushNotification(userId: string): Promise<PushSend
     return { ok: false, error: "Missing user id for test push notification." };
   }
 
+  const targetToken = getCurrentPushToken();
+  if (!targetToken) {
+    return {
+      ok: false,
+      error: "This device has not registered a push token yet. Enable notifications on this device first.",
+    };
+  }
+
   try {
     const response = await fetch("/api/push/send", {
       method: "POST",
@@ -228,6 +240,7 @@ export async function sendTestPushNotification(userId: string): Promise<PushSend
         body: "Push notifications are working on this device.",
         url: "/notifications",
         tag: "canisterr-test",
+        targetToken,
       }),
     });
 

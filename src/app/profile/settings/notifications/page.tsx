@@ -92,7 +92,7 @@ export default function SettingsNotificationsPage() {
       }
 
       if ((result.successCount || 0) > 0) {
-        setPushMessage("Test notification sent. If this tab is open, you may see it instantly or in the browser tray.");
+        setPushMessage("Test notification sent to this device. If this app is open, you may see it instantly or in the browser tray.");
         return;
       }
 

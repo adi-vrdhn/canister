@@ -10,6 +10,7 @@ type PushSendBody = {
   tag?: string;
   type?: string;
   notificationId?: string;
+  targetToken?: string;
 };
 
 export async function POST(request: NextRequest) {
@@ -53,9 +54,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, skipped: "no-tokens" });
     }
 
+    const targetToken = body.targetToken?.trim();
+    const targetTokens = targetToken ? tokens.filter((entry) => entry.token === targetToken) : tokens;
+
+    if (targetTokens.length === 0) {
+      return NextResponse.json({ ok: true, skipped: "target-token-not-found" });
+    }
+
     const messaging = getFirebaseAdminMessaging();
     const response = await messaging.sendEachForMulticast({
-      tokens: tokens.map((entry) => entry.token),
+      tokens: targetTokens.map((entry) => entry.token),
       notification: {
         title,
         body: messageBody,
@@ -85,7 +93,7 @@ export async function POST(request: NextRequest) {
       if (result.success) return;
       const errorCode = result.error?.code || "";
       if (errorCode.includes("registration-token-not-registered") || errorCode.includes("invalid-registration-token")) {
-        removals.push(db.ref(`users/${userId}/push_tokens/${tokens[index].key}`).remove());
+        removals.push(db.ref(`users/${userId}/push_tokens/${targetTokens[index].key}`).remove());
       }
     });
 
