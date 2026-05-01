@@ -197,7 +197,7 @@ function LogCard({
 
       <div className="rounded-[1.35rem] border border-white/10 bg-[#111111] p-2.5 shadow-[0_16px_35px_rgba(0,0,0,0.22)] transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_20px_45px_rgba(0,0,0,0.28)] sm:rounded-[1.5rem] sm:p-3">
         <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)]">
-          <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white/5 shadow-sm">
+          <div className="relative h-[4.3rem] w-[3rem] overflow-hidden rounded-lg border border-white/10 bg-white/5 shadow-sm sm:h-[5rem] sm:w-[3.5rem]">
             {log.content.poster_url ? (
               <Image
                 src={log.content.poster_url}
@@ -809,7 +809,7 @@ export default function LogsPage() {
       </div>
 
       {showSearchModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-2 pt-2 sm:items-center sm:p-4">
           <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#111111] text-[#f5f0de] shadow-2xl sm:max-h-[90vh] sm:rounded-lg">
             <div className="flex items-center justify-between border-b border-white/10 p-4 sm:p-6">
               <h2 className="text-lg font-bold text-[#f5f0de] sm:text-xl">Search & Log Movie</h2>

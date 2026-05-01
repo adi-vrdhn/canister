@@ -94,9 +94,11 @@ type TasteItem = UserTasteWithContent & {
 function FriendMatchCard({
   friend,
   onFindScore,
+  disabled = false,
 }: {
   friend: FriendMatch;
   onFindScore: () => void;
+  disabled?: boolean;
 }) {
   const [count, setCount] = useState<number | null>(null);
 
@@ -143,11 +145,16 @@ function FriendMatchCard({
         </div>
       </div>
       <button
-        className="shrink-0 rounded-full border border-white/10 bg-[#ff7a1a] px-3 py-2 text-xs font-semibold text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b] sm:px-4 sm:text-sm"
+        disabled={disabled}
+        className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
+          disabled
+            ? "cursor-not-allowed border-white/10 bg-white/10 text-white/35"
+            : "border-white/10 bg-[#ff7a1a] text-[#0a0a0a] hover:bg-[#ff8d3b]"
+        }`}
         onClick={onFindScore}
       >
-        <span className="sm:hidden">Score</span>
-        <span className="hidden sm:inline">Find My Score</span>
+        <span className="sm:hidden">{disabled ? "Need 7" : "Score"}</span>
+        <span className="hidden sm:inline">{disabled ? "Add 7 Movies First" : "Find My Score"}</span>
       </button>
     </div>
   );
@@ -222,6 +229,12 @@ export default function MovieMatcherPage() {
   }, []);
 
   const handleSelectFriend = (friend: FriendMatch) => {
+    if (tasteProfileCount < 7) {
+      setError("Add at least 7 movies to your taste profile before matching with friends.");
+      setShowFriendsDropdown(false);
+      return;
+    }
+
     setSelectedFriend(friend);
     setShowFriendsDropdown(false);
   };
@@ -764,6 +777,7 @@ export default function MovieMatcherPage() {
       ]
     : tastes.map((t) => ({ ...t, isMasterpiece: false }));
   const tasteProfileCount = tasteProfile.length;
+  const canMatchFriends = tasteProfileCount >= 7;
   const filteredEditableTastes = tastes
     .filter((taste) => taste.content?.title)
     .filter((taste) =>
@@ -772,7 +786,7 @@ export default function MovieMatcherPage() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
-      <div className="mx-auto max-w-6xl px-3 py-4 sm:p-8">
+      <div className="mx-auto max-w-6xl px-3 pt-4 pb-[calc(10rem+env(safe-area-inset-bottom))] sm:px-8 sm:pt-8 sm:pb-[calc(10rem+env(safe-area-inset-bottom))] lg:px-8 lg:py-8 lg:pb-8">
         {/* Error Alert */}
         {error && (
           <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 sm:mb-6 sm:p-4">
@@ -961,6 +975,11 @@ export default function MovieMatcherPage() {
                 <p className="mb-5 max-w-2xl text-sm text-white/60 sm:text-base">
                   Instantly see your compatibility with friends who have built their taste profile.
                 </p>
+                {!canMatchFriends && (
+                  <div className="mb-5 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-4 text-sm text-[#ffb36b]">
+                    Add at least 7 movies to your taste profile before you can match with friends.
+                  </div>
+                )}
                 {loadingFriends ? (
                   <div className="py-8 text-center text-sm text-white/55 sm:text-base">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
@@ -978,7 +997,13 @@ export default function MovieMatcherPage() {
                         <FriendMatchCard
                           key={friend.userId}
                           friend={friend}
+                          disabled={!canMatchFriends}
                           onFindScore={async () => {
+                            if (!canMatchFriends) {
+                              setError("Add at least 7 movies to your taste profile before matching with friends.");
+                              return;
+                            }
+
                             if (isMobileViewport) {
                               router.push(`/movie-matcher/${friend.username}?from=matcher`);
                               return;
@@ -1057,12 +1082,23 @@ export default function MovieMatcherPage() {
                   Select a Friend
                 </h3>
 
+                {!canMatchFriends && (
+                  <div className="mb-4 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-4 text-sm text-[#ffb36b]">
+                    Add at least 7 movies to your taste profile before you can match with friends.
+                  </div>
+                )}
+
                 <div className="relative">
                   <button
+                    disabled={!canMatchFriends}
                     onClick={() => setShowFriendsDropdown(!showFriendsDropdown)}
-                    className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#111111] px-4 py-3 text-left font-medium text-[#f5f0de] transition-colors hover:bg-white/5"
+                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left font-medium transition-colors ${
+                      canMatchFriends
+                        ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:bg-white/5"
+                        : "cursor-not-allowed border-white/10 bg-white/5 text-white/35"
+                    }`}
                   >
-                    <span>Choose a friend...</span>
+                    <span>{canMatchFriends ? "Choose a friend..." : "Add 7 movies first"}</span>
                     <ChevronDown className="w-4 h-4 text-white/45" />
                   </button>
 
@@ -1099,8 +1135,11 @@ export default function MovieMatcherPage() {
                             .map((friend) => (
                               <button
                                 key={friend.userId}
+                                disabled={!canMatchFriends}
                                 onClick={() => handleSelectFriend(friend)}
-                                className="flex w-full items-center gap-3 border-b border-white/10 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-white/5"
+                                className={`flex w-full items-center gap-3 border-b border-white/10 px-4 py-3 text-left transition-colors last:border-b-0 ${
+                                  canMatchFriends ? "hover:bg-white/5" : "cursor-not-allowed opacity-50"
+                                }`}
                               >
                                 {friend.avatar_url && (
                                   <img
@@ -1127,7 +1166,7 @@ export default function MovieMatcherPage() {
                 {tasteProfileCount < 7 && (
                   <div className="mt-4 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-4">
                     <p className="text-sm text-[#ffb36b]">
-                      ⚠️ Complete your taste profile first (at least 7 movies) to see matches!
+                      ⚠️ Match with your friends once your taste profile has at least 7 movies.
                     </p>
                   </div>
                 )}
@@ -1318,6 +1357,8 @@ export default function MovieMatcherPage() {
           {/* Feature Card 1 */}
           {/* Removed Find Your Match and Smart Recommendations cards from main page */}
         </div>
+
+        <div className="h-[calc(6rem+env(safe-area-inset-bottom))] lg:hidden" />
 
       {/* Edit Taste Modal */}
       {showEditTasteModal && (

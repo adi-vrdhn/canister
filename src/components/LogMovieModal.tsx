@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { Check, Upload, X } from "lucide-react";
+import { Check, Upload } from "lucide-react";
 import { Content, MovieLog, MovieLogWithContent, User } from "@/types";
 import { createLogCinePost } from "@/lib/cineposts";
 import { createMovieLog, getUserMovieLogs, updateMovieLog } from "@/lib/logs";
@@ -495,13 +495,13 @@ export default function LogMovieModal({
                 <Check className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Revisited</p>
+                <p className={`text-sm font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Visited</p>
                 <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                  Mark this if you&apos;ve revisited this title before.
+                  Mark this if you&apos;ve visited this title before.
                 </p>
                 {hasPreviousWatch && (
                   <p className={`mt-1 text-xs ${isBrutalist ? "text-white/70" : "text-slate-600"}`}>
-                    Revisited {previousWatchDates.length} time{previousWatchDates.length === 1 ? "" : "s"} before.
+                    Visited {previousWatchDates.length} time{previousWatchDates.length === 1 ? "" : "s"} before.
                   </p>
                 )}
               </div>
@@ -598,17 +598,24 @@ export default function LogMovieModal({
             <button
               type="button"
               onClick={openReviewEditor}
-              className="w-full text-left transition-opacity hover:opacity-90"
+              aria-label="Open review editor"
+              className={`mt-1 flex min-h-28 w-full flex-col justify-between rounded-[1.35rem] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
+                isBrutalist
+                  ? "border-white/10 bg-white/5 hover:border-white/20"
+                  : "border-slate-200 bg-slate-50 hover:border-slate-300"
+              }`}
             >
               <span className={`block whitespace-pre-wrap text-sm leading-6 ${
                 notes.trim() ? (isBrutalist ? "text-[#f5f0de]" : "text-slate-900") : (isBrutalist ? "text-white/40" : "text-slate-400")
               }`}>
                 {notes.trim() || "Tap to write your review"}
               </span>
+              <span className={`mt-3 text-xs font-medium ${
+                isBrutalist ? "text-[#ffb36b]/80" : "text-slate-500"
+              }`}>
+                Tap to open the full review box
+              </span>
             </button>
-            <p className={`mt-1 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-              Opens the full review editor.
-            </p>
           </div>
 
           {!isEditMode && (

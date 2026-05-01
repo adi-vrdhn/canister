@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRef } from "react";
 import {
   ArrowLeft,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -22,6 +25,33 @@ type MovieMatchAnalysisViewProps = {
 
 type PosterItem = MatchAnalysis["commonTasteMovies"][number];
 
+function creatorLinkStyle(accent: "orange" | "amber") {
+  return accent === "orange"
+    ? "border-[#ff7a1a]/28 bg-[#ff7a1a]/8 text-[#f5f0de] hover:border-[#ff7a1a]/45 hover:bg-[#ff7a1a]/12"
+    : "border-[#ffb36b]/25 bg-[#ffb36b]/8 text-[#f5f0de] hover:border-[#ffb36b]/40 hover:bg-[#ffb36b]/12";
+}
+
+function RailNavButton({
+  direction,
+  onClick,
+}: {
+  direction: "left" | "right";
+  onClick: () => void;
+}) {
+  const Icon = direction === "left" ? ChevronLeft : ChevronRight;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/75 p-2 text-[#f5f0de] shadow-lg backdrop-blur-md transition hover:border-[#ff7a1a]/40 hover:bg-black/90 md:inline-flex"
+      aria-label={direction === "left" ? "Scroll left" : "Scroll right"}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
 function PosterRail({
   title,
   subtitle,
@@ -33,10 +63,18 @@ function PosterRail({
   items: PosterItem[];
   accent?: "orange" | "amber";
 }) {
+  const railRef = useRef<HTMLDivElement>(null);
   const glowClass =
     accent === "orange"
       ? "shadow-[0_24px_48px_rgba(255,122,26,0.18)] hover:shadow-[0_28px_60px_rgba(255,122,26,0.28)]"
       : "shadow-[0_24px_48px_rgba(251,191,36,0.16)] hover:shadow-[0_28px_60px_rgba(251,191,36,0.26)]";
+
+  const scrollRail = (direction: -1 | 1) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const amount = Math.max(rail.clientWidth * 0.82, 260) * direction;
+    rail.scrollBy({ left: amount, behavior: "smooth" });
+  };
 
   return (
     <section className="border-t border-white/10 pt-5">
@@ -53,13 +91,20 @@ function PosterRail({
       </div>
 
       {items.length > 0 ? (
-        <div className="mt-4 overflow-x-auto pb-2">
-          <div className="flex w-fit gap-3">
-            {items.map((movie) => (
+        <div className="relative mt-4">
+          <RailNavButton direction="left" onClick={() => scrollRail(-1)} />
+          <RailNavButton direction="right" onClick={() => scrollRail(1)} />
+          <div
+            ref={railRef}
+            className="-mx-2 overflow-x-auto px-2 pb-3 scrollbar-hide overscroll-x-contain scroll-smooth snap-x snap-mandatory"
+          >
+            <div className="flex w-max gap-3">
+              {items.map((movie) => (
               <Link
                 key={`${movie.type}-${movie.id}`}
                 href={movie.type === "tv" ? `/tv/${movie.id}` : `/movie/${movie.id}`}
-                className={`group relative w-28 shrink-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.03] transition duration-300 hover:-translate-y-1 hover:rotate-[-0.4deg] hover:border-[#ff7a1a]/35 ${glowClass}`}
+                aria-label={movie.title}
+                className={`group relative h-[min(58vw,18rem)] w-[min(42vw,11rem)] shrink-0 snap-start overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.03] transition duration-300 hover:-translate-y-1 hover:rotate-[-0.4deg] hover:border-[#ff7a1a]/35 sm:h-[17rem] sm:w-[11rem] lg:h-[18rem] lg:w-[12rem] ${glowClass}`}
               >
                 <div className="relative aspect-[2/3]">
                   <img
@@ -77,18 +122,84 @@ function PosterRail({
                       TV
                     </span>
                   )}
-                  <div className="absolute inset-x-0 bottom-0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    <p className="line-clamp-2 text-[11px] font-semibold leading-4 text-white">
-                      {movie.title}
-                    </p>
-                  </div>
                 </div>
               </Link>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       ) : (
         <p className="mt-4 text-sm text-white/45">Nothing shared here yet.</p>
+      )}
+    </section>
+  );
+}
+
+function CreatorRail({
+  title,
+  subtitle,
+  items,
+  itemLabel,
+  accent = "orange",
+  emptyLabel,
+}: {
+  title: string;
+  subtitle: string;
+  items: string[];
+  itemLabel: string;
+  accent?: "orange" | "amber";
+  emptyLabel: string;
+}) {
+  const railRef = useRef<HTMLDivElement>(null);
+
+  const scrollRail = (direction: -1 | 1) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const amount = Math.max(rail.clientWidth * 0.72, 220) * direction;
+    rail.scrollBy({ left: amount, behavior: "smooth" });
+  };
+
+  return (
+    <section className="border-t border-white/10 pt-5">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[0.65rem] uppercase tracking-[0.45em] text-[#ffb36b]">
+            {title}
+          </p>
+          <p className="mt-2 text-sm text-white/55">{subtitle}</p>
+        </div>
+        <p className="text-xs uppercase tracking-[0.35em] text-white/35">
+          {items.length} names
+        </p>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="relative mt-4">
+          <RailNavButton direction="left" onClick={() => scrollRail(-1)} />
+          <RailNavButton direction="right" onClick={() => scrollRail(1)} />
+          <div
+            ref={railRef}
+            className="-mx-2 overflow-x-auto px-2 pb-3 scrollbar-hide overscroll-x-contain scroll-smooth snap-x snap-mandatory"
+          >
+            <div className="flex w-max gap-3">
+              {items.map((person) => (
+              <div
+                key={person}
+                className={`group w-[min(66vw,12rem)] shrink-0 snap-start rounded-[1.35rem] border px-4 py-4 transition duration-300 hover:-translate-y-1 sm:w-44 lg:w-52 ${creatorLinkStyle(accent)}`}
+              >
+                <p className="text-[0.65rem] uppercase tracking-[0.35em] text-[#ffb36b]/75">
+                  Shared {itemLabel}
+                </p>
+                <p className="mt-3 line-clamp-2 text-sm font-semibold leading-5 text-inherit">
+                  {person}
+                </p>
+              </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-white/45">{emptyLabel}</p>
       )}
     </section>
   );
@@ -111,7 +222,7 @@ export default function MovieMatchAnalysisView({
     <div
       className={`relative overflow-x-hidden text-[#f5f0de] ${
         embedded
-          ? "h-full overflow-y-auto overscroll-contain bg-transparent"
+          ? "bg-transparent"
           : "min-h-screen overflow-y-auto bg-[#090909]"
       }`}
     >
@@ -126,7 +237,7 @@ export default function MovieMatchAnalysisView({
       <div
         className={`relative mx-auto ${
           embedded
-            ? "h-full w-full px-4 py-4 pb-8 sm:px-5 sm:py-5 sm:pb-10"
+            ? "w-full px-4 py-4 pb-8 sm:px-5 sm:py-5 sm:pb-10"
             : "max-w-6xl px-4 py-4 pb-12 sm:px-6 sm:py-6 sm:pb-14 lg:px-8 lg:py-8 lg:pb-16"
         }`}
       >
@@ -425,42 +536,24 @@ export default function MovieMatchAnalysisView({
               <p className="text-[0.65rem] uppercase tracking-[0.45em] text-[#ffb36b]">
                 Shared Creators
               </p>
-              <div className="mt-4 space-y-4 border-l border-white/10 pl-5">
-                <div>
-                  <p className="text-sm font-semibold text-[#f5f0de]">Common Actors</p>
-                  {analysis.commonActors.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {analysis.commonActors.slice(0, 6).map((actor: string) => (
-                        <span
-                          key={actor}
-                          className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-[#f5f0de]"
-                        >
-                          {actor}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-white/45">No shared actors yet.</p>
-                  )}
-                </div>
+              <div className="mt-4 space-y-5 border-l border-white/10 pl-5">
+                <CreatorRail
+                  title="Common Actors"
+                  subtitle="People who keep showing up in both of your watches."
+                  items={analysis.commonActors}
+                  itemLabel="actor"
+                  accent="orange"
+                  emptyLabel="No shared actors yet."
+                />
 
-                <div>
-                  <p className="text-sm font-semibold text-[#f5f0de]">Common Directors</p>
-                  {analysis.commonDirectors.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {analysis.commonDirectors.slice(0, 6).map((director: string) => (
-                        <span
-                          key={director}
-                          className="rounded-full border border-[#ff7a1a]/30 bg-[#ff7a1a]/10 px-3 py-1 text-xs text-[#ffb36b]"
-                        >
-                          {director}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-white/45">No shared directors yet.</p>
-                  )}
-                </div>
+                <CreatorRail
+                  title="Common Directors"
+                  subtitle="Directors both of you keep coming back to."
+                  items={analysis.commonDirectors}
+                  itemLabel="director"
+                  accent="amber"
+                  emptyLabel="No shared directors yet."
+                />
               </div>
             </section>
 
@@ -474,12 +567,6 @@ export default function MovieMatchAnalysisView({
                   className="inline-flex items-center gap-2 rounded-full border border-[#ff7a1a]/35 bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-[#0a0a0a] transition hover:bg-[#ff8d3b]"
                 >
                   Open shared movies
-                </Link>
-                <Link
-                  href={`/profile/${subjectUsername || ""}/movie-personality`}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-[#f5f0de] transition hover:border-[#ff7a1a]/35 hover:bg-white/[0.06]"
-                >
-                  View movie personality
                 </Link>
               </div>
             </section>

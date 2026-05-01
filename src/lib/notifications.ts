@@ -125,8 +125,8 @@ export function notificationHref(note: NotificationItem): string {
   if (note.type === "share_received" && note.shareId) {
     return `/share?share_id=${note.shareId}&panel=history`;
   }
-  if (note.type === "matcher_update" && note.subjectUsername) {
-    return `/movie-matcher/${note.subjectUsername}`;
+  if (note.type === "matcher_update") {
+    return "/movie-matcher";
   }
   if ((note.type === "log_comment" || note.type === "log_comment_reply" || note.type === "log_comment_like") && note.logId) {
     return note.commentId ? `/logs/${note.logId}?comment=${note.commentId}` : `/logs/${note.logId}`;
@@ -583,7 +583,7 @@ export async function createMatcherUpdateNotification(
     userId,
     title: `${fromUser.name} checked your movie matcher`,
     body: "Open Canisterr to see the match report.",
-    url: `/movie-matcher/${subjectUsername}`,
+    url: "/movie-matcher",
     type: "matcher_update",
     notificationId,
   });

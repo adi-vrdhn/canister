@@ -19,7 +19,6 @@ import {
   Heart,
   Sparkles,
   CalendarDays,
-  Image as ImageIcon,
   X,
   MessageCircle,
   Send,
@@ -1195,15 +1194,6 @@ export default function LogDetailPage() {
                     >
                       {reactionLabel}
                     </span>
-                    {ticketImageUrl && (
-                      <span
-                        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-1.5 text-[#f5f0de]/80"
-                        aria-label="Ticket image attached"
-                        title="Ticket image attached"
-                      >
-                        <ImageIcon className="h-3.5 w-3.5" />
-                      </span>
-                    )}
                   </div>
                 );
               })()}
