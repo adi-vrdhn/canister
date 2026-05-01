@@ -52,6 +52,43 @@ type ShareRecord = {
   content?: Content | null;
 } & Record<string, unknown>;
 
+function createMovieContent(
+  movie: Awaited<ReturnType<typeof getMovieDetails>>,
+  createdAt: string
+): Content | null {
+  if (!movie) return null;
+
+  return {
+    ...movie,
+    type: "movie",
+    created_at: createdAt,
+  };
+}
+
+function createShowContent(show: ShowDetails, createdAt: string): Content {
+  return {
+    id: show.id,
+    title: show.title || show.name,
+    name: show.name,
+    poster_url: show.poster_url ?? show.image?.original ?? show.image?.medium ?? null,
+    genres: show.genres ?? [],
+    director: show.director ?? null,
+    actors: show.actors ?? null,
+    cast: show.cast ?? null,
+    language: show.language ?? null,
+    status: show.status ?? null,
+    country: show.country ?? null,
+    release_date: show.release_date ?? show.premiered ?? null,
+    overview: show.overview ?? show.summary ?? null,
+    runtime: show.runtime ?? null,
+    rating: show.rating ?? null,
+    created_at: createdAt,
+    type: "tv",
+    network: show.network,
+    streaming_services: show.streaming_services ?? null,
+  };
+}
+
 function SharePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -136,7 +173,7 @@ function SharePageContent() {
               try {
                 const movie = await getMovieDetails(movieId);
                 if (movie) {
-                  setSelectedContent({ ...movie, type: "movie", created_at: new Date().toISOString() });
+                  setSelectedContent(createMovieContent(movie, new Date().toISOString()));
                   setCurrentStep(2);
                 }
               } catch (error) {
@@ -149,11 +186,7 @@ function SharePageContent() {
               try {
                 const show = await getShowDetails(showId);
                 if (show) {
-                  setSelectedContent({
-                    ...show,
-                    type: "tv",
-                    created_at: new Date().toISOString(),
-                  });
+                  setSelectedContent(createShowContent(show, new Date().toISOString()));
                   setCurrentStep(2);
                 }
               } catch (error) {
@@ -167,17 +200,13 @@ function SharePageContent() {
                 if (typeParam === "tv") {
                   const show = await getShowDetails(contentId);
                   if (show) {
-                    setSelectedContent({
-                      ...show,
-                      type: "tv",
-                      created_at: new Date().toISOString(),
-                    });
+                    setSelectedContent(createShowContent(show, new Date().toISOString()));
                     setCurrentStep(2);
                   }
                 } else {
                   const movie = await getMovieDetails(contentId);
                   if (movie) {
-                    setSelectedContent({ ...movie, type: "movie", created_at: new Date().toISOString() });
+                    setSelectedContent(createMovieContent(movie, new Date().toISOString()));
                     setCurrentStep(2);
                   }
                 }
@@ -429,25 +458,17 @@ function SharePageContent() {
     }
 
     try {
-      if (item.type === "tv") {
-        const showDetails = await getShowDetails(item.originalId);
-        if (showDetails) {
-          setSelectedContent({
-            ...showDetails,
-            type: "tv",
-            created_at: new Date().toISOString(),
-          });
+        if (item.type === "tv") {
+          const showDetails = await getShowDetails(item.originalId);
+          if (showDetails) {
+            setSelectedContent(createShowContent(showDetails, new Date().toISOString()));
+          }
+        } else {
+          const movieDetails = await getMovieDetails(item.originalId);
+          if (movieDetails) {
+            setSelectedContent(createMovieContent(movieDetails, new Date().toISOString()));
+          }
         }
-      } else {
-        const movieDetails = await getMovieDetails(item.originalId);
-        if (movieDetails) {
-          setSelectedContent({
-            ...movieDetails,
-            type: "movie",
-            created_at: new Date().toISOString(),
-          });
-        }
-      }
     } catch (error) {
       console.error("Error selecting content:", error);
     }
