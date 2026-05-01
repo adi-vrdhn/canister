@@ -74,15 +74,13 @@ function createShowContent(show: ShowDetails, createdAt: string): Content {
     genres: show.genres ?? [],
     language: show.language ?? null,
     status: show.status ?? null,
-    country: show.country ?? null,
     release_date: show.release_date ?? show.premiered ?? null,
     overview: show.overview ?? show.summary ?? null,
     runtime: show.runtime ?? null,
-    rating: show.rating ?? null,
+    rating: show.rating?.average ?? null,
     created_at: createdAt,
     type: "tv",
     network: show.network,
-    streaming_services: show.streaming_services ?? null,
   };
 }
 
