@@ -252,8 +252,8 @@ export default function AddItemsToListPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-white/35">
-                        No Image
+                      <div className="flex h-full w-full items-center justify-center px-2 text-center text-[10px] font-medium leading-tight text-white/35">
+                        No poster
                       </div>
                     )}
                     {isAdded && (

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { House, LayoutList, NotebookPen, ScanSearch, SendHorizontal } from "lucide-react";
 
 type NavItem = {
@@ -27,15 +26,10 @@ function isActivePath(pathname: string, href: string, exact?: boolean): boolean 
 
 export default function PwaBottomNav() {
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
   const isAuthRoute = pathname.startsWith("/auth");
   const isScanRoute = pathname.startsWith("/scan");
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || isAuthRoute || isScanRoute) {
+  if (isAuthRoute || isScanRoute) {
     return null;
   }
 
@@ -56,10 +50,10 @@ export default function PwaBottomNav() {
               aria-label={label}
             >
               <Icon
-                className={`relative z-10 h-6 w-6 transition-all duration-200 ${
+                className={`relative z-10 h-5 w-5 transition-all duration-200 sm:h-[1.15rem] sm:w-[1.15rem] ${
                   active ? "text-[#ff7a1a]" : "text-white/70"
                 }`}
-                strokeWidth={active ? 2.9 : 2.2}
+                strokeWidth={active ? 2.6 : 2}
                 fill={active ? "currentColor" : "none"}
               />
             </Link>

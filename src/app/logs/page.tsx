@@ -879,8 +879,8 @@ export default function LogsPage() {
                         onClick={() => handleSelectContent(result)}
                         className="flex cursor-pointer items-center gap-3 border-b border-white/10 p-4 transition-colors last:border-b-0 hover:bg-white/5"
                       >
-                        {result.poster_url ? (
-                          <div className="relative h-20 w-14 overflow-hidden rounded-xl sm:h-16 sm:w-12 sm:rounded">
+                        <div className="relative h-20 w-14 overflow-hidden rounded-xl bg-white/5 sm:h-16 sm:w-12 sm:rounded">
+                          {result.poster_url ? (
                             <Image
                               src={result.poster_url}
                               alt={result.title}
@@ -890,12 +890,12 @@ export default function LogsPage() {
                               placeholder="blur"
                               blurDataURL={getBlurDataUrl()}
                             />
-                          </div>
-                        ) : (
-                          <div className="flex h-20 w-14 items-center justify-center rounded-xl bg-white/5 text-xs text-white/45 sm:h-16 sm:w-12 sm:rounded">
-                            No Image
-                          </div>
-                        )}
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] font-medium leading-tight text-white/45">
+                              No poster
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="line-clamp-2 font-semibold text-[#f5f0de]">{result.title}</h3>
                           <p className="text-sm text-white/60">{result.type === "tv" ? "TV Show" : "Movie"}</p>

@@ -170,17 +170,23 @@ export default function SearchBar({
                         : "border-slate-100 hover:bg-slate-50"
                     }`}
                   >
-                    {item.image && (
-                      <Image
-                        src={item.image}
-                        alt={item.title}
-                        width={64}
-                        height={96}
-                        className="h-20 w-14 flex-shrink-0 rounded-xl object-cover shadow-sm sm:h-24 sm:w-16 sm:rounded-2xl"
-                        placeholder="blur"
-                        blurDataURL={getBlurDataUrl()}
-                      />
-                    )}
+                    <div className="flex h-20 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-sm sm:h-24 sm:w-16 sm:rounded-2xl">
+                      {item.image ? (
+                        <Image
+                          src={item.image}
+                          alt={item.title}
+                          width={64}
+                          height={96}
+                          className="h-full w-full object-cover"
+                          placeholder="blur"
+                          blurDataURL={getBlurDataUrl()}
+                        />
+                      ) : (
+                        <span className="px-1 text-center text-[10px] font-medium leading-tight text-white/40">
+                          No poster
+                        </span>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <p className={`truncate text-base font-semibold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
                         {item.title}

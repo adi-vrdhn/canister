@@ -1,6 +1,7 @@
 import { fetchTmdb } from "./tmdb-transport";
 
 const TVMAZE_BASE_URL = "https://api.tvmaze.com";
+const LIKELY_TMDB_TV_ID_THRESHOLD = 100000;
 
 export interface TVMazeShow {
   id: number;
@@ -49,6 +50,24 @@ interface TMDBTVSearchResult {
 
 interface TMDBTVSearchResponse {
   results: TMDBTVSearchResult[];
+}
+
+interface TMDBTVDetails {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  genres: Array<{ id: number; name: string }>;
+  overview: string;
+  first_air_date: string;
+  episode_run_time?: number[];
+  vote_average?: number;
+  status?: string;
+  networks?: Array<{ name?: string }>;
+  origin_country?: string[];
+  original_language?: string;
+  number_of_seasons?: number;
+  number_of_episodes?: number;
 }
 
 function normalizeSearchText(value: string): string {
@@ -122,6 +141,34 @@ function mapTMDBShow(result: TMDBTVSearchResult): ShowDetails {
   };
 }
 
+function mapTMDBShowDetails(show: TMDBTVDetails): ShowDetails {
+  const poster = show.poster_path
+    ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
+    : show.backdrop_path
+      ? `https://image.tmdb.org/t/p/w500${show.backdrop_path}`
+      : null;
+
+  return {
+    id: show.id,
+    name: show.name,
+    title: show.name,
+    image: poster ? { medium: poster, original: poster } : undefined,
+    summary: show.overview || "",
+    premiered: show.first_air_date,
+    runtime: show.episode_run_time?.[0],
+    rating: typeof show.vote_average === "number" ? { average: show.vote_average } : undefined,
+    genres: show.genres?.map((genre) => genre.name) || [],
+    status: show.status,
+    network: show.networks?.[0]?.name ? { name: show.networks[0].name } : undefined,
+    type: "tv" as const,
+    poster_url: poster || undefined,
+    poster_path: poster || undefined,
+    overview: show.overview || "",
+    release_date: show.first_air_date,
+    language: show.original_language || "en",
+  };
+}
+
 export async function searchShows(query: string): Promise<ShowDetails[]> {
   try {
     const trimmedQuery = query.trim();
@@ -184,10 +231,24 @@ export async function searchShows(query: string): Promise<ShowDetails[]> {
 
 export async function getShowDetails(showId: number): Promise<ShowDetails | null> {
   try {
+    if (showId >= LIKELY_TMDB_TV_ID_THRESHOLD) {
+      const tmdbResponse = await fetchTmdb(`tv/${showId}`);
+      if (!tmdbResponse.ok) return null;
+
+      const tmdbData: TMDBTVDetails = await tmdbResponse.json();
+      return mapTMDBShowDetails(tmdbData);
+    }
+
     const response = await fetch(`${TVMAZE_BASE_URL}/shows/${showId}`);
 
     if (!response.ok) {
-      throw new Error("Show details fetch failed");
+      const fallbackResponse = await fetchTmdb(`tv/${showId}`);
+      if (!fallbackResponse.ok) {
+        return null;
+      }
+
+      const fallbackData: TMDBTVDetails = await fallbackResponse.json();
+      return mapTMDBShowDetails(fallbackData);
     }
 
     const show = await response.json();
@@ -211,8 +272,15 @@ export async function getShowDetails(showId: number): Promise<ShowDetails | null
       release_date: show.premiered,
       language: show.language || "en",
     };
-  } catch (error) {
-    console.error("Error fetching show details:", error);
-    return null;
+  } catch {
+    try {
+      const fallbackResponse = await fetchTmdb(`tv/${showId}`);
+      if (!fallbackResponse.ok) return null;
+
+      const fallbackData: TMDBTVDetails = await fallbackResponse.json();
+      return mapTMDBShowDetails(fallbackData);
+    } catch {
+      return null;
+    }
   }
 }

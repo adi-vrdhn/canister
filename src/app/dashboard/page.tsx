@@ -579,8 +579,8 @@ export default function DashboardPage() {
                                 blurDataURL={getBlurDataUrl()}
                               />
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center bg-[#1a1a1a] text-xs text-white/35">
-                                No Image
+                              <div className="flex h-full w-full items-center justify-center bg-[#1a1a1a] px-1 text-center text-[10px] font-medium leading-tight text-white/35">
+                                No poster
                               </div>
                             )}
                           </div>

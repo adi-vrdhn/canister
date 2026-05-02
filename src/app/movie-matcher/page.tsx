@@ -1559,17 +1559,21 @@ export default function MovieMatcherPage() {
                           key={`${contentType}-${result.id}`}
                         className="flex gap-3 rounded-lg border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10"
                         >
-                          <img
-                            src={
-                              result.poster_path || result.poster_url
-                                ? `https://image.tmdb.org/t/p/w92${
-                                    result.poster_path || result.poster_url
-                                  }`
-                                : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='68'%3E%3Crect fill='%23ccc' width='45' height='68'/%3E%3C/svg%3E"
-                            }
-                              alt={result.title}
-                            className="h-16 w-12 flex-shrink-0 rounded object-cover"
-                          />
+                          <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-white/5 text-center">
+                            {result.poster_path || result.poster_url ? (
+                              <img
+                                src={`https://image.tmdb.org/t/p/w92${
+                                  result.poster_path || result.poster_url
+                                }`}
+                                alt={result.title}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="px-1 text-[9px] font-medium leading-tight text-white/35">
+                                No poster
+                              </span>
+                            )}
+                          </div>
                           <div className="min-w-0 flex-1">
                             <p className="line-clamp-1 text-sm font-semibold text-[#f5f0de]">
                               {result.title}
@@ -1617,17 +1621,21 @@ export default function MovieMatcherPage() {
                           key={`${contentType}-${result.id}`}
                         className="flex gap-3 rounded-lg border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10"
                         >
-                          <img
-                            src={
-                              result.poster_path || result.poster_url
-                                ? `https://image.tmdb.org/t/p/w92${
-                                    result.poster_path || result.poster_url
-                                  }`
-                                : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='68'%3E%3Crect fill='%23ccc' width='45' height='68'/%3E%3C/svg%3E"
-                            }
-                              alt={result.title}
-                            className="h-16 w-12 flex-shrink-0 rounded object-cover"
-                          />
+                          <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-white/5 text-center">
+                            {result.poster_path || result.poster_url ? (
+                              <img
+                                src={`https://image.tmdb.org/t/p/w92${
+                                  result.poster_path || result.poster_url
+                                }`}
+                                alt={result.title}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="px-1 text-[9px] font-medium leading-tight text-white/35">
+                                No poster
+                              </span>
+                            )}
+                          </div>
                           <div className="min-w-0 flex-1">
                             <p className="line-clamp-1 text-sm font-semibold text-[#f5f0de]">
                               {result.title}

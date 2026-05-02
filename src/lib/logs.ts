@@ -239,6 +239,7 @@ export async function getUserMovieLogs(userId: string, limit: number = 50): Prom
 
     const allLogs = snapshot.val();
     const userLogs = Object.values(allLogs)
+      .filter((log: any) => log.user_id === userId)
       .sort((a: any, b: any) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
       .slice(0, limit) as MovieLog[];
 
