@@ -5,12 +5,12 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
 import TopActionBanner from "@/components/TopActionBanner";
 import CinematicLoading from "@/components/CinematicLoading";
 import { User, ShareWithDetails, Content, MovieLogWithContent } from "@/types";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { ref, get, onValue } from "firebase/database";
+import { db } from "@/lib/firebase";
+import { onValue, ref } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
@@ -71,6 +71,7 @@ function rankSearchResults<T extends { title: string }>(items: T[], query: strin
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user: sessionUser, loading: sessionLoading } = useCurrentUser();
   const [user, setUser] = useState<User | null>(null);
   const [shares, setShares] = useState<ShareWithDetails[]>([]);
   const [selectedShare, setSelectedShare] = useState<ShareWithDetails | null>(null);
@@ -101,47 +102,25 @@ export default function DashboardPage() {
   const [quickLogRequestRef] = useState<{ current: number }>({ current: 0 });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push("/auth/login");
-        return;
-      }
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      router.push("/auth/login");
+      return;
+    }
 
+    let cancelled = false;
+    let unsubscribeShares = () => {};
+
+    const currentUser = sessionUser;
+    setUser(currentUser);
+    setLoading(false);
+
+    void (async () => {
       try {
-        // Fetch user profile from Firebase
-        const userRef = ref(db, `users/${firebaseUser.uid}`);
-        const userSnapshot = await get(userRef);
-
-        let currentUser: User | null = null;
-
-        if (userSnapshot.exists()) {
-          const userData = userSnapshot.val();
-          currentUser = {
-            id: userData.id,
-            username: userData.username,
-            name: userData.name,
-            avatar_url: userData.avatar_url || null,
-            created_at: userData.createdAt,
-          };
-        } else {
-          // Fallback user from auth
-          currentUser = {
-            id: firebaseUser.uid,
-            username: "user",
-            name: firebaseUser.displayName || "User",
-            avatar_url: null,
-            created_at: new Date().toISOString(),
-          };
+        const logs = await getFriendLogs(currentUser.id, 14, 20);
+        if (!cancelled) {
+          setFriendLogs(logs);
         }
-
-        setUser(currentUser);
-        setLoading(false);
-
-        // Fetch friend logs
-        if (currentUser) {
-          try {
-            const logs = await getFriendLogs(currentUser.id, 14, 20);
-            setFriendLogs(logs);
       } catch (error) {
         reportAppError({
           title: "Friend activity failed",
@@ -149,82 +128,59 @@ export default function DashboardPage() {
           details: error instanceof Error ? error.stack || error.message : String(error),
         });
       }
+
+      if (cancelled) return;
+
+      const sharesRef = ref(db, "shares");
+      unsubscribeShares = onValue(sharesRef, async (snapshot) => {
+        if (!snapshot.exists()) {
+          if (!cancelled) setShares([]);
+          return;
         }
 
-        // Set up real-time listener for shares
-        if (currentUser) {
-          const sharesRef = ref(db, "shares");
-          const unsubscribeShares = onValue(sharesRef, async (snapshot) => {
-            if (!snapshot.exists()) {
-              setShares([]);
-              return;
-            }
+        const allShares = snapshot.val();
+        const sharesList = Object.entries(allShares)
+          .map(([id, data]: any) => ({
+            id,
+            ...data,
+          }))
+          .filter((s: any) => s.receiver_id === currentUser.id)
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime()
+          );
 
-            const allShares = snapshot.val();
-            const sharesList = Object.entries(allShares)
-              .map(([id, data]: any) => ({
-                id,
-                ...data,
-              }))
-              .filter((s: any) => s.receiver_id === currentUser.id)
-              .sort(
-                (a: any, b: any) =>
-                  new Date(b.created_at).getTime() -
-                  new Date(a.created_at).getTime()
-              );
+        try {
+          const usersData = await getAllUsersCached();
 
-            // Fetch receivers for shares
-            try {
-              const usersData = await getAllUsersCached();
+          const sharesWithDetails: ShareWithDetails[] = sharesList.map((share: any) => ({
+            ...share,
+            movie: share.movie || null,
+            sender: Object.values(usersData).find((u: any) => u.id === share.sender_id),
+          }));
 
-              // Movie data is already in the share object, no need to fetch separately
-              const sharesWithDetails: ShareWithDetails[] = sharesList.map(
-                (share: any) => {
-                  console.log("Share ID:", share.id);
-                  console.log("Receiver ID:", share.receiver_id);
-                  console.log("Current user ID:", currentUser.id);
-                  console.log("Share movie exists?", !!share.movie);
-                  console.log("Full share object:", share);
-                  
-                  return {
-                    ...share,
-                    // Use movie data from share object if it exists
-                    movie: share.movie || null,
-                    sender: Object.values(usersData).find(
-                      (u: any) => u.id === share.sender_id
-                    ),
-                  };
-                }
-              );
-
-              console.log("Number of shares for this user:", sharesWithDetails.length);
-              console.log("All shares with details:", sharesWithDetails);
-
-              setShares(sharesWithDetails);
-            } catch (error) {
-              reportAppError({
-                title: "Shares failed to load",
-                message: "We could not load your shares right now.",
-                details: error instanceof Error ? error.stack || error.message : String(error),
-              });
-              setShares(sharesList);
-            }
+          if (!cancelled) {
+            setShares(sharesWithDetails);
+          }
+        } catch (error) {
+          reportAppError({
+            title: "Shares failed to load",
+            message: "We could not load your shares right now.",
+            details: error instanceof Error ? error.stack || error.message : String(error),
           });
-
-          return () => unsubscribeShares();
+          if (!cancelled) {
+            setShares(sharesList);
+          }
         }
-      } catch (error) {
-        reportAppError({
-          title: "Failed to load dashboard",
-          message: "We could not load your account data.",
-          details: error instanceof Error ? error.stack || error.message : String(error),
-        });
-        setLoading(false);
-      }
-    });
+      });
+    })();
 
-    return () => unsubscribe();
-  }, [router]);
+    return () => {
+      cancelled = true;
+      unsubscribeShares();
+    };
+  }, [router, sessionLoading, sessionUser]);
 
   useEffect(() => {
     if (!bannerMessage) return;
@@ -813,8 +769,8 @@ export default function DashboardPage() {
                     <Film className="h-5 w-5" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block font-black text-[#f5f0de]">Log Movie</span>
-                    <span className="block text-sm text-white/55">Add what you watched and rate it.</span>
+                    <span className="block font-black text-[#f5f0de]">Log Title</span>
+                    <span className="block text-sm text-white/55">Add a movie or TV show you watched.</span>
                   </span>
                 </button>
 
@@ -861,8 +817,8 @@ export default function DashboardPage() {
             <div className="flex h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden border border-white/10 bg-[#111111] text-[#f5f0de] shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:h-auto sm:max-h-[90vh]">
               <div className="flex items-center justify-between border-b border-white/10 p-4 sm:p-6">
                 <div>
-                  <h2 className="text-lg font-black text-[#f5f0de] sm:text-xl">Search & Log Movie</h2>
-                  <p className="mt-1 text-sm text-white/55">Choose a movie or show, then log it here.</p>
+                  <h2 className="text-lg font-black text-[#f5f0de] sm:text-xl">Search & Log</h2>
+                  <p className="mt-1 text-sm text-white/55">Choose a movie or TV show, then log it here.</p>
                 </div>
                 <button
                   onClick={() => setShowQuickLogSearch(false)}
@@ -948,7 +904,7 @@ export default function DashboardPage() {
             {quickLogQuery.length < 1 && !quickLogSearching && (
                 <div className="p-12 text-center">
                   <Film className="mx-auto mb-3 h-12 w-12 text-white/20" />
-                  <p className="text-white/60">Search for what you watched.</p>
+                  <p className="text-white/60">Search for a movie or TV show you watched.</p>
                 </div>
               )}
 

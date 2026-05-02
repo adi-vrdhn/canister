@@ -209,7 +209,11 @@ export default function MoviePage() {
     }
 
     autoOpenScanLogRef.current = true;
-    setShowLogMovieModal(true);
+    const timer = window.setTimeout(() => {
+      setShowLogMovieModal(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [isScanLogFlow, loading, movie, user]);
 
   const handleSignOut = async () => {
@@ -557,7 +561,7 @@ export default function MoviePage() {
       </div>
 
       <div className="mx-auto max-w-5xl px-4 pb-8">
-        <ContentCinePosts contentId={movie.id} contentType="movie" currentUser={user} />
+        <ContentCinePosts contentId={movie.id} contentType="movie" currentUser={user} theme="brutalist" />
       </div>
 
       {/* Add to List Modal */}

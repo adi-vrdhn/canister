@@ -66,6 +66,9 @@ export default function LogMovieModal({
 }: LogMovieModalProps) {
   const isEditMode = mode === "edit";
   const isBrutalist = theme === "brutalist";
+  const contentLabel = content.type === "tv" ? "TV show" : "Movie";
+  const logLabel = content.type === "tv" ? "TV show log" : "Movie log";
+  const actionLabel = isEditMode ? `Edit ${contentLabel} log` : `Log ${contentLabel}`;
   const [watchedDate, setWatchedDate] = useState(new Date().toISOString().split("T")[0]);
   const [reaction, setReaction] = useState<null | 0 | 1 | 2>(null); // 0=Bad, 1=Good, 2=Masterpiece
   const [notes, setNotes] = useState("");
@@ -321,7 +324,7 @@ export default function LogMovieModal({
         message: "We could not save this log.",
         details: err instanceof Error ? err.stack || err.message : String(err),
       });
-      setError("Failed to log movie. Please try again.");
+      setError(`Failed to log ${contentLabel.toLowerCase()}. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -439,13 +442,13 @@ export default function LogMovieModal({
                 <div className={isBrutalist ? "h-16 w-12 bg-white/5 sm:h-18 sm:w-13" : "h-16 w-12 bg-slate-100 sm:h-18 sm:w-13"} />
               )}
             </div>
-            <div className="min-w-0">
-              <div className="mb-1 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb36b]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#ff7a1a]" />
-                {isEditMode ? "Edit log" : "Movie log"}
-              </div>
+              <div className="min-w-0">
+                <div className="mb-1 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.24em] text-[#ffb36b]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#ff7a1a]" />
+                {isEditMode ? `Edit ${contentLabel} log` : logLabel}
+                </div>
               <h2 className={`text-base font-semibold sm:text-lg ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-                {isEditMode ? "Edit Movie Log" : "Log Movie"}
+                {actionLabel}
               </h2>
               <p
                 className={`line-clamp-1 text-xs sm:text-sm ${
@@ -740,13 +743,13 @@ export default function LogMovieModal({
           </div>
 
           {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading || ticketUploading}
-            className="action-primary mt-6 w-full disabled:opacity-50"
-          >
-            {loading ? (isEditMode ? "Saving..." : "Logging...") : ticketUploading ? "Uploading image..." : isEditMode ? "Save Changes" : "Log Movie"}
-          </button>
+              <button
+                type="submit"
+                disabled={loading || ticketUploading}
+                className="action-primary mt-6 w-full disabled:opacity-50"
+              >
+            {loading ? (isEditMode ? "Saving..." : "Logging...") : ticketUploading ? "Uploading image..." : isEditMode ? "Save Changes" : actionLabel}
+              </button>
         </form>
       </div>
     </div>

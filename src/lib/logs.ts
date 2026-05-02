@@ -231,7 +231,11 @@ export async function deleteMovieLog(logId: string): Promise<void> {
 /**
  * Get user's movie logs
  */
-export async function getUserMovieLogs(userId: string, limit: number = 50): Promise<MovieLogWithContent[]> {
+export async function getUserMovieLogs(
+  userId: string,
+  limit: number = 50,
+  currentUser?: User | null
+): Promise<MovieLogWithContent[]> {
   try {
     const snapshot = await get(ref(db, "movie_logs"));
 
@@ -245,7 +249,7 @@ export async function getUserMovieLogs(userId: string, limit: number = 50): Prom
 
     const [contentMap, user] = await Promise.all([
       getContentMapForLogs(userLogs),
-      getUserProfile(userId),
+      currentUser ? Promise.resolve(currentUser) : getUserProfile(userId),
     ]);
 
     const logsWithContent: MovieLogWithContent[] = userLogs.map((log) => ({

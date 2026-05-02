@@ -14,6 +14,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { get, ref, remove, set } from "firebase/database";
 import { ArrowLeft, Ban, Loader2, MoreHorizontal, Share2, Sparkles, Upload } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
 import StatsInsights from "@/components/StatsInsights";
 import CinematicLoading from "@/components/CinematicLoading";
 import ProfileCinePostsPanel from "@/components/ProfileCinePostsPanel";
@@ -112,7 +113,8 @@ function ProfilePageInner() {
 
 
   // --- State declarations (must be before all hooks/functions) ---
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { user: sessionUser, settings: sessionSettings, loading: sessionLoading } = useCurrentUser();
+  const [currentUser, setCurrentUser] = useState<User | null>(sessionUser);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [currentUserSettings, setCurrentUserSettings] = useState(DEFAULT_SETTINGS);
   const [profileUserSettings, setProfileUserSettings] = useState(DEFAULT_SETTINGS);
@@ -124,9 +126,12 @@ function ProfilePageInner() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [listsLoading, setListsLoading] = useState(false);
   const [allFollows, setAllFollows] = useState<FollowRecord[]>([]);
-  const [usersById, setUsersById] = useState<Record<string, User>>({});
   const [followers, setFollowers] = useState<User[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
+  const [followerIds, setFollowerIds] = useState<string[]>([]);
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [followUsersLoading, setFollowUsersLoading] = useState(false);
+  const [followUsersLoaded, setFollowUsersLoaded] = useState(false);
   const [displayList, setDisplayList] = useState<ListWithItems | null>(null);
   const [ownerPublicLists, setOwnerPublicLists] = useState<any[]>([]);
   const [ownerPublicListsLoading, setOwnerPublicListsLoading] = useState(false);
@@ -240,30 +245,14 @@ function ProfilePageInner() {
       }
       try {
         console.log('[PROFILE] Firebase user:', firebaseUser);
-        // Fetch current user
-        const userRef = ref(db, `users/${firebaseUser.uid}`);
-        const userSnapshot = await get(userRef);
-        let currentUserObj = null;
-        if (userSnapshot.exists()) {
-          const userData = userSnapshot.val();
-          currentUserObj = {
-            id: userData.id,
-            username: userData.username,
-            name: userData.name,
-            avatar_url: userData.avatar_url || null,
-            created_at: userData.createdAt,
-          };
-          setCurrentUserSettings(mergeSettings(userData?.settings));
-        } else {
-          currentUserObj = {
-            id: firebaseUser.uid,
-            username: "user",
-            name: firebaseUser.displayName || "User",
-            avatar_url: null,
-            created_at: new Date().toISOString(),
-          };
-          setCurrentUserSettings(DEFAULT_SETTINGS);
-        }
+        const currentUserObj = sessionUser || {
+          id: firebaseUser.uid,
+          username: "user",
+          name: firebaseUser.displayName || "User",
+          avatar_url: null,
+          created_at: new Date().toISOString(),
+        };
+        setCurrentUserSettings(sessionSettings);
         setCurrentUser(currentUserObj);
         console.log('[PROFILE] Current user object:', currentUserObj);
 
@@ -333,11 +322,11 @@ function ProfilePageInner() {
 
         const [
           followersSnap,
-          usersSnap,
+          profileSettingsSnapshot,
           connectedDisplayList,
         ] = await Promise.all([
           get(ref(db, `follows`)),
-          get(ref(db, `users`)),
+          get(ref(db, `users/${profileUserObj.id}`)),
           profileUserObj.display_list_id
             ? getListWithDetails(profileUserObj.display_list_id).catch(() => null)
             : Promise.resolve(null),
@@ -364,21 +353,21 @@ function ProfilePageInner() {
         setFollowingCount(followingUserIds.length);
         console.log('[PROFILE] Follower count:', followerUserIds.length, 'Following count:', followingUserIds.length);
 
-        const allUsersRaw = usersSnap.exists() ? usersSnap.val() : {};
-        const profileRawUser = allUsersRaw[profileUserObj.id] || profileUserObj;
-        setProfileUserSettings(mergeSettings(profileRawUser?.settings));
-        const followersArr = followerUserIds.map((uid: string) => allUsersRaw[uid]).filter(Boolean);
-        const followingArr = followingUserIds.map((uid: string) => allUsersRaw[uid]).filter(Boolean);
-        setFollowers(followersArr);
-        setFollowing(followingArr);
+        const profileRawUser = profileSettingsSnapshot.exists() ? profileSettingsSnapshot.val() : profileUserObj;
+        const nextProfileUserSettings = mergeSettings(profileRawUser?.settings);
+        setProfileUserSettings(nextProfileUserSettings);
+        setFollowers([]);
+        setFollowing([]);
+        setFollowerIds(followerUserIds);
+        setFollowingIds(followingUserIds);
         setAllFollows(allFollowsRaw);
-        setUsersById(allUsersRaw);
+        setFollowUsersLoaded(false);
 
         if (profileUserObj.display_list_id) {
           setDisplayList(
             connectedDisplayList &&
               connectedDisplayList.privacy === "public" &&
-              (isOwnProfile || profileUserSettings.social.shareListsPublicly)
+              (isOwnProfile || nextProfileUserSettings.social.shareListsPublicly)
               ? connectedDisplayList
               : null
           );
@@ -396,7 +385,58 @@ function ProfilePageInner() {
       }
     });
     return () => unsubscribe();
-  }, [username, router]);
+  }, [username, router, sessionLoading, sessionSettings, sessionUser]);
+
+  useEffect(() => {
+    if (!isFollowModalOpen) return;
+    if (followUsersLoaded) return;
+
+    let cancelled = false;
+
+    const loadFollowUsers = async () => {
+      try {
+        setFollowUsersLoading(true);
+        const usersSnapshot = await get(ref(db, "users"));
+        if (cancelled) return;
+
+        const allUsersRaw = usersSnapshot.exists() ? usersSnapshot.val() as Record<string, any> : {};
+
+        const toUser = (uid: string): User | null => {
+          const raw = allUsersRaw[uid];
+          if (!raw) return null;
+
+          return {
+            id: raw.id || raw.user_id || uid,
+            username: raw.username || "",
+            name: raw.name || "",
+            avatar_url: raw.avatar_url || null,
+            avatar_scale: typeof raw.avatar_scale === "number" ? raw.avatar_scale : 1,
+            created_at: raw.createdAt || raw.created_at || new Date().toISOString(),
+            bio: raw.bio || "",
+            display_list_id: raw.display_list_id || undefined,
+            mood_tags: raw.mood_tags || [],
+            mood_tags_updated_at: raw.mood_tags_updated_at,
+          } as User;
+        };
+
+        setFollowers(followerIds.map(toUser).filter(Boolean) as User[]);
+        setFollowing(followingIds.map(toUser).filter(Boolean) as User[]);
+        setFollowUsersLoaded(true);
+      } catch (error) {
+        console.error("[PROFILE] Error loading follow lists:", error);
+      } finally {
+        if (!cancelled) {
+          setFollowUsersLoading(false);
+        }
+      }
+    };
+
+    loadFollowUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [followUsersLoaded, followerIds, followingIds, isFollowModalOpen]);
 
   const isOwnProfile = !!currentUser && !!profileUser && currentUser.id === profileUser.id;
 
@@ -1653,7 +1693,11 @@ function ProfilePageInner() {
                 </div>
 
                 <div className="space-y-3">
-                  {shownUsers.length === 0 ? (
+                  {followUsersLoading ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-white/55">
+                      Loading people...
+                    </div>
+                  ) : shownUsers.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-white/55">
                       No users found.
                     </div>

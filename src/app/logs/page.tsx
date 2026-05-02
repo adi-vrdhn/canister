@@ -4,13 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
 import TopActionBanner from "@/components/TopActionBanner";
 import LogMovieModal from "@/components/LogMovieModal";
 import CinematicLoading from "@/components/CinematicLoading";
 import { User, MovieLogWithContent, Content } from "@/types";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { get, ref } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { deleteMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { searchMovies } from "@/lib/tmdb";
@@ -267,6 +265,7 @@ function LogCard({
 
 export default function LogsPage() {
   const router = useRouter();
+  const { user: sessionUser, loading: sessionLoading } = useCurrentUser();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<MovieLogWithContent[]>([]);
@@ -321,42 +320,41 @@ export default function LogsPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push("/auth/login");
-        return;
-      }
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      router.push("/auth/login");
+      return;
+    }
 
+    let cancelled = false;
+
+    const loadLogs = async () => {
       try {
-        const userRef = ref(db, `users/${firebaseUser.uid}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.val();
+        setUser(sessionUser);
+        setLoading(true);
 
-        const currentUser: User = {
-          id: userData?.id || firebaseUser.uid,
-          username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
-          name: userData?.name || firebaseUser.displayName || "User",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.createdAt || new Date().toISOString(),
-        };
+        const userLogs = await getUserMovieLogs(sessionUser.id, 500, sessionUser);
+        if (cancelled) return;
 
-        setUser(currentUser);
-
-        const userLogs = await getUserMovieLogs(currentUser.id, 500);
         const filtered = userLogs
           .filter((log) => !log.watch_later && Boolean(log.watched_date))
           .sort(compareLogsDesc);
         setLogs(filtered);
-
-        setLoading(false);
       } catch (error) {
         console.error("Error loading logs:", error);
-        setLoading(false);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, [router]);
+    void loadLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, sessionLoading, sessionUser]);
 
   useEffect(() => {
     setSelectedDay(null);
@@ -524,7 +522,7 @@ export default function LogsPage() {
   const handleRefreshLogs = async () => {
     if (!user) return;
     try {
-      const userLogs = await getUserMovieLogs(user.id, 500);
+      const userLogs = await getUserMovieLogs(user.id, 500, user);
       const filtered = userLogs
         .filter((log) => !log.watch_later && Boolean(log.watched_date))
         .sort(compareLogsDesc);

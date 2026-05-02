@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
 import CinematicLoading from "@/components/CinematicLoading";
 import { User, MovieLogWithContent } from "@/types";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getFriendLogs } from "@/lib/friend-logs";
 import { buildLogUrl } from "@/lib/log-url";
@@ -15,39 +14,42 @@ export default function FriendLogsPage() {
   // --- Season filter state ---
   const [seasonFilter, setSeasonFilter] = useState<string>("all");
   const router = useRouter();
+  const { user: sessionUser, loading: sessionLoading } = useCurrentUser();
   const [user, setUser] = useState<User | null>(null);
   const [logs, setLogs] = useState<(MovieLogWithContent & { friend: User })[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"recent" | "highest-rated">("recent");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      router.push("/auth/login");
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadFriendLogs = async () => {
       try {
-        if (!firebaseUser) {
-          router.push("/auth/login");
-          return;
-        }
-        // Optionally fetch userData from your DB here if needed
-        // For now, just use firebaseUser
-        const currentUser: User = {
-          id: firebaseUser.uid,
-          username: firebaseUser.email?.split("@")[0] || "user",
-          name: firebaseUser.displayName || "User",
-          avatar_url: null,
-          created_at: new Date().toISOString(),
-        };
-        setUser(currentUser);
-        // Fetch friend logs (all, not just first 20)
-        const friendLogs = await getFriendLogs(currentUser.id, 14, 100);
+        setUser(sessionUser);
+        const friendLogs = await getFriendLogs(sessionUser.id, 14, 100);
+        if (cancelled) return;
         setLogs(friendLogs);
-        setLoading(false);
       } catch (error) {
         console.error("Error loading friend logs:", error);
-        setLoading(false);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    };
+
+    void loadFriendLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, sessionLoading, sessionUser]);
 
   const handleSignOut = async () => {
     try {

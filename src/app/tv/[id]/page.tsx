@@ -102,7 +102,7 @@ export default function TVShowPage() {
   return (
     <PageLayout user={user} fullWidth>
       <TopActionBanner message={bannerMessage} />
-      <div className="min-h-screen bg-neutral-950 text-white">
+      <div className="min-h-screen bg-neutral-950 pb-[calc(9rem+env(safe-area-inset-bottom))] text-white sm:pb-24">
         {/* Back Button */}
         <div className="absolute top-6 left-6 z-20">
           <button
@@ -222,8 +222,8 @@ export default function TVShowPage() {
           </div>
         )}
 
-        <div className="max-w-3xl mx-auto">
-          <ContentCinePosts contentId={show.id} contentType="tv" currentUser={user} />
+        <div className="mx-auto max-w-3xl pb-10">
+          <ContentCinePosts contentId={show.id} contentType="tv" currentUser={user} theme="brutalist" />
         </div>
 
         {/* Add to List Modal */}

@@ -3,13 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
 import MovieSwipeCard from "@/components/MovieSwipeCard";
 import CinematicLoading from "@/components/CinematicLoading";
 import MovieMatchAnalysisView from "@/components/MovieMatchAnalysisView";
 import { User, UserTasteWithContent, Content, MovieLogWithContent } from "@/types";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getUserTasteProfile, addToUserTaste, removeFromUserTaste } from "@/lib/user-taste";
 import { searchMovies } from "@/lib/tmdb";
@@ -162,6 +160,7 @@ function FriendMatchCard({
 
 export default function MovieMatcherPage() {
   const router = useRouter();
+  const { user: sessionUser, loading: sessionLoading } = useCurrentUser();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [tastes, setTastes] = useState<UserTasteWithContent[]>([]);
@@ -332,46 +331,42 @@ export default function MovieMatcherPage() {
   const [userLogs, setUserLogs] = useState<MovieLogWithContent[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.push("/auth/login");
-        return;
-      }
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      router.push("/auth/login");
+      return;
+    }
 
+    let cancelled = false;
+    const currentUser = sessionUser;
+
+    const loadMatcherData = async () => {
       try {
-        console.log("MovieMatcher: Fetching user data for:", firebaseUser.uid);
-        const userRef = ref(db, `users/${firebaseUser.uid}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.val();
-
-        const currentUser: User = {
-          id: userData?.id || firebaseUser.uid,
-          username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
-          name: userData?.name || firebaseUser.displayName || "User",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.createdAt || new Date().toISOString(),
-        };
-
         setUser(currentUser);
 
-        console.log("MovieMatcher: Fetching taste profile for:", currentUser.id);
         const userTastes = await getUserTasteProfile(currentUser.id);
-        console.log("MovieMatcher: Taste profile fetched:", userTastes.length, "items");
+        if (cancelled) return;
         setTastes(userTastes);
 
-        // Fetch actual logged ratings for swipe/watch history UI
-        const logs = await getUserMovieLogs(currentUser.id, 100);
+        const logs = await getUserMovieLogs(currentUser.id, 100, currentUser);
+        if (cancelled) return;
         setUserLogs(logs);
       } catch (error) {
         console.error("MovieMatcher: Error loading user data:", error);
         setError("Failed to load MovieMatcher data");
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, [router]);
+    void loadMatcherData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, sessionLoading, sessionUser]);
 
   const handleAddToTaste = async (contentId: number) => {
     if (!user) return;

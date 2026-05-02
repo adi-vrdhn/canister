@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import HydrationFix from "@/components/HydrationFix";
 import AutoPushPrompt from "@/components/AutoPushPrompt";
+import { CurrentUserProvider } from "@/components/CurrentUserProvider";
 import ForegroundPushListener from "@/components/ForegroundPushListener";
 import GlobalErrorListener from "@/components/GlobalErrorListener";
 import LocalhostServiceWorkerCleanup from "@/components/LocalhostServiceWorkerCleanup";
@@ -50,7 +51,9 @@ export default function RootLayout({
         `}
         </Script>
         <LocalhostServiceWorkerCleanup />
-        <HydrationFix>{children}</HydrationFix>
+        <CurrentUserProvider>
+          <HydrationFix>{children}</HydrationFix>
+        </CurrentUserProvider>
         <AutoPushPrompt />
         <ForegroundPushListener />
         <GlobalErrorListener />

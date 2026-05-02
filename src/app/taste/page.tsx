@@ -11,12 +11,10 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { onAuthStateChanged } from "firebase/auth";
-import { get, ref } from "firebase/database";
 import PageLayout from "@/components/PageLayout";
+import { useCurrentUser } from "@/components/CurrentUserProvider";
 import CinematicLoading from "@/components/CinematicLoading";
 import { signOut as authSignOut } from "@/lib/auth";
-import { auth, db } from "@/lib/firebase";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
 import {
@@ -28,6 +26,7 @@ import { User, UserTasteWithContent } from "@/types";
 
 export default function TastePage() {
   const router = useRouter();
+  const { user: sessionUser, loading: sessionLoading } = useCurrentUser();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [tastes, setTastes] = useState<UserTasteWithContent[]>([]);
@@ -42,30 +41,20 @@ export default function TastePage() {
 
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      router.push("/auth/login");
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTasteProfile = async () => {
       try {
-        if (!firebaseUser) {
-          router.push("/auth/login");
-          return;
-        }
-
-        const userRef = ref(db, `users/${firebaseUser.uid}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.exists() ? userSnapshot.val() : null;
-
-        const currentUser: User = {
-          id: userData?.id || firebaseUser.uid,
-          username: userData?.username || (firebaseUser.email ? firebaseUser.email.split("@")[0] : "user"),
-          name: userData?.name || firebaseUser.displayName || firebaseUser.email || "User",
-          avatar_url: userData?.avatar_url || null,
-          created_at:
-            userData?.created_at || userData?.createdAt || new Date().toISOString(),
-        };
-
-        setUser(currentUser);
-
-        console.log("TastePage: Fetching taste profile for:", currentUser.id);
-        const userTastes = await getUserTasteProfile(currentUser.id);
+        setUser(sessionUser);
+        console.log("TastePage: Fetching taste profile for:", sessionUser.id);
+        const userTastes = await getUserTasteProfile(sessionUser.id);
+        if (cancelled) return;
         console.log("TastePage: Taste profile fetched:", userTastes.length, "items");
         setTastes(userTastes);
         setError(null);
@@ -75,11 +64,18 @@ export default function TastePage() {
           error instanceof Error ? error.message : "Failed to load taste profile"
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    });
-    return () => unsubscribe();
-  }, [router]);
+    };
+
+    void loadTasteProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, sessionLoading, sessionUser]);
 
   const handleSignOut = async () => {
     try {
