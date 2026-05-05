@@ -20,6 +20,7 @@ import {
 } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { createFollowRequestNotification } from "@/lib/notifications";
+import { getUsersByIds, searchUsersCached } from "@/lib/users";
 import { Users, Heart } from "lucide-react";
 
 type TabType = "search" | "following" | "followers" | "requests";
@@ -92,9 +93,9 @@ export default function FriendsPage() {
   const setupFollowsListener = (currentUser: User) => {
     const followsRef = ref(db, "follows");
 
-    // Real-time listener for follows
-    const unsubscribe = onValue(followsRef, async (snapshot) => {
-      if (!snapshot.exists()) {
+      // Real-time listener for follows
+      const unsubscribe = onValue(followsRef, async (snapshot) => {
+        if (!snapshot.exists()) {
         setFollowing([]);
         setFollowers([]);
         setPendingRequests([]);
@@ -108,53 +109,47 @@ export default function FriendsPage() {
         ...data,
       }));
 
-      // Fetch all users for mapping
+      const acceptedFollowing = followsList.filter(
+        (f: any) => f.follower_id === currentUser.id && f.status === "accepted"
+      );
+      const acceptedFollowers = followsList.filter(
+        (f: any) => f.following_id === currentUser.id && f.status === "accepted"
+      );
+      const pendingReceived = followsList.filter(
+        (f: any) => f.following_id === currentUser.id && f.status === "pending"
+      );
+      const pendingSent = followsList.filter(
+        (f: any) => f.follower_id === currentUser.id && f.status === "pending"
+      );
+
       try {
-        const usersRef = ref(db, "users");
-        const usersSnapshot = await get(usersRef);
-        const usersData = usersSnapshot.val() || {};
+        const userIds = Array.from(
+          new Set([
+            ...acceptedFollowing.map((f: any) => f.following_id),
+            ...acceptedFollowers.map((f: any) => f.follower_id),
+            ...pendingReceived.map((f: any) => f.follower_id),
+          ])
+        );
+        const usersData = await getUsersByIds(userIds);
 
-        const acceptedFollowing = followsList.filter(
-          (f: any) =>
-            f.follower_id === currentUser.id && f.status === "accepted"
-        );
-        const acceptedFollowers = followsList.filter(
-          (f: any) =>
-            f.following_id === currentUser.id && f.status === "accepted"
-        );
-        const pendingReceived = followsList.filter(
-          (f: any) =>
-            f.following_id === currentUser.id && f.status === "pending"
-        );
-        const pendingSent = followsList.filter(
-          (f: any) => f.follower_id === currentUser.id && f.status === "pending"
-        );
-
-        // Map follows to include user data
         setFollowing(
           acceptedFollowing.map((f: any) => ({
             ...f,
-            following: Object.values(usersData).find(
-              (u: any) => u.id === f.following_id
-            ),
+            following: usersData[f.following_id],
           }))
         );
 
         setFollowers(
           acceptedFollowers.map((f: any) => ({
             ...f,
-            follower: Object.values(usersData).find(
-              (u: any) => u.id === f.follower_id
-            ),
+            follower: usersData[f.follower_id],
           }))
         );
 
         setPendingRequests(
           pendingReceived.map((f: any) => ({
             ...f,
-            follower: Object.values(usersData).find(
-              (u: any) => u.id === f.follower_id
-            ),
+            follower: usersData[f.follower_id],
           }))
         );
 
@@ -174,25 +169,12 @@ export default function FriendsPage() {
         return [];
       }
 
-      // Fetch all users and filter in JS
-      const usersRef = ref(db, "users");
-      const snapshot = await get(usersRef);
+      const users = await searchUsersCached(query);
+      const allUsers = Object.values(users).filter((u: any) => u.id !== user?.id) as User[];
+      const results = allUsers.slice(0, 15);
+      setSearchResults(results);
 
-      if (!snapshot.exists()) {
-        setSearchResults([]);
-        return [];
-      }
-
-      const allUsers = Object.values(snapshot.val()).filter((u: any) => {
-        const usernameMatch =
-          u.username.toLowerCase().includes(query.toLowerCase()) ||
-          u.name.toLowerCase().includes(query.toLowerCase());
-        return usernameMatch && u.id !== user?.id;
-      }) as User[];
-
-      setSearchResults(allUsers.slice(0, 15));
-
-      return allUsers.slice(0, 15).map((u: any) => ({
+      return results.map((u: any) => ({
         id: u.id,
         title: `@${u.username}`,
         subtitle: u.name,

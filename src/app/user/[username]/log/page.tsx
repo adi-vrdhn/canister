@@ -14,6 +14,7 @@ import { getUserMovieLogs, deleteMovieLog } from "@/lib/logs";
 import { buildLogUrl } from "@/lib/log-url";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
+import { getUserByUsername } from "@/lib/profile";
 import LogMovieModal from "@/components/LogMovieModal";
 import ShareLinkButton from "@/components/ShareLinkButton";
 import {
@@ -285,18 +286,7 @@ export default function UserLogPage() {
       };
       setUser(currentUser);
 
-      // Get profile user by username
-      let profileUserData = null;
-      // Try to find user by username
-      const usersRef = ref(db, "users");
-      const usersSnapshot = await get(usersRef);
-      const users = usersSnapshot.val() || {};
-      for (const key in users) {
-        if (users[key].username === usernameParam) {
-          profileUserData = users[key];
-          break;
-        }
-      }
+      const profileUserData = await getUserByUsername(usernameParam);
       if (!profileUserData) {
         router.push("/404");
         return;

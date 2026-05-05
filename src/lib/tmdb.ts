@@ -85,8 +85,21 @@ interface TMDBDetailedMovie {
   vote_average: number;
   vote_count: number;
   popularity: number;
-  credit?: {
-    crew: Array<{ job: string; name: string }>;
+  credits?: {
+    cast: Array<{
+      id: number;
+      name: string;
+      character?: string;
+      profile_path?: string | null;
+      order?: number;
+    }>;
+    crew: Array<{
+      id: number;
+      name: string;
+      job?: string;
+      department?: string;
+      profile_path?: string | null;
+    }>;
   };
 }
 
@@ -330,18 +343,38 @@ function rankMovieSearchResults(
 function normalizeMovieDetails(data: TMDBDetailedMovie) {
   let director: string | null = null;
   let actors: string[] | null = null;
+  const castDetails = (data.credits?.cast || [])
+    .slice(0, 20)
+    .map((person) => ({
+      id: person.id,
+      name: person.name,
+      character: person.character || null,
+      profile_url: getTmdbImageUrl(person.profile_path || null, "w185"),
+    }));
 
-  if ((data as any).credits && (data as any).credits.crew) {
-    const directorObj = (data as any).credits.crew.find(
-      (person: any) => person.job === "Director"
-    );
+  const crewDetails = (data.credits?.crew || [])
+    .filter((person) =>
+      ["Director", "Producer", "Executive Producer", "Cinematography", "Director of Photography", "Editor", "Original Music Composer", "Music"].includes(
+        person.job || ""
+      )
+    )
+    .map((person) => ({
+      id: person.id,
+      name: person.name,
+      job: person.job || null,
+      department: person.department || null,
+      profile_url: getTmdbImageUrl(person.profile_path || null, "w185"),
+    }));
+
+  if (data.credits?.crew) {
+    const directorObj = data.credits.crew.find((person) => person.job === "Director");
     director = directorObj?.name || null;
   }
 
-  if ((data as any).credits && (data as any).credits.cast) {
-    actors = (data as any).credits.cast
+  if (data.credits?.cast) {
+    actors = data.credits.cast
       .slice(0, 5)
-      .map((person: any) => person.name);
+      .map((person) => person.name);
   }
 
   return {
@@ -358,6 +391,8 @@ function normalizeMovieDetails(data: TMDBDetailedMovie) {
     runtime: data.runtime,
     rating: data.vote_average,
     platforms: [],
+    cast_details: castDetails,
+    crew_details: crewDetails,
   };
 }
 

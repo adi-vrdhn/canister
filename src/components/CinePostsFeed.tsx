@@ -981,9 +981,6 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
               <h2 className={`text-[11px] uppercase tracking-[0.3em] ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>
                 Liked Posts
               </h2>
-              <p className={`mt-1 text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                Posts you already liked sit at the bottom after refresh.
-              </p>
             </div>
             <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
               {likedPosts.map((post) => renderPostCard(post, 0, false))}

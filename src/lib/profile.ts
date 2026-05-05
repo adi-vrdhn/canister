@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { ref, get, set } from "firebase/database";
+import { equalTo, get, limitToFirst, orderByChild, query, ref, set } from "firebase/database";
 import { User, MovieLog, Content } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
@@ -159,24 +159,24 @@ export async function getUserProfile(userId: string): Promise<User | null> {
 export async function getUserByUsername(username: string): Promise<User | null> {
   try {
     const normalizedUsername = username.trim().replace(/^@/, "").toLowerCase();
-    const usersRef = ref(db, "users");
-    const snapshot = await get(usersRef);
+    if (!normalizedUsername) return null;
+
+    const usersQuery = query(
+      ref(db, "users"),
+      orderByChild("username"),
+      equalTo(normalizedUsername),
+      limitToFirst(1)
+    );
+    const snapshot = await get(usersQuery);
 
     if (!snapshot.exists()) return null;
 
-    const users = snapshot.val();
-    const user = Object.values(users as Record<string, any>).find((u: any) => {
-      const storedUsername = String(u?.username || "").trim().replace(/^@/, "").toLowerCase();
-      const storedId = String(u?.id || u?.user_id || "").trim().toLowerCase();
+    const users = snapshot.val() as Record<string, any>;
+    const [userKey, userData] = Object.entries(users)[0] || [];
+    if (!userKey || !userData) return null;
 
-      return storedUsername === normalizedUsername || storedId === normalizedUsername;
-    });
-
-    if (!user) return null;
-
-    const userData = user as any;
     return {
-      id: userData.id || userData.user_id,
+      id: userData.id || userData.user_id || userKey,
       username: userData.username,
       name: userData.name,
       email: userData.email || undefined,
@@ -490,12 +490,17 @@ export async function updateUserProfile(
   try {
     if (typeof updates.username === "string" && updates.username.trim()) {
       const requestedUsername = updates.username.trim().toLowerCase();
-      const usersRef = ref(db, "users");
-      const usersSnapshot = await get(usersRef);
+      const usersQuery = query(
+        ref(db, "users"),
+        orderByChild("username"),
+        equalTo(requestedUsername),
+        limitToFirst(2)
+      );
+      const usersSnapshot = await get(usersQuery);
       const users = usersSnapshot.val() || {};
 
-      const usernameTaken = Object.values(users).some((entry: any) => {
-        const entryId = entry?.id;
+      const usernameTaken = Object.entries(users as Record<string, any>).some(([, entry]) => {
+        const entryId = entry?.id || entry?.user_id;
         const entryUsername = (entry?.username || "").toLowerCase();
         return entryId !== userId && entryUsername === requestedUsername;
       });
@@ -505,6 +510,11 @@ export async function updateUserProfile(
       }
 
       updates.username = requestedUsername;
+      (updates as any).username_lower = requestedUsername;
+    }
+
+    if (typeof updates.name === "string") {
+      (updates as any).name_lower = updates.name.trim().toLowerCase();
     }
 
     const userRef = ref(db, `users/${userId}`);

@@ -9,6 +9,7 @@ import {
 import type { LogComment, LogCommentWithUser, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
+import { getUsersByIds } from "./users";
 
 function fallbackUser(userId: string): User {
   return {
@@ -30,11 +31,10 @@ function normalizeUser(userId: string, userData: any): User {
   };
 }
 
-async function getUsersById(): Promise<Record<string, User>> {
-  const usersSnapshot = await get(ref(db, "users"));
-  const usersRaw = usersSnapshot.val() || {};
+async function getUsersById(userIds: string[]): Promise<Record<string, User>> {
+  const users = await getUsersByIds(userIds);
   return Object.fromEntries(
-    Object.entries(usersRaw).map(([id, value]) => [id, normalizeUser(id, value)])
+    Object.entries(users).map(([id, value]) => [id, normalizeUser(id, value)])
   ) as Record<string, User>;
 }
 
@@ -134,9 +134,8 @@ export async function getLogComments(
   logId: string,
   currentUserId?: string
 ): Promise<LogCommentWithUser[]> {
-  const [commentsSnapshot, usersById, likesSnapshot] = await Promise.all([
+  const [commentsSnapshot, likesSnapshot] = await Promise.all([
     get(ref(db, `log_comments/${logId}`)),
-    getUsersById(),
     get(ref(db, `log_comment_likes/${logId}`)),
   ]);
 
@@ -144,6 +143,7 @@ export async function getLogComments(
     ? (Object.values(commentsSnapshot.val()) as LogComment[])
     : [];
   const likesRaw = likesSnapshot.exists() ? likesSnapshot.val() : {};
+  const usersById = await getUsersById(comments.map((comment) => comment.user_id));
 
   return nestComments(comments, usersById, likesRaw, currentUserId);
 }
@@ -223,10 +223,9 @@ export async function getLogCommentLikes(
 }
 
 export async function getLogCommentLikers(logId: string, commentId: string): Promise<User[]> {
-  const [likesSnapshot, usersById] = await Promise.all([
-    get(ref(db, `log_comment_likes/${logId}/${commentId}`)),
-    getUsersById(),
-  ]);
+  const likesSnapshot = await get(ref(db, `log_comment_likes/${logId}/${commentId}`));
+  const userIds = likesSnapshot.exists() ? Object.keys(likesSnapshot.val() || {}) : [];
+  const usersById = await getUsersById(userIds);
 
   if (!likesSnapshot.exists()) return [];
   const likes = likesSnapshot.val() || {};

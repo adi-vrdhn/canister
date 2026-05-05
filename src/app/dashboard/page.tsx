@@ -17,7 +17,7 @@ import { searchShows } from "@/lib/tvmaze";
 import { buildLogUrl } from "@/lib/log-url";
 import { getFriendLogs } from "@/lib/friend-logs";
 import { reportAppError } from "@/lib/report-error";
-import { getAllUsersCached } from "@/lib/users";
+import { getUsersByIds, searchUsersCached } from "@/lib/users";
 import { getBlurDataUrl } from "@/lib/performance";
 import { getTmdbPosterUrl } from "@/lib/performance";
 import Link from "next/link";
@@ -152,12 +152,12 @@ export default function DashboardPage() {
           );
 
         try {
-          const usersData = await getAllUsersCached();
+          const usersData = await getUsersByIds(sharesList.map((share: any) => share.sender_id));
 
           const sharesWithDetails: ShareWithDetails[] = sharesList.map((share: any) => ({
             ...share,
             movie: share.movie || null,
-            sender: Object.values(usersData).find((u: any) => u.id === share.sender_id),
+            sender: usersData[share.sender_id],
           }));
 
           if (!cancelled) {
@@ -225,7 +225,7 @@ export default function DashboardPage() {
         const [movies, shows, usersData] = await Promise.all([
           searchMovies(query),
           searchShows(query),
-          getAllUsersCached(),
+          searchUsersCached(query),
         ]);
 
         if (requestId !== searchRequestRef.current) return;

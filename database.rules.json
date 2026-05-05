@@ -1,0 +1,134 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      ".read": "auth != null",
+      ".indexOn": ["username", "name_lower"],
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $uid",
+        "push_tokens": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "movie_logs": {
+      ".read": "auth != null",
+      "$logId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('user_id').val() == auth.uid) || (data.exists() && data.child('user_id').val() == auth.uid))"
+      }
+    },
+    "watched_movies": {
+      ".read": "auth != null",
+      "$watchedId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('user_id').val() == auth.uid) || (data.exists() && data.child('user_id').val() == auth.uid))"
+      }
+    },
+    "watched_movies_meta": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "user_tastes": {
+      ".read": "auth != null",
+      "$tasteId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('user_id').val() == auth.uid) || (data.exists() && data.child('user_id').val() == auth.uid))"
+      }
+    },
+    "follows": {
+      ".read": "auth != null",
+      "$followId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('follower_id').val() == auth.uid) || (data.exists() && (data.child('follower_id').val() == auth.uid || data.child('following_id').val() == auth.uid)))"
+      }
+    },
+    "shares": {
+      ".read": "auth != null",
+      "$shareId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('sender_id').val() == auth.uid) || (data.exists() && (data.child('sender_id').val() == auth.uid || data.child('receiver_id').val() == auth.uid)))"
+      }
+    },
+    "share_replies": {
+      "$shareId": {
+        ".read": "auth != null",
+        "$replyId": {
+          ".write": "auth != null && (( !data.exists() && newData.child('sender_id').val() == auth.uid && (root.child('shares').child($shareId).child('sender_id').val() == auth.uid || root.child('shares').child($shareId).child('receiver_id').val() == auth.uid) ) || ( data.exists() && (data.child('sender_id').val() == auth.uid || root.child('shares').child($shareId).child('sender_id').val() == auth.uid || root.child('shares').child($shareId).child('receiver_id').val() == auth.uid) ))"
+        }
+      }
+    },
+    "posts": {
+      ".read": "auth != null",
+      "$postId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('user_id').val() == auth.uid) || (data.exists() && data.child('user_id').val() == auth.uid))"
+      }
+    },
+    "comments": {
+      ".read": "auth != null",
+      "$postId": {
+        "$commentId": {
+          ".write": "auth != null && (( !data.exists() && newData.child('user_id').val() == auth.uid && root.child('posts').child($postId).child('user_id').exists() ) || ( data.exists() && (data.child('user_id').val() == auth.uid || root.child('posts').child($postId).child('user_id').val() == auth.uid) ))"
+        }
+      }
+    },
+    "engagement": {
+      ".read": "auth != null",
+      "$postId": {
+        "$engagementId": {
+          ".write": "auth != null && (( !data.exists() && newData.child('user_id').val() == auth.uid && newData.child('post_id').val() == $postId ) || ( data.exists() && data.child('user_id').val() == auth.uid ))"
+        }
+      }
+    },
+    "log_comments": {
+      ".read": "auth != null",
+      "$logId": {
+        "$commentId": {
+          ".write": "auth != null && (( !data.exists() && newData.child('user_id').val() == auth.uid && root.child('movie_logs').child($logId).child('user_id').exists() ) || ( data.exists() && (data.child('user_id').val() == auth.uid || root.child('movie_logs').child($logId).child('user_id').val() == auth.uid) ))"
+        }
+      }
+    },
+    "log_likes": {
+      ".read": "auth != null",
+      "$logId": {
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "log_comment_likes": {
+      ".read": "auth != null",
+      "$logId": {
+        "$commentId": {
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid"
+          }
+        }
+      }
+    },
+    "list_collaborators": {
+      ".read": "auth != null",
+      "$collabId": {
+        ".write": "auth != null && (( !data.exists() && root.child('lists').child(newData.child('list_id').val()).child('owner_id').val() == auth.uid ) || ( data.exists() && root.child('lists').child(data.child('list_id').val()).child('owner_id').val() == auth.uid ))"
+      }
+    },
+    "list_items": {
+      ".read": "auth != null",
+      "$itemId": {
+        ".write": "auth != null && (( !data.exists() && root.child('lists').child(newData.child('list_id').val()).child('owner_id').val() == auth.uid ) || ( data.exists() && root.child('lists').child(data.child('list_id').val()).child('owner_id').val() == auth.uid ))"
+      }
+    },
+    "lists": {
+      ".read": "auth != null",
+      "$listId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('owner_id').val() == auth.uid) || (data.exists() && data.child('owner_id').val() == auth.uid))"
+      }
+    }
+  }
+}

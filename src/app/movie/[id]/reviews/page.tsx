@@ -52,6 +52,7 @@ export default function MovieReviewsPage() {
   const [sortFilter, setSortFilter] = useState<SortFilter>("recent");
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [friendIds, setFriendIds] = useState<string[]>([]);
+  const [expandedReviewIds, setExpandedReviewIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -153,6 +154,15 @@ export default function MovieReviewsPage() {
     });
   }, [friendIds, ratingFilter, reviews, scopeFilter, sortFilter]);
 
+  const toggleReviewExpanded = (reviewId: string) => {
+    setExpandedReviewIds((current) => {
+      const next = new Set(current);
+      if (next.has(reviewId)) next.delete(reviewId);
+      else next.add(reviewId);
+      return next;
+    });
+  };
+
   if (loading || !user) {
     return <CinematicLoading message="Movie reviews are loading" />;
   }
@@ -240,11 +250,7 @@ export default function MovieReviewsPage() {
             {filteredReviews.length > 0 ? (
               <div className="divide-y divide-white/10">
                 {filteredReviews.map((review) => (
-                  <Link
-                    key={review.id}
-                    href={getReviewHref(review)}
-                    className="group block py-5 transition-colors hover:bg-white/5"
-                  >
+                  <article key={review.id} className="group py-5 transition-colors hover:bg-white/5">
                     <div className="flex items-start gap-4">
                       <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/5">
                         {review.user.avatar_url ? (
@@ -262,9 +268,7 @@ export default function MovieReviewsPage() {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <p className="font-semibold text-[#f5f0de] group-hover:text-white">
-                            {review.user.name}
-                          </p>
+                          <p className="font-semibold text-[#f5f0de] group-hover:text-white">{review.user.name}</p>
                           <span className="text-xs text-white/40">
                             @{review.user.username || review.user.id}
                           </span>
@@ -272,18 +276,35 @@ export default function MovieReviewsPage() {
                           <span className="text-xs text-white/45">
                             {new Date(review.created_at).toLocaleDateString()}
                           </span>
+                          <Link
+                            href={getReviewHref(review)}
+                            className="text-xs font-semibold text-[#ffb36b] transition hover:text-[#ffcf9b]"
+                          >
+                            Open log
+                          </Link>
                         </div>
 
-                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/78">
+                        <p className={`mt-2 text-sm leading-6 text-white/78 ${expandedReviewIds.has(review.id) ? "" : "line-clamp-3"}`}>
                           {review.text}
                         </p>
+                        {review.text.length > 180 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleReviewExpanded(review.id)}
+                            className="mt-3 text-sm font-semibold text-[#ffb36b] transition hover:text-[#ffcf9b]"
+                          >
+                            {expandedReviewIds.has(review.id) ? "Show less" : "Show more"}
+                          </button>
+                        )}
                       </div>
 
-                      <span className={`flex-shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getReactionBadgeClass(review.rating)}`}>
-                        {review.rating}/5
+                      <span
+                        className={`flex-shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getReactionBadgeClass(review.rating)}`}
+                      >
+                        {getReactionLabelFromRating(review.rating)}
                       </span>
                     </div>
-                  </Link>
+                  </article>
                 ))}
               </div>
             ) : (

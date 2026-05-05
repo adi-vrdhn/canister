@@ -8,6 +8,7 @@ import { get, onValue, ref, remove } from "firebase/database";
 import { ArrowLeft, Film, Search } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { getUserByUsername } from "@/lib/profile";
+import { getUsersByIds } from "@/lib/users";
 import CinematicLoading from "@/components/CinematicLoading";
 import type { Content, ShareWithDetails, User } from "@/types";
 import { canShowSharedMovies, isUsernameBlocked, mergeSettings } from "@/lib/settings";
@@ -51,11 +52,8 @@ export default function SharedMoviesPage() {
         const viewed = await getUserByUsername(username);
         if (!viewed) return window.location.assign("/dashboard");
 
-        const usersSnapshot = await get(ref(db, "users"));
-        const usersData = usersSnapshot.val() || {};
-        const viewedRaw = Object.values(usersData).find(
-          (entry: any) => entry?.id === viewed.id || entry?.username === viewed.username
-        );
+        const viewedUserSnapshot = await get(ref(db, `users/${viewed.id}`));
+        const viewedRaw = viewedUserSnapshot.val() || viewed;
         const viewedSettings = mergeSettings((viewedRaw as any)?.settings);
 
         const followsSnapshot = await get(ref(db, "follows"));
@@ -89,25 +87,26 @@ export default function SharedMoviesPage() {
             return;
           }
 
-          const usersSnapshot = await get(ref(db, "users"));
-          const usersData = usersSnapshot.val() || {};
           const allShares = snapshot.val();
           const relevant = Object.entries(allShares)
             .map(([id, data]: any) => ({ id, ...data }))
             .filter((share: any) =>
               (share.sender_id === me.id && share.receiver_id === viewed.id) ||
               (share.sender_id === viewed.id && share.receiver_id === me.id)
-            )
+            );
+
+          const usersById = await getUsersByIds(Array.from(new Set(relevant.flatMap((share: any) => [share.sender_id, share.receiver_id]))));
+          const mapped = relevant
             .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .map((share: any) => ({
               ...share,
               movie: share.movie || null,
               content: share.content || share.movie || null,
-              sender: Object.values(usersData).find((u: any) => u.id === share.sender_id),
-              receiver: Object.values(usersData).find((u: any) => u.id === share.receiver_id),
+              sender: usersById[share.sender_id],
+              receiver: usersById[share.receiver_id],
             })) as ShareWithDetails[];
 
-          setShares(relevant);
+          setShares(mapped);
         });
 
         setLoading(false);

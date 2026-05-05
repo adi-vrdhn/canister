@@ -12,6 +12,7 @@ import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 import { removeWatchedMovieSource, upsertWatchedMovie } from "./watched-movies";
 import { getUserProfile } from "./users";
+import { createLogCreatedNotifications } from "./notifications";
 
 const IMPORTED_RATINGS_CSV_NOTE = "Imported from ratings CSV";
 
@@ -177,6 +178,9 @@ export async function createMovieLog(
 
   await set(logRef, newLog);
   await upsertWatchedMovie(userId, contentId, contentType, "log");
+  if (!importedFromCsv) {
+    await createLogCreatedNotifications(newLog);
+  }
   return newLog;
 }
 
@@ -322,7 +326,13 @@ export async function getLogsForContent(
 
     const allLogs = snapshot.val();
     const contentLogs = Object.values(allLogs)
-      .filter((log: any) => log.content_type === contentType)
+      .filter(
+        (log: any) =>
+          log.content_type === contentType &&
+          Number(log.content_id) === contentId &&
+          !log.watch_later &&
+          Boolean(log.watched_date)
+      )
       .sort((a: any, b: any) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
       .slice(0, limit) as MovieLog[];
 

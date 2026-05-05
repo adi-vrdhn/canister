@@ -164,19 +164,6 @@ export default function EditProfilePage() {
     setSaving(true);
     setSaveError("");
     try {
-      const usersRef = ref(db, "users");
-      const usersSnapshot = await get(usersRef);
-      const allUsers = usersSnapshot.val() || {};
-      const usernameTaken = Object.values(allUsers).some(
-        (entry: any) => entry?.id !== user.id && (entry?.username || "").toLowerCase() === cleanUsername
-      );
-
-      if (usernameTaken) {
-        setSaveError("This username is already taken.");
-        setSaving(false);
-        return;
-      }
-
       if (auth.currentUser.email !== cleanEmail) {
         // Prevent changing to the same email
         if (auth.currentUser.email?.toLowerCase() === cleanEmail) {

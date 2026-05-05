@@ -1,8 +1,9 @@
 import { get, push, ref, remove, set } from "firebase/database";
 import { db } from "@/lib/firebase";
-import type { User } from "@/types";
+import type { MovieLog, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
+import { getUserProfile } from "./users";
 
 export type FollowRequestState = "pending" | "accepted";
 
@@ -16,6 +17,7 @@ export type NotificationType =
   | "like"
   | "share_reply"
   | "share_received"
+  | "log_created"
   | "log_comment"
   | "log_comment_reply"
   | "log_comment_like"
@@ -128,6 +130,9 @@ export function notificationHref(note: NotificationItem): string {
   if (note.type === "matcher_update") {
     return "/movie-matcher";
   }
+  if (note.type === "log_created" && note.logId) {
+    return `/logs/${note.logId}`;
+  }
   if ((note.type === "log_comment" || note.type === "log_comment_reply" || note.type === "log_comment_like") && note.logId) {
     return note.commentId ? `/logs/${note.logId}?comment=${note.commentId}` : `/logs/${note.logId}`;
   }
@@ -158,6 +163,8 @@ export function notificationText(note: NotificationItem): string {
       return note.shareTitle ? `shared ${note.shareTitle} with you.` : "shared a title with you.";
     case "matcher_update":
       return note.subjectName ? `updated your movie matcher with ${note.subjectName}.` : "updated your movie matcher.";
+    case "log_created":
+      return note.contentType === "tv" ? "logged a new show." : "logged a new movie.";
     case "log_comment":
       return "commented on your log.";
     case "log_comment_reply":
@@ -452,6 +459,64 @@ export async function createFollowAcceptedNotification(
     type: "follow_request",
     notificationId: followId,
   });
+}
+
+export async function createLogCreatedNotifications(log: MovieLog): Promise<void> {
+  if (!log.id || !log.user_id || log.watch_later || !log.watched_date) return;
+
+  const followsRef = ref(db, "follows");
+  const snapshot = await get(followsRef);
+  if (!snapshot.exists()) return;
+
+  const followerIds = Array.from(
+    new Set(
+      Object.values(snapshot.val() as Record<string, any>)
+        .filter((follow: any) => follow?.following_id === log.user_id && follow?.status === "accepted")
+        .map((follow: any) => follow?.follower_id)
+        .filter((followerId): followerId is string => Boolean(followerId) && followerId !== log.user_id)
+    )
+  );
+
+  if (followerIds.length === 0) return;
+
+  const fromUser = await getUserProfile(log.user_id);
+  const createdAt = log.created_at || new Date().toISOString();
+  const logTitle = log.content_type === "tv" ? "show" : "movie";
+
+  await Promise.all(
+    followerIds.map(async (recipientId) => {
+      if (!(await shouldDeliverNotificationToUser(recipientId, "log_created"))) return;
+
+      const notificationRef = push(ref(db, `notifications/${recipientId}`));
+      await set(
+        notificationRef,
+        stripUndefinedFields({
+          type: "log_created",
+          seen: false,
+          logId: log.id,
+          contentId: log.content_id,
+          contentType: log.content_type,
+          fromUser: {
+            id: fromUser.id,
+            username: fromUser.username,
+            name: fromUser.name,
+            avatar_url: fromUser.avatar_url || null,
+          },
+          created_at: createdAt,
+          createdAt,
+        })
+      );
+
+      await sendPushNotification({
+        userId: recipientId,
+        title: `${fromUser.name} logged a new ${logTitle}`,
+        body: "Open Canisterr to view the log.",
+        url: `/logs/${log.id}`,
+        type: "log_created",
+        notificationId: `${log.id}-${recipientId}`,
+      });
+    })
+  );
 }
 
 export async function createCollaborationRequestNotification(

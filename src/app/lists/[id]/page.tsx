@@ -297,11 +297,7 @@ export default function ListDetailPage() {
         setCurrentUserSettings(mergeSettings(userData?.settings));
 
         // Fetch list details
-        const usersRef = ref(db, "users");
-        const usersSnapshot = await get(usersRef);
-        const usersData = usersSnapshot.val() || {};
-
-        const listData = await getListWithDetails(listId, usersData);
+        const listData = await getListWithDetails(listId);
         if (listData) {
           setList(listData);
           setEditName(listData.name);
@@ -543,35 +539,36 @@ export default function ListDetailPage() {
       });
 
       // Get friend users and exclude already added collaborators
-      const usersRef = ref(db, "users");
-      const usersSnapshot = await get(usersRef);
-      const allUsers = usersSnapshot.val() || {};
-
       const existingCollabIds = new Set(list?.collaborators.map((c) => c.user_id) || []);
 
       const friends: User[] = [];
-      friendIds.forEach((friendId) => {
-        if (allUsers[friendId] && !existingCollabIds.has(friendId)) {
-          const userData = allUsers[friendId];
-          const friendSettings = mergeSettings(userData?.settings);
-          if (
-            friendSettings.account.status !== "active" ||
-            !friendSettings.social.allowCollaborations ||
-            isUsernameBlocked(friendSettings, user.username) ||
-            isUsernameBlocked(currentUserSettings, userData.username || "")
-          ) {
-            return;
-          }
+      await Promise.all(
+        Array.from(friendIds).map(async (friendId) => {
+          if (existingCollabIds.has(friendId)) return;
 
-          friends.push({
-            id: userData.id || friendId,
-            username: userData.username || "",
-            name: userData.name || "",
-            avatar_url: userData.avatar_url || null,
-            created_at: userData.created_at || new Date().toISOString(),
-          });
-        }
-      });
+          const userSnapshot = await get(ref(db, `users/${friendId}`));
+          const userData = userSnapshot.exists() ? userSnapshot.val() : null;
+          if (userData) {
+            const friendSettings = mergeSettings(userData?.settings);
+            if (
+              friendSettings.account.status !== "active" ||
+              !friendSettings.social.allowCollaborations ||
+              isUsernameBlocked(friendSettings, user.username) ||
+              isUsernameBlocked(currentUserSettings, userData.username || "")
+            ) {
+              return;
+            }
+
+            friends.push({
+              id: userData.id || friendId,
+              username: userData.username || "",
+              name: userData.name || "",
+              avatar_url: userData.avatar_url || null,
+              created_at: userData.created_at || userData.createdAt || new Date().toISOString(),
+            });
+          }
+        })
+      );
 
       setAvailableFriends(friends);
       setFilteredFriends(friends);
@@ -628,11 +625,7 @@ export default function ListDetailPage() {
       }
 
       // Reload list to see new collaborators
-      const usersRef = ref(db, "users");
-      const usersSnapshot = await get(usersRef);
-      const usersData = usersSnapshot.val() || {};
-
-      const updatedList = await getListWithDetails(listId, usersData);
+      const updatedList = await getListWithDetails(listId);
       if (updatedList) {
         setList(updatedList);
       }

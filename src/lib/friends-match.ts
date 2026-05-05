@@ -1,7 +1,6 @@
-import { db } from "@/lib/firebase";
-import { ref, get, query, orderByChild, equalTo } from "firebase/database";
 import { UserTasteWithContent, UserTaste } from "@/types";
 import { getUserTasteProfile, getAllUserTastesProfiles } from "./user-taste";
+import { getUsersByIds } from "./users";
 
 export interface Friend {
   userId: string;
@@ -19,29 +18,21 @@ export async function getAvailableFriends(
   currentUserId: string
 ): Promise<Friend[]> {
   try {
-    console.log("getFriends: Fetching all users");
-    const usersRef = ref(db, "users");
-    const snapshot = await get(usersRef);
-
-    if (!snapshot.exists()) {
-      console.log("getFriends: No users found");
-      return [];
-    }
-
-    const allUsers = snapshot.val();
-    const friends: Friend[] = [];
-
     // Get all taste profiles to count movies per user
     const allTastes = await getAllUserTastesProfiles();
+    const userIds = Object.keys(allTastes).filter((userId) => userId !== currentUserId);
+    const usersData = await getUsersByIds(userIds);
+    const friends: Friend[] = [];
 
-    // Convert to user array and filter
-    Object.entries(allUsers).forEach(([userId, userData]: [string, any]) => {
+    Object.entries(allTastes).forEach(([userId, userTastes]) => {
       // Skip current user
       if (userId === currentUserId) return;
 
-      const userTastes = allTastes[userId] || [];
       const tasteCount = userTastes.length;
       const isComplete = tasteCount >= 7;
+      const userData = usersData[userId];
+
+      if (!userData) return;
 
       friends.push({
         userId,

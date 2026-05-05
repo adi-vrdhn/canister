@@ -11,6 +11,7 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, get, onValue } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
+import { getUsersByIds } from "@/lib/users";
 import { ArrowLeft, Grid3x3, List, Search } from "lucide-react";
 import Link from "next/link";
 
@@ -84,19 +85,12 @@ export default function AllMoviesPage() {
 
             // Fetch users for sender details
             try {
-              const usersRef = ref(db, "users");
-              const usersSnapshot = await get(usersRef);
-              const usersData = usersSnapshot.val() || {};
-
-              const sharesWithDetails: ShareWithDetails[] = sharesList.map(
-                (share: any) => ({
-                  ...share,
-                  movie: share.movie || null,
-                  sender: Object.values(usersData).find(
-                    (u: any) => u.id === share.sender_id
-                  ),
-                })
-              );
+              const usersData = await getUsersByIds(sharesList.map((share: any) => share.sender_id));
+              const sharesWithDetails: ShareWithDetails[] = sharesList.map((share: any) => ({
+                ...share,
+                movie: share.movie || null,
+                sender: usersData[share.sender_id],
+              }));
 
               setShares(sharesWithDetails);
             } catch (error) {

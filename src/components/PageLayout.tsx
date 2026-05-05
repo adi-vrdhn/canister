@@ -4,6 +4,7 @@ import EmailVerificationBadge from "./EmailVerificationBadge";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { User } from "@/types";
 import { ReactNode, useEffect, useState } from "react";
 import { Settings } from "lucide-react";
@@ -32,8 +33,9 @@ export default function PageLayout({
   headerAction = "notifications",
 }: PageLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showPwaBottomNav, setShowPwaBottomNav] = useState(false);
   const isBrutalist = theme === "brutalist";
+  const pathname = usePathname();
+  const reserveBottomNavSpace = !pathname.startsWith("/auth") && !pathname.startsWith("/scan");
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -59,31 +61,6 @@ export default function PageLayout({
 
     return () => unsubscribe();
   }, [user?.id]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const update = () => {
-      const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
-      const mobile = window.matchMedia("(max-width: 1023px)").matches;
-      setShowPwaBottomNav(Boolean(standalone && mobile));
-    };
-
-    update();
-
-    const standaloneMedia = window.matchMedia("(display-mode: standalone)");
-    const mobileMedia = window.matchMedia("(max-width: 1023px)");
-
-    standaloneMedia.addEventListener?.("change", update);
-    mobileMedia.addEventListener?.("change", update);
-    window.addEventListener("resize", update);
-
-    return () => {
-      standaloneMedia.removeEventListener?.("change", update);
-      mobileMedia.removeEventListener?.("change", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
 
   return (
     <div className={`${isBrutalist ? "brutalist bg-[#0a0a0a]" : "app-shell"} flex min-h-dvh overflow-x-hidden`}>
@@ -171,7 +148,7 @@ export default function PageLayout({
 
       <div
         className={`min-w-0 flex-1 overflow-auto pt-16 lg:pl-72 ${isBrutalist ? "bg-[#0a0a0a]" : ""} ${
-          showPwaBottomNav ? "pb-[calc(7.5rem+env(safe-area-inset-bottom))]" : ""
+          reserveBottomNavSpace ? "pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0" : ""
         }`}
       >
         <EmailVerificationBadge className="mx-auto mt-3 w-full max-w-[1600px] px-1 sm:px-2" />

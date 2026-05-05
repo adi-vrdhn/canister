@@ -15,7 +15,7 @@ import {
 import { getListCoverImages } from "./lists";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
-import { getAllUsersCached } from "./users";
+import { getUsersByIds } from "./users";
 
 type CreateCinePostInput = {
   user: User;
@@ -196,11 +196,10 @@ function scoreComment(comment: CinePostComment, replyCount: number): number {
   return replyCount * 4 + Math.min(comment.content.trim().length, 240) / 24;
 }
 
-async function getUsersById(): Promise<Record<string, User>> {
-  const usersRaw = (await getAllUsersCached()) || {};
-
+async function getUsersById(userIds: string[]): Promise<Record<string, User>> {
+  const users = await getUsersByIds(userIds);
   return Object.fromEntries(
-    Object.entries(usersRaw).map(([id, value]) => [id, normalizeUser(id, value)])
+    Object.entries(users).map(([id, value]) => [id, normalizeUser(id, value)])
   ) as Record<string, User>;
 }
 
@@ -350,9 +349,8 @@ export async function getCinePosts(
   limit: number = 30,
   options: CinePostQueryOptions = {}
 ): Promise<CinePostWithDetails[]> {
-  const [postsSnapshot, usersById, commentsSnapshot, engagementSnapshot, friendIds] = await Promise.all([
+  const [postsSnapshot, commentsSnapshot, engagementSnapshot, friendIds] = await Promise.all([
     get(ref(db, "posts")),
-    getUsersById(),
     get(ref(db, "comments")),
     get(ref(db, "engagement")),
     getAcceptedFriendIds(currentUserId),
@@ -364,6 +362,15 @@ export async function getCinePosts(
   const engagementRaw = engagementSnapshot.val() || {};
 
   const posts = Object.values(postsSnapshot.val() as Record<string, CinePost>);
+  const usersById = await getUsersById([
+    ...new Set([
+      ...(currentUserId ? [currentUserId] : []),
+      ...posts.map((post) => post.user_id),
+      ...Object.values(commentsRaw).flatMap((postComments) =>
+        Object.values(postComments as Record<string, CinePostComment>).map((comment) => comment.user_id)
+      ),
+    ]),
+  ]);
   const listPosts = posts.filter((post) => post.list_id && post.content_type === "list");
   const listCoverImagesByPostId = new Map<string, string[]>();
 
@@ -457,9 +464,8 @@ export async function getCinePost(
   postId: string,
   currentUserId?: string
 ): Promise<CinePostWithDetails | null> {
-  const [postSnapshot, usersById, commentsSnapshot, engagementSnapshot] = await Promise.all([
+  const [postSnapshot, commentsSnapshot, engagementSnapshot] = await Promise.all([
     get(ref(db, `posts/${postId}`)),
-    getUsersById(),
     get(ref(db, `comments/${postId}`)),
     get(ref(db, `engagement/${postId}`)),
   ]);
@@ -478,6 +484,12 @@ export async function getCinePost(
         type: CinePostEngagementType;
       }>)
     : [];
+  const usersById = await getUsersById([
+    post.user_id,
+    ...postComments.map((comment) => comment.user_id),
+    ...engagements.map((entry) => entry.user_id),
+    ...(currentUserId ? [currentUserId] : []),
+  ]);
   const likes = engagements.filter((entry) => entry.type === "like");
   const saves = engagements.filter((entry) => entry.type === "save");
 
@@ -503,17 +515,17 @@ export async function getCinePostEngagementUsers(
   postId: string,
   type: CinePostEngagementType
 ): Promise<User[]> {
-  const [engagementSnapshot, usersById] = await Promise.all([
-    get(ref(db, `engagement/${postId}`)),
-    getUsersById(),
-  ]);
+  const engagementSnapshot = await get(ref(db, `engagement/${postId}`));
 
   if (!engagementSnapshot.exists()) return [];
 
-  return (Object.values(engagementSnapshot.val()) as Array<{
+  const engagements = Object.values(engagementSnapshot.val()) as Array<{
     user_id: string;
     type: CinePostEngagementType;
-  }>)
+  }>;
+  const usersById = await getUsersById(engagements.map((entry) => entry.user_id));
+
+  return engagements
     .filter((entry) => entry.type === type)
     .map((entry) => usersById[entry.user_id] || fallbackUser(entry.user_id));
 }
@@ -522,7 +534,7 @@ export async function getCinePostsForContent(
   contentId: number,
   contentType: "movie" | "tv",
   currentUserId?: string,
-  limit: number = 20
+  limit: number = 200
 ): Promise<CinePostWithDetails[]> {
   const posts = await getCinePosts(currentUserId, 200, { sort: "recent" });
   return posts

@@ -200,15 +200,11 @@ export default function ListsPage() {
 
         setUser(currentUser);
 
-        const allUsersRef = ref(db, "users");
-        const allUsersSnapshot = await get(allUsersRef);
-        const allUsers = allUsersSnapshot.exists() ? (allUsersSnapshot.val() as Record<string, User>) : {};
-
         // Fetch user's lists
         const lists = await getUserLists(currentUser.id);
         const userListsWithDetails = await Promise.all(
           lists.map(async (list) => {
-            const details = await getListWithDetails(list.id, allUsers);
+            const details = await getListWithDetails(list.id);
             if (!details) return null;
 
             const collaboratorCount = details.collaborators.filter((collab) => collab.user_id !== details.owner_id).length;
@@ -233,7 +229,7 @@ export default function ListsPage() {
         const publicListsBase = await getPublicLists(30);
         const publicListsWithDetails = await Promise.all(
           publicListsBase.map(async (list) => {
-            const details = await getListWithDetails(list.id, allUsers);
+            const details = await getListWithDetails(list.id);
             if (!details) return null;
 
             const collaboratorCount = details.collaborators.filter((collab) => collab.user_id !== details.owner_id).length;

@@ -3,6 +3,7 @@ import { db } from "@/lib/firebase";
 import type { ShareReply, ShareReplyWithUser, ShareWithDetails, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
+import { getUsersByIds } from "./users";
 
 function fallbackUser(userId: string): User {
   return {
@@ -24,23 +25,20 @@ function normalizeUser(userId: string, userData: any): User {
   };
 }
 
-async function getUsersById(): Promise<Record<string, User>> {
-  const usersSnapshot = await get(ref(db, "users"));
-  const usersRaw = usersSnapshot.val() || {};
+async function getUsersById(userIds: string[]): Promise<Record<string, User>> {
+  const users = await getUsersByIds(userIds);
   return Object.fromEntries(
-    Object.entries(usersRaw).map(([id, value]) => [id, normalizeUser(id, value)])
+    Object.entries(users).map(([id, value]) => [id, normalizeUser(id, value)])
   ) as Record<string, User>;
 }
 
 export async function getShareReplies(shareId: string, currentUserId?: string): Promise<ShareReplyWithUser[]> {
-  const [repliesSnapshot, usersById] = await Promise.all([
-    get(ref(db, `share_replies/${shareId}`)),
-    getUsersById(),
-  ]);
+  const repliesSnapshot = await get(ref(db, `share_replies/${shareId}`));
 
   if (!repliesSnapshot.exists()) return [];
 
   const replies = Object.values(repliesSnapshot.val() || {}) as ShareReply[];
+  const usersById = await getUsersById(replies.map((reply) => reply.sender_id));
   return replies
     .map((reply) => ({
       ...reply,

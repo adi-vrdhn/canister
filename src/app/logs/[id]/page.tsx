@@ -38,6 +38,7 @@ import {
 } from "@/lib/log-comments";
 import { buildLogUrl } from "@/lib/log-url";
 import { shouldDeliverNotificationToUser } from "@/lib/settings";
+import { getUsersByIds } from "@/lib/users";
 
 function relativeTime(dateString: string): string {
   const diff = Date.now() - new Date(dateString).getTime();
@@ -625,8 +626,7 @@ export default function LogDetailPage() {
         return;
       }
 
-      const usersSnapshot = await get(ref(db, "users"));
-      const usersData = usersSnapshot.exists() ? usersSnapshot.val() : {};
+      const usersData = await getUsersByIds(userIds);
       const nextLikers = userIds
         .map((id) => {
           const raw = usersData[id];
@@ -636,7 +636,7 @@ export default function LogDetailPage() {
             username: raw.username || "user",
             name: raw.name || "User",
             avatar_url: raw.avatar_url || null,
-            created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
+            created_at: raw.created_at || new Date().toISOString(),
           } as User;
         })
         .filter(Boolean) as User[];
@@ -1182,7 +1182,20 @@ export default function LogDetailPage() {
           <div className="mt-8 border-t border-white/10 pt-6">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-semibold text-[#f5f0de] sm:text-xl">
-                {isOwnLog ? "Your review" : `${log.user.name}'s review`}
+                {isOwnLog ? (
+                  "Your review"
+                ) : (
+                  <>
+                    <Link
+                      href={profileHref(log.user)}
+                      className="text-[#ff7a1a] transition hover:text-[#ffb36b]"
+                    >
+                      {log.user.name}
+                    </Link>
+                    {' '}
+                    <span className="text-[#f5f0de]">'s review</span>
+                  </>
+                )}
               </h2>
               {(() => {
                 const reaction = getReactionDisplay(log.reaction as 0 | 1 | 2);

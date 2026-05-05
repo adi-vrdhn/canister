@@ -16,6 +16,7 @@ import { getShowDetails, searchShows, ShowDetails } from "@/lib/tvmaze";
 import { hasUserWatchedContent } from "@/lib/watched-movies";
 import { isUsernameBlocked, mergeSettings } from "@/lib/settings";
 import { createShareReceivedNotification } from "@/lib/notifications";
+import { getUsersByIds } from "@/lib/users";
 import { ChevronLeft, ChevronRight, SendHorizontal, Trash2 } from "lucide-react";
 
 type SearchResultItem = {
@@ -26,16 +27,6 @@ type SearchResultItem = {
   year?: string;
   type?: "movie" | "tv";
   originalId?: number;
-};
-
-type DatabaseUser = {
-  id: string;
-  username: string;
-  name: string;
-  avatar_url?: string | null;
-  createdAt?: string;
-  email?: string;
-  bio?: string;
 };
 
 type FollowRecord = {
@@ -214,40 +205,6 @@ function SharePageContent() {
 
         setLoading(false);
 
-        const usersRef = ref(db, "users");
-        const usersSnapshot = await get(usersRef);
-        const usersData = (usersSnapshot.val() || {}) as Record<string, DatabaseUser>;
-
-        const resolveUserById = (userId: string): User | undefined => {
-          const direct = usersData[userId];
-          if (direct) {
-            return {
-              id: direct.id,
-              username: direct.username,
-              name: direct.name,
-              avatar_url: direct.avatar_url || null,
-              created_at: direct.createdAt || new Date().toISOString(),
-              email: direct.email,
-              bio: direct.bio,
-            };
-          }
-
-          const fallback = Object.values(usersData).find((entry) => entry?.id === userId);
-          if (!fallback) {
-            return undefined;
-          }
-
-          return {
-            id: fallback.id,
-            username: fallback.username,
-            name: fallback.name,
-            avatar_url: fallback.avatar_url || null,
-            created_at: fallback.createdAt || new Date().toISOString(),
-            email: fallback.email,
-            bio: fallback.bio,
-          };
-        };
-
         const followsRef = ref(db, "follows");
         unsubscribeFollowers = onValue(followsRef, (snapshot) => {
           try {
@@ -257,21 +214,34 @@ function SharePageContent() {
             }
 
             const followsData = snapshot.val() as Record<string, FollowRecord>;
-            const followersList = Object.values(followsData)
-              .filter((follow) => follow.follower_id === currentUser.id && follow.status === "accepted")
-              .map((follow) => resolveUserById(follow.following_id))
-              .filter((friend): friend is User => {
-                if (!friend) return false;
-                const rawFriend = usersData[friend.id];
-                const friendSettings = mergeSettings((rawFriend as any)?.settings);
-                return (
-                  friendSettings.account.status === "active" &&
-                  !isUsernameBlocked(latestCurrentUserSettings, friend.username) &&
-                  !isUsernameBlocked(friendSettings, currentUser.username)
-                );
-              });
+            const acceptedFollows = Object.values(followsData).filter(
+              (follow) => follow.follower_id === currentUser.id && follow.status === "accepted"
+            );
 
-            setFollowers(followersList);
+            const loadFollowers = async () => {
+              const followerIds = acceptedFollows.map((follow) => follow.following_id);
+              const followerUsers = await getUsersByIds(followerIds);
+              if (!followerIds.length) {
+                setFollowers([]);
+                return;
+              }
+
+              const followersList = followerIds
+                .map((friendId) => followerUsers[friendId])
+                .filter((friend): friend is User => Boolean(friend))
+                .filter((friend) => {
+                  const friendSettings = mergeSettings((friend as any)?.settings);
+                  return (
+                    friendSettings.account.status === "active" &&
+                    !isUsernameBlocked(latestCurrentUserSettings, friend.username) &&
+                    !isUsernameBlocked(friendSettings, currentUser.username)
+                  );
+                });
+
+              setFollowers(followersList);
+            };
+
+            void loadFollowers();
           } catch (error) {
             console.error("Error fetching followers:", error);
             setFollowers([]);
@@ -293,15 +263,19 @@ function SharePageContent() {
               .sort(
                 (a, b) =>
                   new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-              )
-              .map((share) => ({
+              );
+
+            void (async () => {
+              const userIds = Array.from(new Set(sent.map((share) => share.receiver_id)));
+              const usersById = await getUsersByIds(userIds);
+              const sentWithDetails = sent.map((share) => ({
                 ...share,
                 movie: share.movie || null,
                 content: share.content || share.movie || null,
-                receiver: resolveUserById(share.receiver_id),
+                receiver: usersById[share.receiver_id],
               }));
-
-            setSentShares(sent as ShareWithDetails[]);
+              setSentShares(sentWithDetails as ShareWithDetails[]);
+            })();
           } catch (error) {
             console.error("Error fetching sent shares:", error);
             setSentShares([]);
@@ -342,18 +316,15 @@ function SharePageContent() {
         if (!shareSnapshot.exists()) return;
 
         const shareData = shareSnapshot.val() as ShareRecord;
-        const usersSnapshot = await get(ref(db, "users"));
-        const usersData = usersSnapshot.val() || {};
-        const resolveUserById = (userId: string): User | undefined =>
-          Object.values(usersData).find((entry: any) => entry?.id === userId) as User | undefined;
+        const usersData = await getUsersByIds([shareData.sender_id, shareData.receiver_id]);
 
         setSelectedShare({
           id: shareIdParam,
           ...shareData,
           movie: shareData.movie || null,
           content: shareData.content || shareData.movie || null,
-          sender: resolveUserById(shareData.sender_id),
-          receiver: resolveUserById(shareData.receiver_id),
+          sender: usersData[shareData.sender_id],
+          receiver: usersData[shareData.receiver_id],
         } as ShareWithDetails);
         setActivePanel("history");
       } catch (error) {

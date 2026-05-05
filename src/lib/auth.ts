@@ -14,6 +14,10 @@ import {
   ref,
   set,
   get,
+  equalTo,
+  limitToFirst,
+  orderByChild,
+  query,
 } from "firebase/database";
 import { User as DBUser } from "@/types";
 
@@ -60,8 +64,10 @@ export async function signUp(
   try {
     await set(ref(db, `users/${userCredential.user.uid}`), {
       id: userCredential.user.uid,
-      username: username.toLowerCase(),
-      name: name,
+      username: username.trim().toLowerCase(),
+      username_lower: username.trim().toLowerCase(),
+      name: name.trim(),
+      name_lower: name.trim().toLowerCase(),
       createdAt: new Date().toISOString(),
     });
   } catch (profileError) {
@@ -138,19 +144,17 @@ export async function getCurrentUser(): Promise<DBUser | null> {
 
 export async function checkUsernameAvailability(username: string) {
   try {
-    const usersRef = ref(db, "users");
-    const snapshot = await get(usersRef);
+    const normalizedUsername = username.trim().toLowerCase();
+    if (!normalizedUsername) return true;
 
-    if (!snapshot.exists()) {
-      return true;
-    }
-
-    const users = snapshot.val() as Record<string, { username?: string }>;
-    const usernameTaken = Object.values(users).some((user) =>
-      Boolean(user.username && user.username.toLowerCase() === username.toLowerCase())
+    const usersQuery = query(
+      ref(db, "users"),
+      orderByChild("username"),
+      equalTo(normalizedUsername),
+      limitToFirst(1)
     );
-
-    return !usernameTaken;
+    const snapshot = await get(usersQuery);
+    return !snapshot.exists();
   } catch (err) {
     console.warn("Username check failed:", err);
     return true; // Allow signup to proceed if check fails

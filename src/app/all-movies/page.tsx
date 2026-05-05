@@ -16,7 +16,7 @@ import { getFriendLogs } from "@/lib/friend-logs";
 import { buildLogUrl } from "@/lib/log-url";
 import { MovieLogWithContent, ShareWithDetails, User } from "@/types";
 import { getBlurDataUrl } from "@/lib/performance";
-import { getAllUsersCached } from "@/lib/users";
+import { getUsersByIds } from "@/lib/users";
 
 type ActivityFilter = "all" | "shared" | "logged";
 type ShareFilter = "recent" | "watched";
@@ -117,13 +117,13 @@ export default function AllMoviesPage() {
             );
 
           try {
-            const usersData = await getAllUsersCached();
+            const usersData = await getUsersByIds(sharesList.map((share: any) => share.sender_id));
             setShares(
               sharesList.map((share: any) => ({
                 ...share,
                 movie: share.movie || null,
                 content: share.content || share.movie || null,
-                sender: Object.values(usersData).find((entry: any) => entry.id === share.sender_id),
+                sender: usersData[share.sender_id],
               }))
             );
           } catch (error) {

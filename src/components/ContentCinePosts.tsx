@@ -25,7 +25,7 @@ export default function ContentCinePosts({
 
     const loadPosts = async () => {
       try {
-        const results = await getCinePostsForContent(contentId, contentType, currentUser?.id, 12);
+        const results = await getCinePostsForContent(contentId, contentType, currentUser?.id, 200);
         if (!cancelled) setPosts(results);
       } finally {
         if (!cancelled) setLoading(false);

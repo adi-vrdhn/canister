@@ -33,6 +33,7 @@ function getNotificationFilter(note: NotificationItem): Exclude<NotificationFilt
   if (note.type === "follow_request" || note.type === "collaboration_request") return "requests";
   if (note.type === "share_reply" || note.type === "share_received") return "shares";
   if (note.type === "matcher_update") return "matcher";
+  if (note.type === "log_created") return "logs";
   if (note.type === "post_like" || note.type === "post_save" || note.type === "post_comment" || note.type === "comment_reply") return "posts";
   return "logs";
 }

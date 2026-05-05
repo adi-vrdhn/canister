@@ -52,12 +52,7 @@ export default function AddItemsToListPage() {
 
         setUser(currentUser);
 
-        // Fetch list
-        const usersRef = ref(db, "users");
-        const usersSnapshot = await get(usersRef);
-        const usersData = usersSnapshot.val() || {};
-
-        const listData = await getListWithDetails(listId, usersData);
+        const listData = await getListWithDetails(listId);
         if (listData) {
           setList(listData);
         } else {

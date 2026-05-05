@@ -197,6 +197,14 @@ export default function SettingsNotificationsPage() {
           />
         </SettingLine>
 
+        <SettingLine icon={Bell} title="Log notifications" description="When someone posts a new log.">
+          <CompactToggle
+            checked={settings.notifications.logNotifications}
+            onChange={(next) => void updateSection("notifications", { logNotifications: next })}
+            label={settings.notifications.logNotifications ? "On" : "Off"}
+          />
+        </SettingLine>
+
         <SettingLine icon={MessageSquare} title="Collaboration invites" description="List collaboration requests and invites.">
           <CompactToggle
             checked={settings.notifications.collaborationInvites}

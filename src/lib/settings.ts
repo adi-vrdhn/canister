@@ -19,6 +19,7 @@ export interface SettingsData {
     likeNotifications: boolean;
     commentNotifications: boolean;
     shareNotifications: boolean;
+    logNotifications: boolean;
     collaborationInvites: boolean;
     matcherUpdates: boolean;
     emailNotifications: boolean;
@@ -53,6 +54,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
     likeNotifications: true,
     commentNotifications: true,
     shareNotifications: true,
+    logNotifications: false,
     collaborationInvites: true,
     matcherUpdates: true,
     emailNotifications: false,
@@ -91,6 +93,7 @@ export function mergeSettings(raw: any): SettingsData {
       commentNotifications:
         raw?.notifications?.commentNotifications ?? legacyLikesAndComments ?? DEFAULT_SETTINGS.notifications.commentNotifications,
       shareNotifications: raw?.notifications?.shareNotifications ?? DEFAULT_SETTINGS.notifications.shareNotifications,
+      logNotifications: raw?.notifications?.logNotifications ?? DEFAULT_SETTINGS.notifications.logNotifications,
       collaborationInvites: raw?.notifications?.collaborationInvites ?? DEFAULT_SETTINGS.notifications.collaborationInvites,
       matcherUpdates: raw?.notifications?.matcherUpdates ?? DEFAULT_SETTINGS.notifications.matcherUpdates,
       emailNotifications: raw?.notifications?.emailNotifications ?? DEFAULT_SETTINGS.notifications.emailNotifications,
@@ -228,6 +231,7 @@ export type NotificationPreferenceKey =
   | "likeNotifications"
   | "commentNotifications"
   | "shareNotifications"
+  | "logNotifications"
   | "collaborationInvites"
   | "matcherUpdates"
   | "emailNotifications";
@@ -242,6 +246,7 @@ export type NotificationType =
   | "like"
   | "share_reply"
   | "share_received"
+  | "log_created"
   | "log_comment"
   | "log_comment_reply"
   | "log_comment_like"
@@ -252,8 +257,10 @@ export function notificationPreferenceForType(type: NotificationType): Notificat
   if (type === "collaboration_request") return "collaborationInvites";
   if (type === "matcher_update") return "matcherUpdates";
   if (type === "share_reply" || type === "share_received") return "shareNotifications";
-  if (type === "post_like" || type === "like" || type === "log_comment_like" || type === "post_save") {
-    return "likeNotifications";
+  if (type === "log_created") return "logNotifications";
+  if (type === "like" || type === "post_like" || type === "post_save" || type === "log_comment_like") return "likeNotifications";
+  if (type === "log_comment" || type === "log_comment_reply" || type === "post_comment" || type === "comment_reply") {
+    return "commentNotifications";
   }
   return "commentNotifications";
 }
