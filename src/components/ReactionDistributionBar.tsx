@@ -2,6 +2,7 @@
 
 interface ReactionDistributionBarProps {
   badCount: number;
+  averageCount: number;
   goodCount: number;
   masterpieceCount: number;
   showLabels?: boolean;
@@ -9,12 +10,14 @@ interface ReactionDistributionBarProps {
 
 export default function ReactionDistributionBar({
   badCount,
+  averageCount,
   goodCount,
   masterpieceCount,
   showLabels = true,
 }: ReactionDistributionBarProps) {
-  const total = badCount + goodCount + masterpieceCount;
+  const total = badCount + averageCount + goodCount + masterpieceCount;
   const badPercent = total > 0 ? (badCount / total) * 100 : 0;
+  const averagePercent = total > 0 ? (averageCount / total) * 100 : 0;
   const goodPercent = total > 0 ? (goodCount / total) * 100 : 0;
   const masterpiecePercent = total > 0 ? (masterpieceCount / total) * 100 : 0;
 
@@ -28,6 +31,7 @@ export default function ReactionDistributionBar({
 
   const segments = [
     { name: "Bad", count: badCount, percent: badPercent, color: "#fb7185" },
+    { name: "Average", count: averageCount, percent: averagePercent, color: "#f59e0b" },
     { name: "Good", count: goodCount, percent: goodPercent, color: "#ff7a1a" },
     { name: "Masterpiece", count: masterpieceCount, percent: masterpiecePercent, color: "#34d399" },
   ];

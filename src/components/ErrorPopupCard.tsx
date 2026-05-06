@@ -6,7 +6,7 @@ import { AlertTriangle, Home, RotateCw, X } from "lucide-react";
 type ErrorPopupCardProps = {
   title: string;
   message: string;
-  details?: string | null;
+  code?: string | number | null;
   onRetry?: () => void;
   onClose?: () => void;
   retryLabel?: string;
@@ -16,7 +16,7 @@ type ErrorPopupCardProps = {
 export default function ErrorPopupCard({
   title,
   message,
-  details,
+  code,
   onRetry,
   onClose,
   retryLabel = "Try again",
@@ -33,6 +33,11 @@ export default function ErrorPopupCard({
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ffb36b]">Error</p>
               <h2 className="mt-1 text-lg font-black">{title}</h2>
+              {code !== undefined && code !== null && (
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
+                  Code {code}
+                </p>
+              )}
             </div>
           </div>
           {onClose && (
@@ -49,7 +54,6 @@ export default function ErrorPopupCard({
 
         <div className="space-y-3 p-4">
           <p className="text-sm leading-6 text-white/70">{message}</p>
-          {details && <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-white/50">{details}</p>}
         </div>
 
         <div className="flex flex-wrap gap-2 border-t border-white/10 p-4">

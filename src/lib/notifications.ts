@@ -60,8 +60,8 @@ type NotificationActor = {
 function fallbackUser(userId: string): User {
   return {
     id: userId,
-    username: "user",
-    name: "Unknown",
+    username: userId,
+    name: userId,
     avatar_url: null,
     created_at: new Date().toISOString(),
   };
@@ -485,7 +485,7 @@ export async function createLogCreatedNotifications(log: MovieLog): Promise<void
 
   await Promise.all(
     followerIds.map(async (recipientId) => {
-      if (!(await shouldDeliverNotificationToUser(recipientId, "log_created"))) return;
+      if (!(await shouldDeliverNotificationToUser(recipientId, "log_created", log.user_id))) return;
 
       const notificationRef = push(ref(db, `notifications/${recipientId}`));
       await set(
@@ -577,7 +577,7 @@ export async function createShareReceivedNotification(
   createdAt: string,
   note?: string | null
 ): Promise<void> {
-  if (!(await shouldDeliverNotificationToUser(userId, "share_received"))) return;
+  if (!(await shouldDeliverNotificationToUser(userId, "share_received", fromUser.id))) return;
 
   const notificationRef = push(ref(db, `notifications/${userId}`));
 

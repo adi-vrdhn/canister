@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import ErrorPopupCard from "@/components/ErrorPopupCard";
+import { getErrorCode } from "@/lib/report-error";
 
 export default function GlobalError({
   error,
@@ -14,9 +15,12 @@ export default function GlobalError({
     <html lang="en">
       <body className="bg-[#090909]">
         <ErrorPopupCard
-          title="Application error"
-          message={error.message || "The app hit an unrecoverable error."}
-          details={error.digest ? `Digest: ${error.digest}` : error.stack || null}
+          title="Facing some error"
+          message="Please try again."
+          code={getErrorCode({
+            title: error.name,
+            message: error.message,
+          })}
           onRetry={reset}
           retryLabel="Try again"
           homeHref="/dashboard"

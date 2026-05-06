@@ -70,7 +70,7 @@ export default function LogMovieModal({
   const logLabel = content.type === "tv" ? "TV show log" : "Movie log";
   const actionLabel = isEditMode ? `Edit ${contentLabel} log` : `Log ${contentLabel}`;
   const [watchedDate, setWatchedDate] = useState(new Date().toISOString().split("T")[0]);
-  const [reaction, setReaction] = useState<null | 0 | 1 | 2>(null); // 0=Bad, 1=Good, 2=Masterpiece
+  const [reaction, setReaction] = useState<null | 0 | 1 | 1.5 | 2>(null); // 0=Bad, 1=Good, 1.5=Average, 2=Masterpiece
   const [notes, setNotes] = useState("");
   const [shareAsPost, setShareAsPost] = useState(false);
   const [postCaption, setPostCaption] = useState("");
@@ -90,6 +90,7 @@ export default function LogMovieModal({
   const [error, setError] = useState("");
   const [previousWatchDates, setPreviousWatchDates] = useState<string[]>([]);
   const [checkingPreviousWatches, setCheckingPreviousWatches] = useState(false);
+  const submitLockRef = useRef(false);
 
   useEffect(() => {
     if (!isOpen || !user) return;
@@ -138,7 +139,7 @@ export default function LogMovieModal({
     if (!isOpen) return;
     if (isEditMode && existingLog) {
       setWatchedDate(existingLog.watched_date || new Date().toISOString().split("T")[0]);
-      setReaction((typeof existingLog.reaction === "number" ? existingLog.reaction : 1) as 0 | 1 | 2);
+      setReaction((typeof existingLog.reaction === "number" ? existingLog.reaction : 1) as 0 | 1 | 1.5 | 2);
       setNotes(existingLog.notes || "");
       setTicketImageUrl(existingLog.ticket_image_url || null);
       setShowReviewEditor(false);
@@ -224,17 +225,22 @@ export default function LogMovieModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (submitLockRef.current || loading || ticketUploading) {
+      return;
+    }
+
     if (!watchedDate) {
       setError("Please select a date");
       return;
     }
 
     if (reaction === null) {
-      setError("Please select a reaction (Bad, Good, or Masterpiece)");
+      setError("Please select a reaction (Bad, Average, Good, or Masterpiece)");
       return;
     }
 
     try {
+      submitLockRef.current = true;
       setLoading(true);
       setError("");
 
@@ -326,6 +332,7 @@ export default function LogMovieModal({
       });
       setError(`Failed to log ${contentLabel.toLowerCase()}. Please try again.`);
     } finally {
+      submitLockRef.current = false;
       setLoading(false);
     }
   };
@@ -333,22 +340,24 @@ export default function LogMovieModal({
   if (!isOpen) return null;
 
   const hasPreviousWatch = previousWatchDates.length > 0;
+  const shareReactionLabel =
+    reaction === 2 ? "Masterpiece" : reaction === 1.5 ? "Average" : reaction === 1 ? "Good" : "Bad";
 
   return (
     <>
       {showReviewEditor && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-2 backdrop-blur-md sm:p-3 md:p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-2 sm:p-3 md:p-4"
           onClick={() => setShowReviewEditor(false)}
         >
           <div
-            className={`log-modal-panel surface-strong mobile-scroll-panel relative flex w-full max-w-xl max-h-[84dvh] flex-col overflow-hidden rounded-[1.25rem] sm:rounded-[1.5rem] ${
+            className={`log-modal-panel mobile-scroll-panel relative flex w-full max-w-xl max-h-[84dvh] flex-col overflow-hidden rounded-[1.25rem] sm:rounded-[1.5rem] ${
               isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : "border border-slate-200 bg-white text-slate-900"
             }`}
             onClick={(event) => event.stopPropagation()}
           >
             <div
-              className={`sticky top-0 z-10 border-b p-3 backdrop-blur-xl sm:p-4 ${
+              className={`sticky top-0 z-10 border-b p-3 sm:p-4 ${
                 isBrutalist ? "border-white/10 bg-[#111111]/92" : "border-slate-200 bg-white/90"
               }`}
             >
@@ -391,34 +400,15 @@ export default function LogMovieModal({
           </div>
         </div>
       )}
-      <div className="log-modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-md sm:items-center sm:p-3 md:p-4">
+      <div className="log-modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-3 md:p-4">
       <div
-        className={`log-modal-panel surface-strong mobile-scroll-panel relative w-full max-w-xl max-h-[84dvh] overflow-x-hidden overflow-y-auto rounded-[1.25rem] sm:rounded-[1.5rem] ${
+        className={`log-modal-panel mobile-scroll-panel relative w-full max-w-xl max-h-[84dvh] overflow-x-hidden overflow-y-auto rounded-[1.25rem] sm:rounded-[1.5rem] ${
           isBrutalist ? "border border-white/10 bg-[#111111] text-[#f5f0de]" : "border border-slate-200 bg-white text-slate-900"
         }`}
       >
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div
-            className={`log-modal-glow absolute -top-24 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full blur-3xl ${
-              isBrutalist ? "bg-[#ff7a1a]/18" : "bg-orange-300/35"
-            }`}
-          />
-          <div
-            className={`log-modal-glow absolute -bottom-24 -left-16 h-44 w-44 rounded-full blur-3xl ${
-              isBrutalist ? "bg-white/5" : "bg-slate-200/70"
-            }`}
-            style={{ animationDelay: "1.2s" }}
-          />
-          <div
-            className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#ff7a1a]/70 to-transparent ${
-              isBrutalist ? "opacity-80" : "opacity-100"
-            }`}
-          />
-        </div>
-
         {/* Header */}
         <div
-          className={`sticky top-0 z-10 flex items-start justify-between gap-2 border-b p-3 backdrop-blur-xl sm:p-4 ${
+          className={`sticky top-0 z-10 flex items-start justify-between gap-2 border-b p-3 sm:p-4 ${
             isBrutalist ? "border-white/10 bg-[#111111]/92" : "border-slate-200 bg-white/90"
           }`}
         >
@@ -539,56 +529,73 @@ export default function LogMovieModal({
             <label className={`mb-3 block text-sm font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
               What did you think? *
             </label>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
               {/* Bad */}
               <button
                 type="button"
                 onClick={() => setReaction(0)}
-                className={`flex aspect-[1/1.05] w-full items-center justify-center rounded-[1rem] border px-2 py-2 text-center transition-all duration-200 ${
+                className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
                   reaction === 0
                     ? isBrutalist
-                      ? "border-white/15 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
-                      : "border-slate-900 bg-slate-50 shadow-sm"
+                      ? "border-white/18 bg-white/[0.03] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
+                      : "border-slate-900 bg-slate-50/80 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <span className={`text-sm font-bold sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Bad</span>
+                <span className={`text-[9px] font-bold uppercase tracking-[0.18em] sm:text-[10px] ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Bad</span>
+              </button>
+
+              {/* Average */}
+              <button
+                type="button"
+                onClick={() => setReaction(1.5)}
+                className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
+                  reaction === 1.5
+                    ? isBrutalist
+                      ? "border-[#ff7a1a]/55 bg-[#ff7a1a]/10 text-[#ffb36b] shadow-[0_0_0_1px_rgba(255,122,26,0.12)]"
+                      : "border-slate-900 bg-slate-50/80 shadow-sm"
+                    : isBrutalist
+                      ? "border-white/10 hover:border-white/20"
+                      : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <span className={`text-[9px] font-bold uppercase tracking-[0.18em] sm:text-[10px] ${reaction === 1.5 && isBrutalist ? "text-[#ffb36b]" : isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Average</span>
               </button>
 
               {/* Good */}
               <button
                 type="button"
                 onClick={() => setReaction(1)}
-                className={`flex aspect-[1/1.05] w-full items-center justify-center rounded-[1rem] border px-2 py-2 text-center transition-all duration-200 ${
+                className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
                   reaction === 1
                     ? isBrutalist
-                      ? "border-white/15 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]"
-                      : "border-slate-900 bg-slate-50 shadow-sm"
+                      ? "border-white/18 bg-white/[0.03] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
+                      : "border-slate-900 bg-slate-50/80 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <span className={`text-sm font-bold sm:text-base ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Good</span>
+                <span className={`text-[9px] font-bold uppercase tracking-[0.18em] sm:text-[10px] ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Good</span>
               </button>
 
               {/* Masterpiece */}
               <button
                 type="button"
                 onClick={() => setReaction(2)}
-                className={`flex aspect-[1/1.05] w-full items-center justify-center rounded-[1rem] border px-2 py-2 text-center transition-all duration-200 ${
+                className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
                   reaction === 2
                     ? isBrutalist
-                      ? "border-[#ff7a1a]/65 bg-[#ff7a1a]/12 text-[#ffb36b] shadow-[0_0_0_1px_rgba(255,122,26,0.25),0_0_34px_rgba(255,122,26,0.32)]"
-                      : "border-slate-900 bg-slate-50 shadow-sm"
+                      ? "border-[#ff7a1a]/55 bg-[#ff7a1a]/10 text-[#ffb36b] shadow-[0_0_0_1px_rgba(255,122,26,0.12),0_0_18px_rgba(255,122,26,0.18)]"
+                      : "border-slate-900 bg-slate-50/80 shadow-sm"
                     : isBrutalist
                       ? "border-white/10 hover:border-white/20"
                       : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <span className={`text-sm font-black leading-tight sm:text-base ${reaction === 2 && isBrutalist ? "text-[#ffb36b]" : isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Masterpiece</span>
+                <span className={`text-[9px] font-black uppercase leading-tight tracking-[0.16em] sm:text-[10px] ${reaction === 2 && isBrutalist ? "text-[#ffb36b]" : isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Masterpiece</span>
               </button>
             </div>
           </div>
@@ -602,10 +609,10 @@ export default function LogMovieModal({
               type="button"
               onClick={openReviewEditor}
               aria-label="Open review editor"
-              className={`mt-1 flex min-h-28 w-full flex-col justify-between rounded-[1.35rem] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
+              className={`mt-1 flex w-full flex-col gap-1 rounded-[1rem] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
                 isBrutalist
-                  ? "border-white/10 bg-white/5 hover:border-white/20"
-                  : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                  ? "border-white/10 bg-transparent hover:border-white/20"
+                  : "border-slate-200 bg-transparent hover:border-slate-300"
               }`}
             >
               <span className={`block whitespace-pre-wrap text-sm leading-6 ${
@@ -613,7 +620,7 @@ export default function LogMovieModal({
               }`}>
                 {notes.trim() || "Tap to write your review"}
               </span>
-              <span className={`mt-3 text-xs font-medium ${
+              <span className={`text-[11px] font-medium ${
                 isBrutalist ? "text-[#ffb36b]/80" : "text-slate-500"
               }`}>
                 Tap to open the full review box
@@ -633,7 +640,7 @@ export default function LogMovieModal({
                 <div className="min-w-0">
                   <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Share as post</p>
                   <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                    Creates a post like &quot;Just watched {content.title} - Good&quot; so friends can like, save, and reply.
+                    Creates a post like &quot;Just watched {content.title} - {shareReactionLabel}&quot; so friends can like, save, and reply.
                   </p>
                 </div>
               </label>

@@ -1,6 +1,7 @@
 "use client";
 
 import ErrorPopupCard from "@/components/ErrorPopupCard";
+import { getErrorCode } from "@/lib/report-error";
 
 export default function Error({
   error,
@@ -11,9 +12,12 @@ export default function Error({
 }) {
   return (
     <ErrorPopupCard
-      title="Page crashed"
-      message={error.message || "An unexpected error occurred while loading this page."}
-      details={error.digest ? `Digest: ${error.digest}` : error.stack || null}
+      title="Facing some error"
+      message="Please try again."
+      code={getErrorCode({
+        title: error.name,
+        message: error.message,
+      })}
       onRetry={reset}
       retryLabel="Reload page"
     />

@@ -17,11 +17,12 @@
     "notifications": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
-        ".write": "auth != null && auth.uid == $uid"
+        ".write": "auth != null && (auth.uid == $uid || newData.child('fromUser').child('id').val() == auth.uid)"
       }
     },
     "movie_logs": {
       ".read": "auth != null",
+      ".indexOn": ["user_id"],
       "$logId": {
         ".write": "auth != null && ((!data.exists() && newData.child('user_id').val() == auth.uid) || (data.exists() && data.child('user_id').val() == auth.uid))"
       }
@@ -46,6 +47,7 @@
     },
     "follows": {
       ".read": "auth != null",
+      ".indexOn": ["follower_id", "following_id", "status"],
       "$followId": {
         ".write": "auth != null && ((!data.exists() && newData.child('follower_id').val() == auth.uid) || (data.exists() && (data.child('follower_id').val() == auth.uid || data.child('following_id').val() == auth.uid)))"
       }
@@ -121,13 +123,13 @@
     "list_items": {
       ".read": "auth != null",
       "$itemId": {
-        ".write": "auth != null && (( !data.exists() && root.child('lists').child(newData.child('list_id').val()).child('owner_id').val() == auth.uid ) || ( data.exists() && root.child('lists').child(data.child('list_id').val()).child('owner_id').val() == auth.uid ))"
+        ".write": "auth != null && (( !data.exists() && (root.child('lists').child(newData.child('list_id').val()).child('owner_id').val() == auth.uid || root.child('lists').child(newData.child('list_id').val()).child('collaborator_ids').child(auth.uid).val() == true) ) || ( data.exists() && (root.child('lists').child(data.child('list_id').val()).child('owner_id').val() == auth.uid || root.child('lists').child(data.child('list_id').val()).child('collaborator_ids').child(auth.uid).val() == true) ))"
       }
     },
     "lists": {
       ".read": "auth != null",
       "$listId": {
-        ".write": "auth != null && ((!data.exists() && newData.child('owner_id').val() == auth.uid) || (data.exists() && data.child('owner_id').val() == auth.uid))"
+        ".write": "auth != null && ((!data.exists() && newData.child('owner_id').val() == auth.uid) || (data.exists() && (data.child('owner_id').val() == auth.uid || data.child('collaborator_ids').child(auth.uid).val() == true)))"
       }
     }
   }

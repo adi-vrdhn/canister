@@ -63,14 +63,16 @@ function getReactionLabelFromRating(rating: number): "Bad" | "Good" | "Masterpie
   return "Bad";
 }
 
-function getReactionLabelFromLogReaction(reaction: 0 | 1 | 2): "Bad" | "Good" | "Masterpiece" {
+function getReactionLabelFromLogReaction(reaction: 0 | 1 | 1.5 | 2): "Bad" | "Average" | "Good" | "Masterpiece" {
   if (reaction === 2) return "Masterpiece";
+  if (reaction === 1.5) return "Average";
   if (reaction === 1) return "Good";
   return "Bad";
 }
 
-function getReactionBadgeClassFromLabel(label: "Bad" | "Good" | "Masterpiece"): string {
+function getReactionBadgeClassFromLabel(label: "Bad" | "Average" | "Good" | "Masterpiece"): string {
   if (label === "Masterpiece") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
+  if (label === "Average") return "bg-amber-500/20 text-amber-300 border-amber-400/30";
   if (label === "Good") return "bg-blue-500/20 text-[#f5f0de] border-blue-400/30";
   return "bg-rose-500/20 text-rose-300 border-rose-400/30";
 }
@@ -121,7 +123,7 @@ export default function MoviePage() {
   const [showAddToListModal, setShowAddToListModal] = useState(false);
   const [showLogMovieModal, setShowLogMovieModal] = useState(false);
   const [showScanThanksModal, setShowScanThanksModal] = useState(false);
-  const [reactionBreakdown, setReactionBreakdown] = useState({ bad: 0, good: 0, masterpiece: 0, total: 0 });
+  const [reactionBreakdown, setReactionBreakdown] = useState({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
   const [friendLogs, setFriendLogs] = useState<MovieLogWithContent[]>([]);
   const [allLogs, setAllLogs] = useState<MovieLogWithContent[]>([]);
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -133,7 +135,7 @@ export default function MoviePage() {
   const loadMovieLogData = async () => {
     const numericMovieId = Number(movieId);
     if (!numericMovieId || Number.isNaN(numericMovieId)) {
-      setReactionBreakdown({ bad: 0, good: 0, masterpiece: 0, total: 0 });
+      setReactionBreakdown({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
       setFriendLogs([]);
       setAllLogs([]);
       return;
@@ -143,7 +145,7 @@ export default function MoviePage() {
     const logsSnapshot = await get(logsRef);
 
     if (!logsSnapshot.exists()) {
-      setReactionBreakdown({ bad: 0, good: 0, masterpiece: 0, total: 0 });
+      setReactionBreakdown({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
       setFriendLogs([]);
       setAllLogs([]);
       return;
@@ -159,11 +161,12 @@ export default function MoviePage() {
     ) as MovieLog[];
 
     const bad = movieLogs.filter((log) => log.reaction === 0).length;
+    const average = movieLogs.filter((log) => log.reaction === 1.5).length;
     const good = movieLogs.filter((log) => log.reaction === 1).length;
     const masterpiece = movieLogs.filter((log) => log.reaction === 2).length;
-    const total = bad + good + masterpiece;
+    const total = bad + average + good + masterpiece;
 
-    setReactionBreakdown({ bad, good, masterpiece, total });
+    setReactionBreakdown({ bad, average, good, masterpiece, total });
   };
 
   useEffect(() => {
@@ -417,6 +420,14 @@ export default function MoviePage() {
                 <span className="text-white/20">•</span>
                 <button
                   type="button"
+                  onClick={() => setBannerMessage(`${reactionBreakdown.average} average rating${reactionBreakdown.average === 1 ? "" : "s"}`)}
+                  className="text-amber-300 transition hover:text-amber-200"
+                >
+                  Average {reactionBreakdown.average}
+                </button>
+                <span className="text-white/20">•</span>
+                <button
+                  type="button"
                   onClick={() => setBannerMessage(`${reactionBreakdown.good} good rating${reactionBreakdown.good === 1 ? "" : "s"}`)}
                   className="text-[#f5f0de] transition hover:text-white"
                 >
@@ -435,7 +446,7 @@ export default function MoviePage() {
           </div>
         </section>
 
-        <div className="bg-neutral-950 border-t border-white/10">
+        <div className="bg-neutral-950">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
             {/* Friends' logs row */}
             {friendLogs.length > 0 && (

@@ -9,7 +9,14 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
-import { getUserLists, getPublicLists, createList, getListCoverImages, getListWithDetails } from "@/lib/lists";
+import {
+  getUserLists,
+  getPublicLists,
+  createList,
+  getListCoverImages,
+  getListWithDetails,
+  syncListCollaboratorIds,
+} from "@/lib/lists";
 import { Plus, Lock, Globe, Loader2, Search, Compass, MoreVertical } from "lucide-react";
 import Link from "next/link";
 
@@ -216,7 +223,22 @@ export default function ListsPage() {
             };
           })
         );
-        setUserLists(userListsWithDetails.filter((list): list is DiscoverList => Boolean(list)));
+        const resolvedUserLists = userListsWithDetails.filter((list): list is DiscoverList => Boolean(list));
+        setUserLists(resolvedUserLists);
+
+        if (currentUser.id) {
+          await Promise.all(
+            resolvedUserLists
+              .filter((list) => list.owner_id === currentUser.id)
+              .filter((list) => !list.collaborator_ids || Object.keys(list.collaborator_ids).length === 0)
+              .map((list) =>
+                syncListCollaboratorIds(
+                  list.id,
+                  [list.owner_id, ...list.collaborators.map((collab) => collab.user_id)]
+                )
+              )
+          );
+        }
 
         // Fetch cover images for each list
         const covers: Record<string, string[]> = {};

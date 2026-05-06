@@ -237,7 +237,7 @@ async function buildPreferenceSignals(userId: string) {
   ]);
 
   const movieLogs = logs.filter((l) => l.content_type === "movie");
-  const positiveLogs = movieLogs.filter((l) => !l.watch_later && (l.reaction === 1 || l.reaction === 2));
+  const positiveLogs = movieLogs.filter((l) => !l.watch_later && (l.reaction === 1 || l.reaction === 1.5 || l.reaction === 2));
   const negativeLogs = movieLogs.filter((l) => !l.watch_later && l.reaction === 0);
   const movieTastes = tastes.filter((t) => t.content_type === "movie");
 
@@ -260,7 +260,7 @@ async function buildPreferenceSignals(userId: string) {
   };
 
   movieTastes.forEach((t: UserTasteWithContent) => consume(t.content, 2.0, positive));
-  positiveLogs.forEach((l: MovieLogWithContent) => consume(l.content, l.reaction === 2 ? 3.5 : 2.5, positive));
+  positiveLogs.forEach((l: MovieLogWithContent) => consume(l.content, l.reaction === 2 ? 3.5 : l.reaction === 1.5 ? 2.9 : 2.5, positive));
   negativeLogs.forEach((l: MovieLogWithContent) => consume(l.content, 2.5, negative));
 
   const preferredLanguages = Array.from(positive.language.entries())
@@ -307,7 +307,7 @@ type TastePopularitySignals = {
 
 function buildTastePopularitySignals(logs: MovieLogWithContent[]): TastePopularitySignals {
   const movieLogs = logs.filter((log) => log.content_type === "movie");
-  const positiveLogs = movieLogs.filter((log) => !log.watch_later && (log.reaction === 1 || log.reaction === 2));
+  const positiveLogs = movieLogs.filter((log) => !log.watch_later && (log.reaction === 1 || log.reaction === 1.5 || log.reaction === 2));
   const genreWeights = new Map<string, number>();
   const directorWeights = new Map<string, number>();
   const castWeights = new Map<string, number>();
@@ -325,7 +325,7 @@ function buildTastePopularitySignals(logs: MovieLogWithContent[]): TastePopulari
     watchedIds.add(log.content_id);
     knownTitles.push(content.title || "");
 
-    const weight = log.reaction === 2 ? 3.25 : 2.25;
+    const weight = log.reaction === 2 ? 3.25 : log.reaction === 1.5 ? 2.6 : 2.25;
     getContentGenreNames(content).forEach((genre) => addWeight(genreWeights, genre, weight));
     addWeight(directorWeights, (content as any).director, weight);
     addArrayWeight(castWeights, (content as any).actors, weight);

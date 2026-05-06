@@ -201,8 +201,8 @@ export async function getMatchScoreBreakdown(
 
   // Contrarian Buddies badge logic
   // Find movies both users rated highly (reaction 2 or 1), but TMDB avg rating < 5
-  const user1High = user1Tastes.filter((t) => t.reaction === 2 || t.reaction === 1);
-  const user2High = user2Tastes.filter((t) => t.reaction === 2 || t.reaction === 1);
+  const user1High = user1Tastes.filter((t) => t.reaction === 2 || t.reaction === 1 || t.reaction === 1.5);
+  const user2High = user2Tastes.filter((t) => t.reaction === 2 || t.reaction === 1 || t.reaction === 1.5);
   const contrarianMovies: { id: number; title: string; tmdbRating: number }[] = [];
 
   for (const t1 of user1High) {

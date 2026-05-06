@@ -11,6 +11,7 @@ import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getUserByUsername, getUserStats, getFollowerCount, getFollowingCount } from "@/lib/profile";
 import { getUserMovieLogs } from "@/lib/logs";
+import { getReactionAverageLabel } from "@/lib/profile";
 import { buildLogUrl } from "@/lib/log-url";
 import { Mail, Users, Film, Star, Zap, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -134,7 +135,7 @@ export default function UserProfilePage() {
           <div className="grid grid-cols-4 gap-4 pt-6 border-t border-gray-200">
             <div className="text-center">
               <p className="text-2xl font-bold text-gray-900">{stats.totalLogged}</p>
-              <p className="text-sm text-gray-600">Movies Logged</p>
+              <p className="text-sm text-gray-600">Total Watches</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-gray-900">{followers}</p>
@@ -145,8 +146,8 @@ export default function UserProfilePage() {
               <p className="text-sm text-gray-600">Following</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-gray-900">{Number(stats?.averageRating || 0).toFixed(1)}</p>
-              <p className="text-sm text-gray-600">Avg Rating</p>
+              <p className="text-2xl font-bold text-gray-900">{getReactionAverageLabel(stats)}</p>
+              <p className="text-sm text-gray-600">Avg Reaction</p>
             </div>
           </div>
         </div>
@@ -246,7 +247,7 @@ export default function UserProfilePage() {
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
                   <span className="text-gray-700">Average Rating</span>
-                  <span className="font-bold text-gray-900">{Number(stats?.averageRating || 0).toFixed(1)} out of 5</span>
+                  <span className="font-bold text-gray-900">{getReactionAverageLabel(stats)}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
                   <span className="text-gray-700">Most Common Mood</span>
@@ -289,7 +290,7 @@ export default function UserProfilePage() {
                       </p>
                       <div className="flex items-center gap-3 text-sm">
                         <span className="font-medium text-gray-900">
-                          {log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad"}
+                          {log.reaction === 2 ? "Masterpiece" : log.reaction === 1.5 ? "Average" : log.reaction === 1 ? "Good" : "Bad"}
                         </span>
                         {log.mood && (
                           <span className="px-2 py-1 bg-blue-100 text-[#f5f0de] rounded text-xs">

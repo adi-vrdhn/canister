@@ -4,16 +4,18 @@ import { useState } from "react";
 import { Content } from "@/types";
 
 interface WatchHistoryProps {
-  movies: Array<{ content: Content; reaction?: 0 | 1 | 2; watched_at?: string }>;
+  movies: Array<{ content: Content; reaction?: 0 | 1 | 1.5 | 2; watched_at?: string }>;
   isOwnProfile: boolean;
 }
 
 export default function WatchHistory({ movies, isOwnProfile }: WatchHistoryProps) {
-  const [filter, setFilter] = useState<"all" | "masterpiece" | "bad">("all");
+  const [filter, setFilter] = useState<"all" | "masterpiece" | "good" | "average" | "bad">("all");
 
   const filteredMovies = movies.filter((item) => {
     if (filter === "all") return true;
     if (filter === "masterpiece") return item.reaction === 2;
+    if (filter === "good") return item.reaction === 1;
+    if (filter === "average") return item.reaction === 1.5;
     if (filter === "bad") return item.reaction === 0;
     return true;
   });
@@ -43,6 +45,26 @@ export default function WatchHistory({ movies, isOwnProfile }: WatchHistoryProps
           }`}
         >
           Masterpiece ({movies.filter((m) => m.reaction === 2).length})
+        </button>
+        <button
+          onClick={() => setFilter("good")}
+          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            filter === "good"
+              ? "bg-slate-900 text-white shadow-sm"
+              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Good ({movies.filter((m) => m.reaction === 1).length})
+        </button>
+        <button
+          onClick={() => setFilter("average")}
+          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            filter === "average"
+              ? "bg-slate-900 text-white shadow-sm"
+              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Average ({movies.filter((m) => m.reaction === 1.5).length})
         </button>
         <button
           onClick={() => setFilter("bad")}
@@ -77,10 +99,10 @@ export default function WatchHistory({ movies, isOwnProfile }: WatchHistoryProps
                 {item.reaction !== undefined && (
                   <div
                     className={`absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white ${
-                      item.reaction === 2 ? "bg-slate-900" : item.reaction === 1 ? "bg-slate-700" : "bg-slate-500"
+                      item.reaction === 2 ? "bg-slate-900" : item.reaction === 1.5 ? "bg-slate-700" : item.reaction === 1 ? "bg-slate-600" : "bg-slate-500"
                     }`}
                   >
-                    {item.reaction === 2 ? "M" : item.reaction === 1 ? "G" : "B"}
+                    {item.reaction === 2 ? "M" : item.reaction === 1.5 ? "A" : item.reaction === 1 ? "G" : "B"}
                   </div>
                 )}
 

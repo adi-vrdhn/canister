@@ -5,13 +5,15 @@ import {
   get,
   push,
   remove,
-  onValue,
+  query,
+  orderByChild,
+  equalTo,
 } from "firebase/database";
 import { MovieLog, MovieLogWithContent, User, Content, Movie } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 import { removeWatchedMovieSource, upsertWatchedMovie } from "./watched-movies";
-import { getUserProfile } from "./users";
+import { createFallbackUser, getUserProfile } from "./users";
 import { createLogCreatedNotifications } from "./notifications";
 
 const IMPORTED_RATINGS_CSV_NOTE = "Imported from ratings CSV";
@@ -115,6 +117,24 @@ async function getContentMapForLogs(logs: MovieLog[]): Promise<Map<string, Conte
   return new Map(contentEntries);
 }
 
+async function getLogsForUser(userId: string): Promise<MovieLog[]> {
+  try {
+    const logsQuery = query(ref(db, "movie_logs"), orderByChild("user_id"), equalTo(userId));
+    const snapshot = await get(logsQuery);
+
+    if (!snapshot.exists()) return [];
+
+    return Object.values(snapshot.val()) as MovieLog[];
+  } catch (error) {
+    console.warn("Indexed movie_logs query failed, falling back to a full scan:", error);
+    const snapshot = await get(ref(db, "movie_logs"));
+
+    if (!snapshot.exists()) return [];
+
+    return (Object.values(snapshot.val()) as MovieLog[]).filter((log) => log.user_id === userId);
+  }
+}
+
 /**
  * Create a new movie log
  */
@@ -123,7 +143,7 @@ export async function createMovieLog(
   contentId: number,
   contentType: "movie" | "tv",
   watchedDate: string,
-  reaction: 0 | 1 | 2, // 0=Bad, 1=Good, 2=Masterpiece
+  reaction: 0 | 1 | 1.5 | 2, // 0=Bad, 1=Good, 1.5=Average, 2=Masterpiece
   notes: string,
   mood?: string,
   contextLog?: {
@@ -241,22 +261,17 @@ export async function getUserMovieLogs(
   currentUser?: User | null
 ): Promise<MovieLogWithContent[]> {
   try {
-    const snapshot = await get(ref(db, "movie_logs"));
-
-    if (!snapshot.exists()) return [];
-
-    const allLogs = snapshot.val();
-    const userLogs = Object.values(allLogs)
-      .filter((log: any) => log.user_id === userId)
-      .sort((a: any, b: any) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
-      .slice(0, limit) as MovieLog[];
+    const userLogs = await getLogsForUser(userId);
+    const recentLogs = userLogs
+      .sort((a, b) => new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime())
+      .slice(0, limit);
 
     const [contentMap, user] = await Promise.all([
-      getContentMapForLogs(userLogs),
+      getContentMapForLogs(recentLogs),
       currentUser ? Promise.resolve(currentUser) : getUserProfile(userId),
     ]);
 
-    const logsWithContent: MovieLogWithContent[] = userLogs.map((log) => ({
+    const logsWithContent: MovieLogWithContent[] = recentLogs.map((log) => ({
       ...log,
       notes: getVisibleLogNotes(log),
       content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
@@ -295,13 +310,7 @@ export async function getPublicMovieLogs(limit: number = 50): Promise<MovieLogWi
       ...log,
       notes: getVisibleLogNotes(log),
       content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
-      user: usersById.get(log.user_id) || {
-        id: log.user_id,
-        username: "",
-        name: "Unknown",
-        avatar_url: null,
-        created_at: new Date().toISOString(),
-      },
+      user: usersById.get(log.user_id) || createFallbackUser(log.user_id),
     }));
 
     return logsWithContent;
@@ -386,15 +395,8 @@ export async function hasUserLoggedContent(
   contentType: "movie" | "tv"
 ): Promise<MovieLog | null> {
   try {
-    const snapshot = await get(ref(db, "movie_logs"));
-
-    if (!snapshot.exists()) return null;
-
-    const allLogs = snapshot.val();
-    const existingLog = Object.values(allLogs).find(
-      (log: any) =>
-        log.user_id === userId && log.content_id === contentId && log.content_type === contentType
-    ) as MovieLog | undefined;
+    const userLogs = await getLogsForUser(userId);
+    const existingLog = userLogs.find((log) => log.content_id === contentId && log.content_type === contentType);
 
     return existingLog || null;
   } catch (error) {
@@ -409,18 +411,20 @@ export async function hasUserLoggedContent(
 export async function getUserLogStats(userId: string, days: number = 30): Promise<{
   totalLogged: number;
   masterpieceCount: number;
+  averageCount: number;
   goodCount: number;
   badCount: number;
   mostCommonMood?: string;
   mostWatchedGenre?: string;
 }> {
   try {
-    const snapshot = await get(ref(db, "movie_logs"));
+    const userLogs = await getLogsForUser(userId);
 
-    if (!snapshot.exists()) {
+    if (!userLogs.length) {
       return {
         totalLogged: 0,
         masterpieceCount: 0,
+        averageCount: 0,
         goodCount: 0,
         badCount: 0,
       };
@@ -429,24 +433,24 @@ export async function getUserLogStats(userId: string, days: number = 30): Promis
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
 
-    const userLogs = Object.values(snapshot.val()).filter(
-      (log: any) => new Date(log.watched_date) >= dateThreshold
-    ) as MovieLog[];
+    const recentLogs = userLogs.filter((log) => new Date(log.watched_date) >= dateThreshold);
 
-    const totalLogged = userLogs.length;
-    let masterpieceCount = 0;
-    let goodCount = 0;
-    let badCount = 0;
+  const totalLogged = recentLogs.length;
+  let masterpieceCount = 0;
+  let goodCount = 0;
+  let averageCount = 0;
+  let badCount = 0;
     
-    userLogs.forEach((log) => {
+    recentLogs.forEach((log) => {
       if (log.reaction === 2) masterpieceCount++;
+      else if (log.reaction === 1.5) averageCount++;
       else if (log.reaction === 1) goodCount++;
       else if (log.reaction === 0) badCount++;
     });
 
     // Find most common mood
     const moodCounts: Record<string, number> = {};
-    userLogs.forEach((log) => {
+    recentLogs.forEach((log) => {
       if (log.mood) {
         moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
       }
@@ -457,6 +461,7 @@ export async function getUserLogStats(userId: string, days: number = 30): Promis
       totalLogged,
       masterpieceCount,
       goodCount,
+      averageCount,
       badCount,
       mostCommonMood,
     };
@@ -466,6 +471,7 @@ export async function getUserLogStats(userId: string, days: number = 30): Promis
       totalLogged: 0,
       masterpieceCount: 0,
       goodCount: 0,
+      averageCount: 0,
       badCount: 0,
     };
   }
@@ -479,7 +485,7 @@ export async function quickRateMovie(
   userId: string,
   contentId: number,
   contentType: "movie" | "tv",
-  reaction: 0 | 1 | 2 // 0=Bad, 1=Good, 2=Masterpiece
+  reaction: 0 | 1 | 1.5 | 2 // 0=Bad, 1=Good, 1.5=Average, 2=Masterpiece
 ): Promise<MovieLog> {
   try {
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -540,15 +546,9 @@ export async function addToWatchlist(
  */
 export async function getUserWatchlist(userId: string): Promise<MovieLogWithContent[]> {
   try {
-    const logsRef = ref(db, "movie_logs");
-    const snapshot = await get(logsRef);
-
-    if (!snapshot.exists()) return [];
-
-    const allLogs = snapshot.val();
-    const watchlist = Object.values(allLogs)
-      .filter((log: any) => log.user_id === userId && log.watch_later === true)
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) as MovieLog[];
+    const watchlist = (await getLogsForUser(userId))
+      .filter((log) => log.watch_later === true)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     // Fetch content details for each log
     const logsWithContent: MovieLogWithContent[] = await Promise.all(
@@ -563,16 +563,7 @@ export async function getUserWatchlist(userId: string): Promise<MovieLogWithCont
         }
 
         // Fetch user info
-        const userRef = ref(db, `users/${log.user_id}`);
-        const userSnapshot = await get(userRef);
-        const userData = userSnapshot.val();
-        const user: User = {
-          id: userData?.id || log.user_id,
-          username: userData?.username || "",
-          name: userData?.name || "Unknown",
-          avatar_url: userData?.avatar_url || null,
-          created_at: userData?.created_at || new Date().toISOString(),
-        };
+        const user = await getUserProfile(log.user_id);
 
         return {
           ...log,

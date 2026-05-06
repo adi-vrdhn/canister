@@ -36,8 +36,8 @@ export async function getAvailableFriends(
 
       friends.push({
         userId,
-        username: userData.username || "Unknown",
-        name: userData.name || userData.username || "User",
+        username: userData.username || userData.name || userId,
+        name: userData.name || userData.username || "Unknown user",
         avatar_url: userData.avatar_url || null,
         tasteCount,
         isComplete,

@@ -20,10 +20,20 @@ const ALL_USERS_TTL_MS = 2 * 60 * 1000;
 function normalizeUserRecord(id: string, raw: UserRecord): User {
   return {
     id: raw.id || id,
-    username: raw.username || "user",
-    name: raw.name || "Unknown",
+    username: raw.username || id,
+    name: raw.name || raw.username || "Unknown user",
     avatar_url: raw.avatar_url || null,
     created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
+  };
+}
+
+export function createFallbackUser(userId: string): User {
+  return {
+    id: userId,
+    username: userId,
+    name: "Unknown user",
+    avatar_url: null,
+    created_at: new Date().toISOString(),
   };
 }
 
@@ -85,15 +95,7 @@ const cachedSearchUsers = createTimedCache<[string], Record<string, User>>({
 });
 
 export async function getUserProfile(userId: string): Promise<User> {
-  return (
-    (await cachedGetUserProfile(userId)) || {
-      id: userId,
-      username: "user",
-      name: "Unknown",
-      avatar_url: null,
-      created_at: new Date().toISOString(),
-    }
-  );
+  return (await cachedGetUserProfile(userId)) || createFallbackUser(userId);
 }
 
 export async function getUsersByIds(userIds: string[]): Promise<Record<string, User>> {

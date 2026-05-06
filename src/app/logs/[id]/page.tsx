@@ -752,13 +752,20 @@ export default function LogDetailPage() {
     return `${dayNum}${daySuffix} ${monthName} ${d.getFullYear()}`;
   };
 
-  const getReactionDisplay = (reaction: 0 | 1 | 2) => {
+  const getReactionDisplay = (reaction: 0 | 1 | 1.5 | 2) => {
     switch (reaction) {
       case 2:
         return {
           label: "Masterpiece",
           textClass: "text-emerald-700",
           badgeClass: "bg-emerald-50 border-emerald-200",
+          icon: Sparkles,
+        };
+      case 1.5:
+        return {
+          label: "Average",
+          textClass: "text-amber-700",
+          badgeClass: "bg-amber-50 border-amber-200",
           icon: Sparkles,
         };
       case 1:
@@ -1198,7 +1205,7 @@ export default function LogDetailPage() {
                 )}
               </h2>
               {(() => {
-                const reaction = getReactionDisplay(log.reaction as 0 | 1 | 2);
+                const reaction = getReactionDisplay(log.reaction as 0 | 1 | 1.5 | 2);
                 const reactionLabel = <span className={reaction.textClass}>{reaction.label}</span>;
                 return (
                   <div className="flex flex-wrap items-center gap-2">
@@ -1345,7 +1352,7 @@ export default function LogDetailPage() {
             {showUserLogs && (
               <div className="divide-y divide-white/10">
                 {userLogs.map((l) => {
-                  const reaction = getReactionDisplay(l.reaction as 0 | 1 | 2);
+                  const reaction = getReactionDisplay(l.reaction as 0 | 1 | 1.5 | 2);
                   return (
                     <div key={l.id} className="flex items-center gap-4 py-4">
                       <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(l))} title={`View this log`}>

@@ -3,23 +3,17 @@ import { db } from "@/lib/firebase";
 import type { ShareReply, ShareReplyWithUser, ShareWithDetails, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
-import { getUsersByIds } from "./users";
+import { createFallbackUser, getUsersByIds } from "./users";
 
 function fallbackUser(userId: string): User {
-  return {
-    id: userId,
-    username: "user",
-    name: "Unknown",
-    avatar_url: null,
-    created_at: new Date().toISOString(),
-  };
+  return createFallbackUser(userId);
 }
 
 function normalizeUser(userId: string, userData: any): User {
   return {
     id: userData?.id || userId,
-    username: userData?.username || "user",
-    name: userData?.name || "Unknown",
+    username: userData?.username || userData?.name || userId,
+    name: userData?.name || userData?.username || "Unknown user",
     avatar_url: userData?.avatar_url || null,
     created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
   };
@@ -55,7 +49,7 @@ async function createShareReplyNotification(
   replyId: string,
   content: string
 ): Promise<void> {
-  if (!(await shouldDeliverNotificationToUser(userId, "share_reply"))) return;
+  if (!(await shouldDeliverNotificationToUser(userId, "share_reply", fromUser.id))) return;
 
   const notificationRef = push(ref(db, `notifications/${userId}`));
   const now = new Date().toISOString();

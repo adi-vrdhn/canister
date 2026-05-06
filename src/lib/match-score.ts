@@ -17,9 +17,10 @@ function getContentGenres(taste: MatchTaste): string[] {
   );
 }
 
-function getReactionWeight(reaction?: 0 | 1 | 2): number {
+function getReactionWeight(reaction?: 0 | 1 | 1.5 | 2): number {
   if (reaction === 2) return 1.7;
   if (reaction === 1) return 0.85;
+  if (reaction === 1.5) return 0.3;
   if (reaction === 0) return -1.15;
   return 0.55;
 }

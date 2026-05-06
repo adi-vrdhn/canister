@@ -11,7 +11,7 @@ import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
-import { addItemToList, getListWithDetails } from "@/lib/lists";
+import { addItemToList, getListWithDetails, syncListCollaboratorIds } from "@/lib/lists";
 import { ArrowLeft, Search, Plus, Loader2, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
@@ -55,6 +55,15 @@ export default function AddItemsToListPage() {
         const listData = await getListWithDetails(listId);
         if (listData) {
           setList(listData);
+          if (listData.owner_id === currentUser.id) {
+            const collaboratorIds = [
+              listData.owner_id,
+              ...listData.collaborators.map((collab) => collab.user_id),
+            ];
+            if (!listData.collaborator_ids || Object.keys(listData.collaborator_ids).length === 0) {
+              await syncListCollaboratorIds(listId, collaboratorIds);
+            }
+          }
         } else {
           router.push("/lists");
         }

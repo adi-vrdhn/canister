@@ -43,6 +43,7 @@ import {
   reorderListItems,
   createList,
   addItemToList,
+  syncListCollaboratorIds,
 } from "@/lib/lists";
 import { getLogsForContent } from "@/lib/logs";
 import { getUserWatchedMovies, upsertWatchedMovie, type WatchedMovie } from "@/lib/watched-movies";
@@ -310,6 +311,16 @@ export default function ListDetailPage() {
           // Check if user is collaborator
           const isCollab = await isUserCollaborator(listId, currentUser.id);
           setIsCollaborator(isCollab || listData.owner_id === currentUser.id);
+
+          if (listData.owner_id === currentUser.id) {
+            const collaboratorIds = [
+              listData.owner_id,
+              ...listData.collaborators.map((collab) => collab.user_id),
+            ];
+            if (!listData.collaborator_ids || Object.keys(listData.collaborator_ids).length === 0) {
+              await syncListCollaboratorIds(listId, collaboratorIds);
+            }
+          }
         } else {
           router.push("/lists");
         }

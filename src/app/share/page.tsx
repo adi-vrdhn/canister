@@ -6,6 +6,7 @@ import PageLayout from "@/components/PageLayout";
 import SearchBar from "@/components/SearchBar";
 import CinematicLoading from "@/components/CinematicLoading";
 import ShareModal from "@/components/ShareModal";
+import TopActionBanner from "@/components/TopActionBanner";
 import { Content, ShareWithDetails, TMDBMovie, User } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -107,6 +108,7 @@ function SharePageContent() {
   const [showWatchConflictModal, setShowWatchConflictModal] = useState(false);
   const [pendingShareRecipients, setPendingShareRecipients] = useState<User[]>([]);
   const [watchConflictRecipients, setWatchConflictRecipients] = useState<User[]>([]);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const hasInitializedFromParams = useRef(false);
 
   useEffect(() => {
@@ -335,6 +337,16 @@ function SharePageContent() {
     void loadShareFromId();
   }, [sentShares, shareIdParam, user]);
 
+  useEffect(() => {
+    if (!bannerMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setBannerMessage(null);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [bannerMessage]);
+
   const progressPercentage = (currentStep / 2) * 100;
 
   const filteredFollowers = followers.filter((friend) => {
@@ -489,18 +501,24 @@ function SharePageContent() {
         created_at: createdAt,
       });
 
-      await createShareReceivedNotification(
-        recipient.id,
-        shareId,
-        selectedContent.type === "tv"
-          ? selectedContent.name || selectedContent.title || "a title"
-          : selectedContent.title || "a title",
-        contentType,
-        user,
-        createdAt,
-        shareNote || null
-      );
+      try {
+        await createShareReceivedNotification(
+          recipient.id,
+          shareId,
+          selectedContent.type === "tv"
+            ? selectedContent.name || selectedContent.title || "a title"
+            : selectedContent.title || "a title",
+          contentType,
+          user,
+          createdAt,
+          shareNote || null
+        );
+      } catch (notificationError) {
+        console.warn("Share notification could not be created:", notificationError);
+      }
     }
+
+    setBannerMessage(contentType === "tv" ? "Show shared" : "Movie shared");
   };
 
   const handleShare = async () => {
@@ -589,6 +607,7 @@ function SharePageContent() {
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+      <TopActionBanner message={bannerMessage} />
       <div className="min-h-screen px-4 pb-8 pt-4 sm:px-8 sm:pt-6">
         <div className="mx-auto w-full max-w-6xl">
           <div className="mb-5 flex items-center gap-2 border-b border-white/10 pb-4">

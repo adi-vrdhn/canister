@@ -100,12 +100,14 @@ function groupLogsByMonth(logsToGroup: MovieLogWithContent[]): Array<{ month: st
 
 function getReactionLabel(log: MovieLogWithContent): string {
   if (log.reaction === 2) return "Masterpiece";
+  if (log.reaction === 1.5) return "Average";
   if (log.reaction === 1) return "Good";
   return "Bad";
 }
 
 function getReactionClasses(log: MovieLogWithContent): string {
   if (log.reaction === 2) return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  if (log.reaction === 1.5) return "bg-amber-50 text-amber-700 border border-amber-200";
   if (log.reaction === 1) return "bg-sky-50 text-[#f5f0de] border border-sky-200";
   return "bg-rose-50 text-rose-700 border border-rose-200";
 }
@@ -119,6 +121,7 @@ export default function PublicUserLogsPage() {
   const searchParams = useSearchParams();
   const username = params.username as string;
   const reactionFilter = searchParams.get("reaction");
+  const contentFilter = searchParams.get("content");
   const listSectionRef = useRef<HTMLDivElement | null>(null);
 
   const hardRedirect = (path: string) => {
@@ -134,6 +137,8 @@ export default function PublicUserLogsPage() {
   const [currentMonth, setCurrentMonth] = useState<Date>(monthStart(new Date()));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [listMode, setListMode] = useState<ListMode>("month");
+
+  const normalizedContentFilter = contentFilter === "movie" || contentFilter === "tv" ? contentFilter : null;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -183,21 +188,36 @@ export default function PublicUserLogsPage() {
   }, [username]);
 
   const filteredLogs = useMemo(() => {
-    if (!reactionFilter || !["0", "1", "2"].includes(reactionFilter)) {
-      return logs;
-    }
-    return logs.filter((log) => String(log.reaction) === reactionFilter);
-  }, [logs, reactionFilter]);
+    return logs.filter((log) => {
+      if (normalizedContentFilter && log.content_type !== normalizedContentFilter) {
+        return false;
+      }
+
+      if (!reactionFilter || !["0", "1", "1.5", "2"].includes(reactionFilter)) {
+        return true;
+      }
+
+      return String(log.reaction) === reactionFilter;
+    });
+  }, [logs, normalizedContentFilter, reactionFilter]);
 
   const displayName = profileUser?.name || profileUser?.username || "User";
+  const logTypeLabel =
+    normalizedContentFilter === "movie"
+      ? "Movie Logs"
+      : normalizedContentFilter === "tv"
+        ? "TV Logs"
+        : "Logs";
   const pageTitle =
     reactionFilter === "2"
-      ? `${displayName}'s Masterpiece Logs`
-      : reactionFilter === "1"
-        ? `${displayName}'s Good Logs`
-        : reactionFilter === "0"
-          ? `${displayName}'s Bad Logs`
-          : `${displayName}'s Logs`;
+      ? `${displayName}'s Masterpiece ${logTypeLabel}`
+      : reactionFilter === "1.5"
+        ? `${displayName}'s Average ${logTypeLabel}`
+        : reactionFilter === "1"
+          ? `${displayName}'s Good ${logTypeLabel}`
+          : reactionFilter === "0"
+            ? `${displayName}'s Bad ${logTypeLabel}`
+            : `${displayName}'s ${logTypeLabel}`;
 
   const logsByDate = useMemo(() => {
     const map = new Map<string, MovieLogWithContent[]>();

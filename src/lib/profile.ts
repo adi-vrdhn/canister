@@ -1,6 +1,6 @@
 import { db } from "@/lib/firebase";
 import { equalTo, get, limitToFirst, orderByChild, query, ref, set } from "firebase/database";
-import { User, MovieLog, Content } from "@/types";
+import { User, MovieLog, Content, Follow } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 
@@ -13,13 +13,19 @@ export interface StatDistributionItem {
 export interface DetailedUserStats {
   totalLogged: number;
   watchedCount: number;
+  movieCount: number;
+  tvCount: number;
   moviesWatchedThisMonth: number;
+  movieCountThisMonth: number;
+  tvCountThisMonth: number;
   estimatedWatchTimeMinutes: number;
   rewatchCount: number;
   masterpieceCount: number;
+  averageCount: number;
   goodCount: number;
   badCount: number;
   masterpiecePercentage: number;
+  averagePercentage: number;
   goodPercentage: number;
   badPercentage: number;
   averageRating: number;
@@ -31,6 +37,10 @@ export interface DetailedUserStats {
   languageDistribution: StatDistributionItem[];
   ratingInsight: string;
 }
+
+export type FollowRecord = Follow & {
+  createdAt?: string;
+};
 
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -50,6 +60,63 @@ async function mapWithConcurrency<T, R>(
 
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
   return results;
+}
+
+function normalizeFollowRecord(id: string, raw: Record<string, any>): FollowRecord {
+  return {
+    id,
+    follower_id: raw.follower_id || "",
+    following_id: raw.following_id || "",
+    status: raw.status === "accepted" ? "accepted" : "pending",
+    created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
+    createdAt: raw.createdAt || raw.created_at,
+  };
+}
+
+async function getFollowRecordsByRelation(
+  relationKey: "follower_id" | "following_id",
+  userId: string
+): Promise<FollowRecord[]> {
+  try {
+    const followsQuery = query(ref(db, "follows"), orderByChild(relationKey), equalTo(userId));
+    const snapshot = await get(followsQuery);
+
+    if (!snapshot.exists()) return [];
+
+    const rawFollows = snapshot.val() as Record<string, Record<string, any>>;
+    return Object.entries(rawFollows).map(([id, follow]) => normalizeFollowRecord(id, follow));
+  } catch (error) {
+    console.warn("Indexed follows query failed, falling back to a full scan:", error);
+    const snapshot = await get(ref(db, "follows"));
+    if (!snapshot.exists()) return [];
+
+    const rawFollows = snapshot.val() as Record<string, Record<string, any>>;
+    return Object.entries(rawFollows)
+      .map(([id, follow]) => normalizeFollowRecord(id, follow))
+      .filter((follow) => follow[relationKey] === userId);
+  }
+}
+
+export async function getUserFollowRecords(userId: string): Promise<FollowRecord[]> {
+  const [following, followers] = await Promise.all([
+    getFollowRecordsByRelation("follower_id", userId),
+    getFollowRecordsByRelation("following_id", userId),
+  ]);
+
+  const records = new Map<string, FollowRecord>();
+  for (const follow of [...following, ...followers]) {
+    records.set(follow.id, follow);
+  }
+
+  return Array.from(records.values());
+}
+
+async function getAcceptedFollowCountByRelation(
+  relationKey: "follower_id" | "following_id",
+  userId: string
+): Promise<number> {
+  const records = await getFollowRecordsByRelation(relationKey, userId);
+  return records.filter((follow) => follow.status === "accepted").length;
 }
 
 function createDistribution(counts: Record<string, number>, limit = 5): StatDistributionItem[] {
@@ -82,7 +149,13 @@ function formatLanguageName(value: string | null | undefined): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function getRatingInsight(masterpiecePercentage: number, goodPercentage: number, badPercentage: number, watchedCount: number): string {
+function getRatingInsight(
+  masterpiecePercentage: number,
+  averagePercentage: number,
+  goodPercentage: number,
+  badPercentage: number,
+  watchedCount: number
+): string {
   if (watchedCount === 0) {
     return "Log a few films to reveal your rating personality.";
   }
@@ -93,6 +166,10 @@ function getRatingInsight(masterpiecePercentage: number, goodPercentage: number,
 
   if (badPercentage >= 35) {
     return "You are a tough critic and do not hand out easy approval.";
+  }
+
+  if (averagePercentage >= 35) {
+    return "You often land in the middle, which gives your ratings a balanced feel.";
   }
 
   if (goodPercentage >= 60) {
@@ -111,6 +188,29 @@ function getRatingInsight(masterpiecePercentage: number, goodPercentage: number,
   return "Your ratings lean strongly in one direction, which makes your taste feel decisive.";
 }
 
+export function getReactionAverageLabel({
+  watchedCount,
+  masterpieceCount,
+  averageCount,
+  goodCount,
+  badCount,
+}: Pick<
+  DetailedUserStats,
+  "watchedCount" | "masterpieceCount" | "averageCount" | "goodCount" | "badCount"
+>): string {
+  if (watchedCount <= 0) {
+    return "No ratings yet";
+  }
+
+  const weightedAverage =
+    (badCount * 0 + goodCount * 1 + averageCount * 1.5 + masterpieceCount * 2) / watchedCount;
+
+  if (weightedAverage < 0.5) return "Bad";
+  if (weightedAverage < 1.25) return "Good";
+  if (weightedAverage < 1.75) return "Average";
+  return "Masterpiece";
+}
+
 async function getContentForStatLog(log: MovieLog): Promise<Content | null> {
   try {
     if (log.content_type === "tv") {
@@ -122,6 +222,24 @@ async function getContentForStatLog(log: MovieLog): Promise<Content | null> {
     return movie as unknown as Content;
   } catch {
     return null;
+  }
+}
+
+async function getMovieLogsForUser(userId: string): Promise<MovieLog[]> {
+  try {
+    const logsQuery = query(ref(db, "movie_logs"), orderByChild("user_id"), equalTo(userId));
+    const snapshot = await get(logsQuery);
+
+    if (!snapshot.exists()) return [];
+
+    return Object.values(snapshot.val()) as MovieLog[];
+  } catch (error) {
+    console.warn("Indexed movie_logs query failed, falling back to a full scan:", error);
+    const snapshot = await get(ref(db, "movie_logs"));
+
+    if (!snapshot.exists()) return [];
+
+    return (Object.values(snapshot.val()) as MovieLog[]).filter((log) => log.user_id === userId);
   }
 }
 
@@ -199,7 +317,10 @@ export async function getUserByUsername(username: string): Promise<User | null> 
  */
 export async function getUserStats(userId: string): Promise<{
   totalLogged: number;
+  movieCount: number;
+  tvCount: number;
   masterpieceCount: number;
+  averageCount: number;
   goodCount: number;
   badCount: number;
   averageRating: number;
@@ -207,69 +328,67 @@ export async function getUserStats(userId: string): Promise<{
   totalFriends: number;
 }> {
   try {
-    // Get logs
-    const logsRef = ref(db, "movie_logs");
-    const logsSnapshot = await get(logsRef);
+    const userLogs = await getMovieLogsForUser(userId);
 
     let totalLogged = 0;
+    let movieCount = 0;
+    let tvCount = 0;
     let masterpieceCount = 0;
+    let averageCount = 0;
     let goodCount = 0;
     let badCount = 0;
     const moodCounts: Record<string, number> = {};
     let ratingTotal = 0;
 
-    if (logsSnapshot.exists()) {
-      const allLogs = logsSnapshot.val();
-      const userLogs = Object.values(allLogs).filter((log: any) => log.user_id === userId);
-      
-      totalLogged = userLogs.length;
-      
-      userLogs.forEach((log: any) => {
-        if (log.reaction === 2) masterpieceCount++;
-        else if (log.reaction === 1) goodCount++;
-        else if (log.reaction === 0) badCount++;
+    totalLogged = userLogs.length;
 
-        const ratingValue = Number(log.rating);
-        if (Number.isFinite(ratingValue) && ratingValue > 0) {
-          ratingTotal += ratingValue;
-        }
-        
-        if (log.mood) {
-          moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
-        }
-      });
-    }
+    userLogs.forEach((log: any) => {
+      if (log.content_type === "tv") tvCount++;
+      else movieCount++;
+
+      if (log.reaction === 2) masterpieceCount++;
+      else if (log.reaction === 1.5) averageCount++;
+      else if (log.reaction === 1) goodCount++;
+      else if (log.reaction === 0) badCount++;
+
+      const ratingValue = Number(log.rating);
+      if (Number.isFinite(ratingValue) && ratingValue > 0) {
+        ratingTotal += ratingValue;
+      }
+
+      if (log.mood) {
+        moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
+      }
+    });
 
     // Get most common mood
     const mostCommonMood = Object.entries(moodCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
 
-    // Get friends count (followers + following)
-    const followsRef = ref(db, "follows");
-    const followsSnapshot = await get(followsRef);
-
-    let totalFriends = 0;
-    if (followsSnapshot.exists()) {
-      const allFollows = followsSnapshot.val();
-      const userFollows = Object.values(allFollows).filter(
-        (follow: any) => (follow.follower_id === userId || follow.following_id === userId) && follow.status === "accepted"
-      );
-      totalFriends = userFollows.length;
-    }
+    const [followersCount, followingCount] = await Promise.all([
+      getAcceptedFollowCountByRelation("following_id", userId),
+      getAcceptedFollowCountByRelation("follower_id", userId),
+    ]);
 
     return {
       totalLogged,
+      movieCount,
+      tvCount,
       masterpieceCount,
+      averageCount,
       goodCount,
       badCount,
       averageRating: totalLogged > 0 ? ratingTotal / totalLogged : 0,
       mostCommonMood,
-      totalFriends,
+      totalFriends: followersCount + followingCount,
     };
   } catch (error) {
     console.error("Error calculating user stats:", error);
     return {
       totalLogged: 0,
+      movieCount: 0,
+      tvCount: 0,
       masterpieceCount: 0,
+      averageCount: 0,
       goodCount: 0,
       badCount: 0,
       averageRating: 0,
@@ -280,140 +399,160 @@ export async function getUserStats(userId: string): Promise<{
 
 export async function getDetailedUserStats(userId: string): Promise<DetailedUserStats> {
   try {
-    const logsRef = ref(db, "movie_logs");
-    const logsSnapshot = await get(logsRef);
+    const userLogs = await getMovieLogsForUser(userId);
 
     let totalLogged = 0;
     let watchedCount = 0;
+    let movieCount = 0;
+    let tvCount = 0;
+    let movieCountThisMonth = 0;
+    let tvCountThisMonth = 0;
     let moviesWatchedThisMonth = 0;
     let estimatedWatchTimeMinutes = 0;
     let rewatchCount = 0;
     let masterpieceCount = 0;
+    let averageCount = 0;
     let goodCount = 0;
     let badCount = 0;
     const moodCounts: Record<string, number> = {};
     let ratingTotal = 0;
+    let ratingCount = 0;
     const genreCounts: Record<string, number> = {};
     const actorCounts: Record<string, number> = {};
     const directorCounts: Record<string, number> = {};
     const languageCounts: Record<string, number> = {};
 
-    if (logsSnapshot.exists()) {
-      const allLogs = logsSnapshot.val();
-      const userLogs = Object.values(allLogs).filter((log: any) => log.user_id === userId) as Array<MovieLog & { rating?: number }>;
-      totalLogged = userLogs.length;
+    totalLogged = userLogs.length;
 
-      const watchedLogs = userLogs.filter((log) => !log.watch_later && Boolean(log.watched_date));
-      watchedCount = watchedLogs.length;
+    const watchedLogs = userLogs.filter((log) => !log.watch_later && Boolean(log.watched_date));
+    watchedCount = watchedLogs.length;
 
-      const now = new Date();
-      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-      const duplicateCounts = new Map<string, number>();
+    const duplicateCounts = new Map<string, number>();
 
-      const contentEntries = await mapWithConcurrency(watchedLogs, 4, async (log) => {
-        const content = await getContentForStatLog(log);
-        return { log, content };
-      });
+    const contentEntries = await mapWithConcurrency(watchedLogs, 4, async (log) => {
+      const content = await getContentForStatLog(log);
+      return { log, content };
+    });
 
-      for (const { log, content } of contentEntries) {
-        const key = `${log.content_type}-${log.content_id}`;
-        duplicateCounts.set(key, (duplicateCounts.get(key) || 0) + 1);
+    for (const { log, content } of contentEntries) {
+      const key = `${log.content_type}-${log.content_id}`;
+      duplicateCounts.set(key, (duplicateCounts.get(key) || 0) + 1);
 
-        if (log.content_type === "movie" && String(log.watched_date || "").slice(0, 7) === currentMonthKey) {
-          moviesWatchedThisMonth += 1;
+      if (log.content_type === "movie") {
+        movieCount += 1;
+        if (String(log.watched_date || "").slice(0, 7) === currentMonthKey) {
+          movieCountThisMonth += 1;
         }
-
-        if (log.reaction === 2) masterpieceCount += 1;
-        else if (log.reaction === 1) goodCount += 1;
-        else if (log.reaction === 0) badCount += 1;
-
-        const ratingValue = Number(log.rating);
-        if (Number.isFinite(ratingValue) && ratingValue > 0) {
-          ratingTotal += ratingValue;
-        }
-
-        if (log.mood) {
-          moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
-        }
-
-        if (content) {
-          const runtime = Number(content.runtime);
-          if (Number.isFinite(runtime) && runtime > 0) {
-            estimatedWatchTimeMinutes += runtime;
-          }
-
-          (content.genres || []).forEach((genre) => {
-            genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-          });
-
-          (content.actors || []).forEach((actor) => {
-            actorCounts[actor] = (actorCounts[actor] || 0) + 1;
-          });
-
-          if (content.director) {
-            directorCounts[content.director] = (directorCounts[content.director] || 0) + 1;
-          }
-
-          const languageLabel = formatLanguageName(content.language || null);
-          languageCounts[languageLabel] = (languageCounts[languageLabel] || 0) + 1;
+      } else {
+        tvCount += 1;
+        if (String(log.watched_date || "").slice(0, 7) === currentMonthKey) {
+          tvCountThisMonth += 1;
         }
       }
 
-      rewatchCount = Array.from(duplicateCounts.values()).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+      if (log.content_type === "movie" && String(log.watched_date || "").slice(0, 7) === currentMonthKey) {
+        moviesWatchedThisMonth += 1;
+      }
+
+      if (log.reaction === 2) masterpieceCount += 1;
+      else if (log.reaction === 1.5) averageCount += 1;
+      else if (log.reaction === 1) goodCount += 1;
+      else if (log.reaction === 0) badCount += 1;
+
+      if (log.mood) {
+        moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
+      }
+
+      if (content) {
+        const ratingValue = Number(content.rating);
+        if (Number.isFinite(ratingValue) && ratingValue > 0) {
+          ratingTotal += ratingValue;
+          ratingCount += 1;
+        }
+
+        const runtime = Number(content.runtime);
+        if (Number.isFinite(runtime) && runtime > 0) {
+          estimatedWatchTimeMinutes += runtime;
+        }
+
+        (content.genres || []).forEach((genre) => {
+          genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+        });
+
+        (content.actors || []).forEach((actor) => {
+          actorCounts[actor] = (actorCounts[actor] || 0) + 1;
+        });
+
+        if (content.director) {
+          directorCounts[content.director] = (directorCounts[content.director] || 0) + 1;
+        }
+
+        const languageLabel = formatLanguageName(content.language || null);
+        languageCounts[languageLabel] = (languageCounts[languageLabel] || 0) + 1;
+      }
     }
+
+    rewatchCount = Array.from(duplicateCounts.values()).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
 
     const mostCommonMood = Object.entries(moodCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
     const masterpiecePercentage = watchedCount > 0 ? (masterpieceCount / watchedCount) * 100 : 0;
+    const averagePercentage = watchedCount > 0 ? (averageCount / watchedCount) * 100 : 0;
     const goodPercentage = watchedCount > 0 ? (goodCount / watchedCount) * 100 : 0;
     const badPercentage = watchedCount > 0 ? (badCount / watchedCount) * 100 : 0;
 
-    // Get friends count (followers + following)
-    const followsRef = ref(db, "follows");
-    const followsSnapshot = await get(followsRef);
-
-    let totalFriends = 0;
-    if (followsSnapshot.exists()) {
-      const allFollows = followsSnapshot.val();
-      const userFollows = Object.values(allFollows).filter(
-        (follow: any) => (follow.follower_id === userId || follow.following_id === userId) && follow.status === "accepted"
-      );
-      totalFriends = userFollows.length;
-    }
+    const [followersCount, followingCount] = await Promise.all([
+      getAcceptedFollowCountByRelation("following_id", userId),
+      getAcceptedFollowCountByRelation("follower_id", userId),
+    ]);
 
     return {
       totalLogged,
       watchedCount,
+      movieCount,
+      tvCount,
       moviesWatchedThisMonth,
+      movieCountThisMonth,
+      tvCountThisMonth,
       estimatedWatchTimeMinutes,
       rewatchCount,
       masterpieceCount,
+      averageCount,
       goodCount,
       badCount,
       masterpiecePercentage,
+      averagePercentage,
       goodPercentage,
       badPercentage,
-      averageRating: totalLogged > 0 ? ratingTotal / totalLogged : 0,
+      averageRating: ratingCount > 0 ? ratingTotal / ratingCount : 0,
       mostCommonMood,
-      totalFriends,
+      totalFriends: followersCount + followingCount,
       genreDistribution: createDistribution(genreCounts),
       topActors: createDistribution(actorCounts),
       topDirectors: createDistribution(directorCounts),
       languageDistribution: createDistribution(languageCounts),
-      ratingInsight: getRatingInsight(masterpiecePercentage, goodPercentage, badPercentage, watchedCount),
+      ratingInsight: getRatingInsight(masterpiecePercentage, averagePercentage, goodPercentage, badPercentage, watchedCount),
     };
   } catch (error) {
     console.error("Error calculating detailed user stats:", error);
     return {
       totalLogged: 0,
       watchedCount: 0,
+      movieCount: 0,
+      tvCount: 0,
       moviesWatchedThisMonth: 0,
+      movieCountThisMonth: 0,
+      tvCountThisMonth: 0,
       estimatedWatchTimeMinutes: 0,
       rewatchCount: 0,
       masterpieceCount: 0,
+      averageCount: 0,
       goodCount: 0,
       badCount: 0,
       masterpiecePercentage: 0,
+      averagePercentage: 0,
       goodPercentage: 0,
       badPercentage: 0,
       averageRating: 0,
@@ -432,17 +571,7 @@ export async function getDetailedUserStats(userId: string): Promise<DetailedUser
  */
 export async function getFollowerCount(userId: string): Promise<number> {
   try {
-    const followsRef = ref(db, "follows");
-    const snapshot = await get(followsRef);
-
-    if (!snapshot.exists()) return 0;
-
-    const allFollows = snapshot.val();
-    const followers = Object.values(allFollows).filter(
-      (follow: any) => follow.following_id === userId && follow.status === "accepted"
-    );
-
-    return followers.length;
+    return await getAcceptedFollowCountByRelation("following_id", userId);
   } catch (error) {
     console.error("Error fetching follower count:", error);
     return 0;
@@ -454,17 +583,7 @@ export async function getFollowerCount(userId: string): Promise<number> {
  */
 export async function getFollowingCount(userId: string): Promise<number> {
   try {
-    const followsRef = ref(db, "follows");
-    const snapshot = await get(followsRef);
-
-    if (!snapshot.exists()) return 0;
-
-    const allFollows = snapshot.val();
-    const following = Object.values(allFollows).filter(
-      (follow: any) => follow.follower_id === userId && follow.status === "accepted"
-    );
-
-    return following.length;
+    return await getAcceptedFollowCountByRelation("follower_id", userId);
   } catch (error) {
     console.error("Error fetching following count:", error);
     return 0;

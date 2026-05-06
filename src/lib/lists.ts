@@ -1,9 +1,9 @@
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { ref, set, get, push, remove, onValue } from "firebase/database";
 import { List, ListItem, ListCollaborator, ListWithItems, ListItemWithContent, ListCollaboratorWithUser, User, Content } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
-import { getUsersByIds } from "./users";
+import { createFallbackUser, getUsersByIds } from "./users";
 
 /**
  * Create a new list
@@ -15,6 +15,7 @@ export async function createList(
   privacy: "private" | "public" = "private",
   isRanked: boolean = false
 ): Promise<List> {
+  const currentUserId = auth.currentUser?.uid || ownerId;
   const listRef = push(ref(db, "lists"));
   const listId = listRef.key;
 
@@ -24,7 +25,8 @@ export async function createList(
     id: listId,
     name,
     description,
-    owner_id: ownerId,
+    owner_id: currentUserId,
+    collaborator_ids: { [currentUserId]: true },
     privacy,
     is_ranked: isRanked,
     view_type: "grid",
@@ -41,12 +43,20 @@ export async function createList(
   const collaboratorRef = push(ref(db, "list_collaborators"));
   await set(collaboratorRef, {
     list_id: listId,
-    user_id: ownerId,
+    user_id: currentUserId,
     role: "owner",
     joined_at: new Date().toISOString(),
   });
 
   return newList;
+}
+
+export async function syncListCollaboratorIds(listId: string, collaboratorIds: string[]): Promise<void> {
+  const collaboratorMap = Object.fromEntries(
+    Array.from(new Set(collaboratorIds.filter((id) => Boolean(id)))).map((id) => [id, true])
+  ) as Record<string, boolean>;
+
+  await set(ref(db, `lists/${listId}/collaborator_ids`), collaboratorMap);
 }
 
 /**
@@ -168,7 +178,7 @@ export async function getListWithDetails(listId: string, allUsers?: Record<strin
         return {
           ...item,
           content,
-          added_by_user: usersData[item.added_by_user_id] || { id: item.added_by_user_id, username: "Unknown", name: "Unknown User", avatar_url: null, created_at: "" },
+          added_by_user: usersData[item.added_by_user_id] || createFallbackUser(item.added_by_user_id),
         };
       })
     );
@@ -176,7 +186,7 @@ export async function getListWithDetails(listId: string, allUsers?: Record<strin
     // Enrich collaborators with user info
     const enrichedCollaborators: ListCollaboratorWithUser[] = listCollaborators.map((collab) => ({
       ...collab,
-      user: usersData[collab.user_id] || { id: collab.user_id, username: "Unknown", name: "Unknown User", avatar_url: null, created_at: "" },
+      user: usersData[collab.user_id] || createFallbackUser(collab.user_id),
     }));
 
     return {
@@ -201,6 +211,7 @@ export async function addItemToList(
   contentType: "movie" | "tv",
   userId: string
 ): Promise<ListItem> {
+  const currentUserId = auth.currentUser?.uid || userId;
   const itemRef = push(ref(db, "list_items"));
   const itemId = itemRef.key;
 
@@ -218,7 +229,7 @@ export async function addItemToList(
     list_id: listId,
     content_id: contentId,
     content_type: contentType,
-    added_by_user_id: userId,
+    added_by_user_id: currentUserId,
     position,
     added_at: new Date().toISOString(),
     watched_by: [],
@@ -277,6 +288,7 @@ export async function addCollaborator(
   };
 
   await set(collabRef, newCollaborator);
+  await set(ref(db, `lists/${listId}/collaborator_ids/${userId}`), true);
 
   return newCollaborator;
 }
@@ -285,7 +297,14 @@ export async function addCollaborator(
  * Remove collaborator from list
  */
 export async function removeCollaborator(collaboratorId: string, listId: string): Promise<void> {
+  const collaboratorSnapshot = await get(ref(db, `list_collaborators/${collaboratorId}`));
+  const collaboratorUserId = collaboratorSnapshot.exists() ? collaboratorSnapshot.val()?.user_id : null;
+
   await remove(ref(db, `list_collaborators/${collaboratorId}`));
+
+  if (collaboratorUserId) {
+    await remove(ref(db, `lists/${listId}/collaborator_ids/${collaboratorUserId}`));
+  }
 
   // Update list updated_at
   await set(ref(db, `lists/${listId}/updated_at`), new Date().toISOString());
@@ -309,13 +328,14 @@ export async function updateList(
  * Delete list (soft delete by checking ownership)
  */
 export async function deleteList(listId: string, userId: string): Promise<void> {
+  const currentUserId = auth.currentUser?.uid || userId;
   const listRef = ref(db, `lists/${listId}`);
   const listSnapshot = await get(listRef);
 
   if (!listSnapshot.exists()) throw new Error("List not found");
 
   const list = listSnapshot.val() as List;
-  if (list.owner_id !== userId) throw new Error("Only list owner can delete the list");
+  if (list.owner_id !== currentUserId) throw new Error("Only list owner can delete the list");
 
   // Delete all items in list
   const itemsRef = ref(db, "list_items");

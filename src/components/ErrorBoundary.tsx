@@ -1,5 +1,6 @@
 import React from "react";
 import ErrorPopupCard from "./ErrorPopupCard";
+import { getErrorCode } from "@/lib/report-error";
 
 export class ErrorBoundary extends React.Component<{
   children: React.ReactNode;
@@ -19,9 +20,12 @@ export class ErrorBoundary extends React.Component<{
     if (this.state.hasError) {
       return (
         <ErrorPopupCard
-          title="Something went wrong"
-          message={this.state.error?.message || "Unknown error"}
-          details={this.state.error?.stack || null}
+          title="Facing some error"
+          message="Please try again."
+          code={getErrorCode({
+            title: this.state.error?.name,
+            message: this.state.error?.message,
+          })}
           onRetry={() => window.location.reload()}
           retryLabel="Reload"
         />

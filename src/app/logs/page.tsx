@@ -39,12 +39,14 @@ function getPosterStackClass(index: number): string {
 
 function getReactionLabel(log: MovieLogWithContent): string {
   if (log.reaction === 2) return "Masterpiece";
+  if (log.reaction === 1.5) return "Average";
   if (log.reaction === 1) return "Good";
   return "Bad";
 }
 
 function getReactionClasses(log: MovieLogWithContent): string {
   if (log.reaction === 2) return "border border-orange-500/35 bg-orange-500/12 text-orange-200";
+  if (log.reaction === 1.5) return "border border-amber-400/35 bg-amber-400/12 text-amber-200";
   if (log.reaction === 1) return "border border-white/10 bg-white/5 text-[#f5f0de]";
   return "border border-white/10 bg-white/5 text-white/65";
 }

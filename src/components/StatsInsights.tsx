@@ -2,11 +2,11 @@
 
 import { BarChart3 } from "lucide-react";
 import ReactionDistributionBar from "./ReactionDistributionBar";
-import type { DetailedUserStats, StatDistributionItem } from "@/lib/profile";
+import { getReactionAverageLabel, type DetailedUserStats, type StatDistributionItem } from "@/lib/profile";
 
 interface StatsInsightsProps {
   stats: DetailedUserStats;
-  onStatClick?: (type: "masterpiece" | "good" | "bad") => void;
+  onStatClick?: (type: "all" | "movie" | "tv" | "masterpiece" | "good" | "average" | "bad") => void;
 }
 
 function formatDuration(minutes: number): string {
@@ -49,7 +49,7 @@ function MetricCell({
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className="w-full text-left transition hover:opacity-90">
+      <button type="button" onClick={onClick} className="group w-full text-left transition hover:-translate-y-0.5 hover:opacity-90">
         {content}
       </button>
     );
@@ -109,21 +109,24 @@ export default function StatsInsights({ stats, onStatClick }: StatsInsightsProps
       <section className="py-6">
         <SectionHeader title="Watching Behavior" />
 
-        <div className="grid gap-6 md:grid-cols-4 md:divide-x md:divide-white/10">
+        <div className="grid gap-5 md:grid-cols-4">
           <MetricCell
-            label="Total movies"
+            label="Total watches"
             value={stats.watchedCount}
             accentClass="text-[#f5f0de]"
+            onClick={onStatClick ? () => onStatClick("all") : undefined}
           />
           <MetricCell
-            label="Movies watched this month"
-            value={stats.moviesWatchedThisMonth}
+            label="Movies logged"
+            value={stats.movieCount}
             accentClass="text-[#f5f0de]"
+            onClick={onStatClick ? () => onStatClick("movie") : undefined}
           />
           <MetricCell
-            label="Total watch time"
-            value={formatDuration(stats.estimatedWatchTimeMinutes)}
+            label="TV shows logged"
+            value={stats.tvCount}
             accentClass="text-[#ffcf9d]"
+            onClick={onStatClick ? () => onStatClick("tv") : undefined}
           />
           <MetricCell
             label="Rewatch count"
@@ -134,14 +137,48 @@ export default function StatsInsights({ stats, onStatClick }: StatsInsightsProps
       </section>
 
       <section className="border-t border-white/10 py-6">
+        <SectionHeader title="Content Split" />
+
+        <div className="grid gap-5 md:grid-cols-4">
+          <MetricCell
+            label="Movies this month"
+            value={stats.movieCountThisMonth}
+            accentClass="text-[#f5f0de]"
+          />
+          <MetricCell
+            label="TV this month"
+            value={stats.tvCountThisMonth}
+            accentClass="text-[#f5f0de]"
+          />
+          <MetricCell
+            label="Total watch time"
+            value={formatDuration(stats.estimatedWatchTimeMinutes)}
+            accentClass="text-[#ffcf9d]"
+          />
+          <MetricCell
+            label="Average reaction"
+            value={getReactionAverageLabel(stats)}
+            accentClass="text-[#f5f0de]"
+            onClick={onStatClick ? () => onStatClick("average") : undefined}
+          />
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 py-6">
         <SectionHeader title="Rating Personality" />
 
-        <div className="grid gap-6 md:grid-cols-3 md:divide-x md:divide-white/10">
+        <div className="grid gap-5 md:grid-cols-4">
           <MetricCell
             label="Masterpiece"
             value={`${stats.masterpiecePercentage.toFixed(1)}%`}
             accentClass="text-[#ffcf9d]"
             onClick={onStatClick ? () => onStatClick("masterpiece") : undefined}
+          />
+          <MetricCell
+            label="Average"
+            value={`${stats.averagePercentage.toFixed(1)}%`}
+            accentClass="text-[#f5f0de]"
+            onClick={onStatClick ? () => onStatClick("average") : undefined}
           />
           <MetricCell
             label="Good"
@@ -168,6 +205,7 @@ export default function StatsInsights({ stats, onStatClick }: StatsInsightsProps
             <div className="mt-4">
               <ReactionDistributionBar
                 badCount={stats.badCount}
+                averageCount={stats.averageCount}
                 goodCount={stats.goodCount}
                 masterpieceCount={stats.masterpieceCount}
                 showLabels={true}

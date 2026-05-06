@@ -160,11 +160,14 @@ export interface TMDBSearchResponse {
 }
 
 // Reaction Types (for aggregating user reactions)
+export type MovieReactionValue = 0 | 1 | 1.5 | 2;
+
 export interface MovieReaction {
   contentId: number;
   contentType: "movie" | "tv";
   badCount: number; // Reaction = 0
   goodCount: number; // Reaction = 1
+  averageCount: number; // Reaction = 1.5
   masterpieceCount: number; // Reaction = 2
 }
 
@@ -191,6 +194,7 @@ export interface List {
   name: string;
   description: string | null;
   owner_id: string;
+  collaborator_ids?: Record<string, boolean>;
   privacy: "private" | "public";
   is_ranked: boolean; // true for ranked list, false for regular list
   view_type: "grid" | "list"; // User's preferred view
@@ -244,7 +248,7 @@ export interface MovieLog {
   content_id: number;
   content_type: "movie" | "tv";
   watched_date: string; // Date when the movie was watched (YYYY-MM-DD)
-  reaction: 0 | 1 | 2; // 0=Bad, 1=Good, 2=Masterpiece
+  reaction: MovieReactionValue; // 0=Bad, 1=Good, 1.5=Average, 2=Masterpiece
   notes: string; // Review/thoughts
   mood?: string; // How they felt (e.g., "happy", "sad", "excited")
   watch_later?: boolean; // For watchlist - movie to watch later (not watched yet)
@@ -378,7 +382,7 @@ export interface UserTaste {
   user_id: string;
   content_id: number;
   content_type: "movie" | "tv";
-  reaction?: 0 | 1 | 2;
+  reaction?: MovieReactionValue;
   added_at: string;
 }
 

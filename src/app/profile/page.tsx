@@ -27,7 +27,7 @@ export default function ProfileRedirectPage() {
         const userSnapshot = await get(userRef);
         const userData = userSnapshot.val();
 
-        const username = userData?.username || "user";
+        const username = userData?.username || firebaseUser.email?.split("@")[0] || firebaseUser.uid;
         hardRedirect(`/profile/${username}`);
       } catch (error) {
         console.error("Error redirecting to profile:", error);

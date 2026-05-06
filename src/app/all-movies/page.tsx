@@ -46,8 +46,9 @@ type ActivityItem =
       log: MovieLogWithContent & { friend: User };
     };
 
-function reactionLabel(reaction: 0 | 1 | 2): string {
+function reactionLabel(reaction: 0 | 1 | 1.5 | 2): string {
   if (reaction === 2) return "Masterpiece";
+  if (reaction === 1.5) return "Average";
   if (reaction === 1) return "Good";
   return "Bad";
 }
@@ -178,7 +179,7 @@ export default function AllMoviesPage() {
       poster_url: log.content.poster_url,
       title: log.content.title,
       byline: `by ${log.friend.name}`,
-      reaction: reactionLabel(log.reaction as 0 | 1 | 2),
+      reaction: reactionLabel(log.reaction as 0 | 1 | 1.5 | 2),
       createdAt: log.created_at,
       searchText: `${log.content.title} ${log.friend.name} ${log.notes || ""}`.toLowerCase(),
       log,

@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import ErrorPopupCard from "@/components/ErrorPopupCard";
+import { getErrorCode } from "@/lib/report-error";
 
 type PopupState = {
   title: string;
   message: string;
-  details?: string | null;
+  code?: number;
 };
 
 function formatReason(reason: unknown): string {
@@ -25,25 +26,31 @@ export default function GlobalErrorListener() {
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
       setPopup({
-        title: "Something went wrong",
-        message: event.message || "An unexpected error occurred.",
-        details: event.error instanceof Error ? event.error.stack || event.error.message : null,
+        title: "Facing some error",
+        message: "Please try again.",
+        code: getErrorCode({
+          title: event.error instanceof Error ? event.error.name : event.message,
+          message: event.message,
+        }),
       });
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       setPopup({
-        title: "Something went wrong",
-        message: formatReason(event.reason) || "An unexpected error occurred.",
+        title: "Facing some error",
+        message: "Please try again.",
+        code: getErrorCode({
+          message: formatReason(event.reason),
+        }),
       });
     };
 
     const handleCustomError = (event: Event) => {
       const custom = event as CustomEvent<PopupState>;
       setPopup({
-        title: custom.detail?.title || "Something went wrong",
-        message: custom.detail?.message || "An unexpected error occurred.",
-        details: custom.detail?.details || null,
+        title: custom.detail?.title || "Facing some error",
+        message: custom.detail?.message || "Please try again.",
+        code: custom.detail?.code || 500,
       });
     };
 
@@ -64,7 +71,7 @@ export default function GlobalErrorListener() {
     <ErrorPopupCard
       title={popup.title}
       message={popup.message}
-      details={popup.details}
+      code={popup.code}
       onClose={() => setPopup(null)}
       onRetry={() => window.location.reload()}
     />

@@ -9,23 +9,17 @@ import {
 import type { LogComment, LogCommentWithUser, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
-import { getUsersByIds } from "./users";
+import { createFallbackUser, getUsersByIds } from "./users";
 
 function fallbackUser(userId: string): User {
-  return {
-    id: userId,
-    username: "user",
-    name: "Unknown",
-    avatar_url: null,
-    created_at: new Date().toISOString(),
-  };
+  return createFallbackUser(userId);
 }
 
 function normalizeUser(userId: string, userData: any): User {
   return {
     id: userData?.id || userId,
-    username: userData?.username || "user",
-    name: userData?.name || "Unknown",
+    username: userData?.username || userData?.name || userId,
+    name: userData?.name || userData?.username || "Unknown user",
     avatar_url: userData?.avatar_url || null,
     created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
   };

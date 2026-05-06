@@ -431,7 +431,7 @@ export default function DashboardPage() {
       poster_url: log.content?.poster_url || null,
       title: log.content?.title || "Unknown",
       byline: `by ${log.friend.name}`,
-      reaction: log.reaction === 2 ? "Masterpiece" : log.reaction === 1 ? "Good" : "Bad",
+      reaction: log.reaction === 2 ? "Masterpiece" : log.reaction === 1.5 ? "Average" : log.reaction === 1 ? "Good" : "Bad",
       createdAt: log.created_at,
       onClick: () => router.push(buildLogUrl(log)),
     })),

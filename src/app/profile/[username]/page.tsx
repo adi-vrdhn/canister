@@ -10,13 +10,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DOMPurify from 'dompurify';
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { get, ref, remove, set } from "firebase/database";
+import { get, ref, set } from "firebase/database";
 import { ArrowLeft, Ban, Bell, Loader2, MoreVertical, Share2, Sparkles, Upload } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import { useCurrentUser } from "@/components/CurrentUserProvider";
 import StatsInsights from "@/components/StatsInsights";
 import CinematicLoading from "@/components/CinematicLoading";
 import ProfileCinePostsPanel from "@/components/ProfileCinePostsPanel";
+import { readBrowserCache, writeBrowserCache } from "@/lib/browser-cache";
 import { db } from "@/lib/firebase";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { getListWithDetails, getUserLists } from "@/lib/lists";
@@ -31,12 +32,15 @@ import {
   isUsernameBlocked,
   normalizeUsername,
   mergeSettings,
+  type SettingsData,
   shouldDeliverNotificationToUser,
 } from "@/lib/settings";
 import {
   getUserByUsername,
   getDetailedUserStats,
-  getUserProfile,
+  getUserFollowRecords,
+  getReactionAverageLabel,
+  type FollowRecord,
   updateUserProfile,
 } from "@/lib/profile";
 import {
@@ -47,14 +51,18 @@ import type { List, ListWithItems, MovieLogWithContent, User } from "@/types";
 
 type FollowModalType = "followers" | "following";
 
-interface FollowRecord {
-  id: string;
-  follower_id: string;
-  following_id: string;
-  status: "pending" | "accepted";
-  created_at?: string;
-  createdAt?: string;
-}
+type ProfileBootstrapCache = {
+  profileUser: User;
+  profileUserSettings: SettingsData;
+  followerCount: number;
+  followingCount: number;
+  followerIds: string[];
+  followingIds: string[];
+  allFollows: FollowRecord[];
+  displayList: ListWithItems | null;
+  selectedDisplayListId: string;
+  recentMoodGenres: string[];
+};
 
 function formatCompactCount(count: number): string {
   if (count < 1000) return String(count);
@@ -113,6 +121,8 @@ function ProfilePageInner() {
   const searchParams = useSearchParams();
   const params = useParams();
   const username = params.username as string;
+  const normalizedUsername = String(username || "").trim().replace(/^@/, "").toLowerCase();
+  const profileCacheKey = `profile-page:${normalizedUsername}`;
 
 
 
@@ -190,15 +200,23 @@ function ProfilePageInner() {
   };
 
   const updateNotificationPreference = async (key: "shareNotifications" | "logNotifications") => {
-    if (!currentUser || notificationUpdateLoading) return;
+    if (!currentUser || !profileUser || notificationUpdateLoading) return;
 
     const nextSettings = {
       ...currentUserSettings,
-      notifications: {
-        ...currentUserSettings.notifications,
-        [key]: !currentUserSettings.notifications[key],
-      },
+      notifications: { ...currentUserSettings.notifications },
     };
+
+    if (isOwnProfile) {
+      nextSettings.notifications[key] = !currentUserSettings.notifications[key];
+    } else {
+      const subscriptionKey =
+        key === "shareNotifications" ? "shareNotificationUserIds" : "logNotificationUserIds";
+      const existingIds = currentUserSettings.notifications[subscriptionKey] || [];
+      nextSettings.notifications[subscriptionKey] = existingIds.includes(profileUser.id)
+        ? existingIds.filter((id) => id !== profileUser.id)
+        : [...existingIds, profileUser.id];
+    }
 
     setNotificationUpdateLoading(true);
     setCurrentUserSettings(nextSettings);
@@ -226,6 +244,9 @@ function ProfilePageInner() {
     kind: "following" | "follower";
     user: User;
   } | null>(null);
+
+  const visibleUsername =
+    profileUser?.username?.trim() || normalizedUsername || profileUser?.id || "user";
 
   useEffect(() => {
     if (!displayListMenuOpen) return;
@@ -310,35 +331,52 @@ function ProfilePageInner() {
 
         if (cancelled) return;
 
-        setProfileUser(profileUserObj);
+        const cachedProfile = readBrowserCache<ProfileBootstrapCache>(profileCacheKey);
+        if (cachedProfile && cachedProfile.profileUser.id === profileUserObj.id) {
+          setProfileUser(cachedProfile.profileUser);
+          setProfileUserSettings(cachedProfile.profileUserSettings || DEFAULT_SETTINGS);
+          setFollowerCount(cachedProfile.followerCount || 0);
+          setFollowingCount(cachedProfile.followingCount || 0);
+          setFollowerIds(cachedProfile.followerIds || []);
+          setFollowingIds(cachedProfile.followingIds || []);
+          setAllFollows(cachedProfile.allFollows || []);
+          setFollowers([]);
+          setFollowing([]);
+          setDisplayList(cachedProfile.displayList || null);
+          setSelectedDisplayListId(
+            cachedProfile.selectedDisplayListId || cachedProfile.profileUser.display_list_id || ""
+          );
+          setRecentMoodGenres(cachedProfile.recentMoodGenres || []);
+          setFollowUsersLoaded(false);
+          setLoading(false);
+        } else {
+          setProfileUser(profileUserObj);
+          setLoading(true);
+        }
+
         console.log('[PROFILE] Profile user set:', profileUserObj);
 
-        const [
-          followersSnap,
-          profileSettingsSnapshot,
-          connectedDisplayList,
-        ] = await Promise.all([
-          get(ref(db, `follows`)),
-          get(ref(db, `users/${profileUserObj.id}`)),
-          profileUserObj.display_list_id
-            ? getListWithDetails(profileUserObj.display_list_id).catch(() => null)
-            : Promise.resolve(null),
+        const profileSettingsPromise = get(ref(db, `users/${profileUserObj.id}/settings`));
+        const connectedDisplayListPromise = profileUserObj.display_list_id
+          ? getListWithDetails(profileUserObj.display_list_id).catch(() => null)
+          : Promise.resolve(null);
+        const profileFollowRecordsPromise = getUserFollowRecords(profileUserObj.id);
+        const currentUserFollowRecordsPromise =
+          currentUserObj.id === profileUserObj.id
+            ? Promise.resolve([] as FollowRecord[])
+            : getUserFollowRecords(currentUserObj.id);
+
+        const [profileSettingsSnapshot, connectedDisplayList, profileFollowRecords, currentUserFollowRecords] = await Promise.all([
+          profileSettingsPromise,
+          connectedDisplayListPromise,
+          profileFollowRecordsPromise,
+          currentUserFollowRecordsPromise,
         ]);
 
-        const allFollowsRaw: FollowRecord[] = followersSnap.exists()
-          ? Object.entries(
-              followersSnap.val() as Record<
-                string,
-                Omit<FollowRecord, "id">
-              >
-            ).map(([id, follow]) => ({ id, ...follow }))
-          : [];
-        // Followers: those whose following_id === profileUserObj.id && status === 'accepted'
-        const followerUserIds = allFollowsRaw
+        const followerUserIds = profileFollowRecords
           .filter((f) => f.following_id === profileUserObj.id && f.status === 'accepted')
           .map((f) => f.follower_id);
-        // Following: those whose follower_id === profileUserObj.id && status === 'accepted'
-        const followingUserIds = allFollowsRaw
+        const followingUserIds = profileFollowRecords
           .filter((f) => f.follower_id === profileUserObj.id && f.status === 'accepted')
           .map((f) => f.following_id);
 
@@ -346,14 +384,14 @@ function ProfilePageInner() {
         setFollowingCount(followingUserIds.length);
         console.log('[PROFILE] Follower count:', followerUserIds.length, 'Following count:', followingUserIds.length);
 
-        const profileRawUser = profileSettingsSnapshot.exists() ? profileSettingsSnapshot.val() : profileUserObj;
-        const nextProfileUserSettings = mergeSettings(profileRawUser?.settings);
+        const profileRawSettings = profileSettingsSnapshot.exists() ? profileSettingsSnapshot.val() : null;
+        const nextProfileUserSettings = mergeSettings(profileRawSettings);
         setProfileUserSettings(nextProfileUserSettings);
         setFollowers([]);
         setFollowing([]);
         setFollowerIds(followerUserIds);
         setFollowingIds(followingUserIds);
-        setAllFollows(allFollowsRaw);
+        setAllFollows(currentUserObj.id === profileUserObj.id ? profileFollowRecords : currentUserFollowRecords);
         setFollowUsersLoaded(false);
 
         if (profileUserObj.display_list_id) {
@@ -383,7 +421,7 @@ function ProfilePageInner() {
     return () => {
       cancelled = true;
     };
-  }, [username, router, sessionLoading, sessionSettings, sessionUser]);
+  }, [profileCacheKey, username, router, sessionLoading, sessionSettings, sessionUser]);
 
   useEffect(() => {
     if (!isFollowModalOpen) return;
@@ -420,6 +458,21 @@ function ProfilePageInner() {
   }, [followUsersLoaded, followerIds, followingIds, isFollowModalOpen]);
 
   const isOwnProfile = !!currentUser && !!profileUser && currentUser.id === profileUser.id;
+  const notificationTargetName = profileUser?.name || "this person";
+
+  const getNotificationToggleState = (key: "shareNotifications" | "logNotifications") => {
+    if (!currentUser || !profileUser) return false;
+    if (isOwnProfile) {
+      return currentUserSettings.notifications[key];
+    }
+
+    const subscriptionIds =
+      key === "shareNotifications"
+        ? currentUserSettings.notifications.shareNotificationUserIds
+        : currentUserSettings.notifications.logNotificationUserIds;
+
+    return subscriptionIds.includes(profileUser.id);
+  };
 
   const viewerToProfileFollow = useMemo(() => {
     if (!currentUser || !profileUser) return null;
@@ -494,6 +547,35 @@ function ProfilePageInner() {
       cancelled = true;
     };
   }, [canAccessActivity, profileUser]);
+
+  useEffect(() => {
+    if (!profileUser) return;
+
+    writeBrowserCache<ProfileBootstrapCache>(profileCacheKey, {
+      profileUser,
+      profileUserSettings,
+      followerCount,
+      followingCount,
+      followerIds,
+      followingIds,
+      allFollows,
+      displayList,
+      selectedDisplayListId,
+      recentMoodGenres,
+    });
+  }, [
+    allFollows,
+    displayList,
+    followerCount,
+    followerIds,
+    followingCount,
+    followingIds,
+    profileCacheKey,
+    profileUser,
+    profileUserSettings,
+    recentMoodGenres,
+    selectedDisplayListId,
+  ]);
 
   useEffect(() => {
     if (!profileUser || activeTab !== "stats" || !canAccessActivity) return;
@@ -942,10 +1024,15 @@ function ProfilePageInner() {
     }
   };
 
-  const handleStatDrillDown = (type: "masterpiece" | "good" | "bad") => {
+  const handleStatDrillDown = (type: "all" | "movie" | "tv" | "masterpiece" | "good" | "average" | "bad") => {
     if (!profileUser) return;
 
-    const reaction = type === "masterpiece" ? "2" : type === "good" ? "1" : "0";
+    if (type === "all" || type === "movie" || type === "tv") {
+      router.push(`/user/${profileUser.username}/logs?content=${type}`);
+      return;
+    }
+
+    const reaction = type === "masterpiece" ? "2" : type === "good" ? "1" : type === "average" ? "1.5" : "0";
     router.push(`/user/${profileUser.username}/logs?reaction=${reaction}`);
   };
 
@@ -1252,15 +1339,21 @@ function ProfilePageInner() {
                       className="flex w-full items-center justify-between gap-4 py-3 text-left disabled:opacity-60"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[#f5f0de]">Share notifications</p>
-                        <p className="text-xs text-white/45">When someone shares with you.</p>
+                        <p className="text-sm font-medium text-[#f5f0de]">
+                          {isOwnProfile ? "Share notifications" : `Share notifications for ${notificationTargetName}`}
+                        </p>
+                        <p className="text-xs text-white/45">
+                          {isOwnProfile
+                            ? "When someone shares with you."
+                            : `When ${notificationTargetName} shares with you.`}
+                        </p>
                       </div>
                       <span
                         className={`text-xs font-semibold uppercase tracking-[0.16em] ${
-                          currentUserSettings.notifications.shareNotifications ? "text-[#ff7a1a]" : "text-white/35"
+                          getNotificationToggleState("shareNotifications") ? "text-[#ff7a1a]" : "text-white/35"
                         }`}
                       >
-                        {currentUserSettings.notifications.shareNotifications ? "On" : "Off"}
+                        {getNotificationToggleState("shareNotifications") ? "On" : "Off"}
                       </span>
                     </button>
 
@@ -1271,15 +1364,21 @@ function ProfilePageInner() {
                       className="flex w-full items-center justify-between gap-4 py-3 text-left disabled:opacity-60"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[#f5f0de]">Log notifications</p>
-                        <p className="text-xs text-white/45">When someone posts a new log.</p>
+                        <p className="text-sm font-medium text-[#f5f0de]">
+                          {isOwnProfile ? "Log notifications" : `Log notifications for ${notificationTargetName}`}
+                        </p>
+                        <p className="text-xs text-white/45">
+                          {isOwnProfile
+                            ? "When someone posts a new log."
+                            : `When ${notificationTargetName} posts a new log.`}
+                        </p>
                       </div>
                       <span
                         className={`text-xs font-semibold uppercase tracking-[0.16em] ${
-                          currentUserSettings.notifications.logNotifications ? "text-[#ff7a1a]" : "text-white/35"
+                          getNotificationToggleState("logNotifications") ? "text-[#ff7a1a]" : "text-white/35"
                         }`}
                       >
-                        {currentUserSettings.notifications.logNotifications ? "On" : "Off"}
+                        {getNotificationToggleState("logNotifications") ? "On" : "Off"}
                       </span>
                     </button>
                   </div>
@@ -1373,6 +1472,10 @@ function ProfilePageInner() {
               {DOMPurify.sanitize(profileUser.name)}
             </h1>
 
+            <p className="mt-1 text-sm font-semibold tracking-[0.18em] text-[#ffb36b]/90 sm:text-base">
+              @{DOMPurify.sanitize(visibleUsername)}
+            </p>
+
             <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-white/55 sm:text-base">
               <button
                 onClick={() => {
@@ -1398,9 +1501,6 @@ function ProfilePageInner() {
                 <span className="font-black text-[#ffb36b]">{formatCompactCount(followingCount)}</span>
                 <span>following</span>
               </button>
-              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 font-semibold text-white/55">
-                @{DOMPurify.sanitize(profileUser.username)}
-              </span>
             </div>
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#f5f0de]/60 sm:text-base">
@@ -1452,7 +1552,7 @@ function ProfilePageInner() {
                     Edit Profile
                   </Link>
                   <Link
-                    href={`/movie-matcher/${profileUser.username}`}
+                    href={`/movie-matcher/${visibleUsername}`}
                     className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
                   >
                     Movie Matcher
@@ -1462,7 +1562,7 @@ function ProfilePageInner() {
                 <>
                   {canShowSharedMoviesLink && (
                     <Link
-                      href={`/profile/${profileUser.username}/shared-movies`}
+                      href={`/profile/${visibleUsername}/shared-movies`}
                       className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Shared Movies
@@ -1470,7 +1570,7 @@ function ProfilePageInner() {
                   )}
                   {canAccessProfile && currentUser && !hasBlockRelationship && (
                     <Link
-                      href={`/movie-matcher/${profileUser.username}`}
+                      href={`/movie-matcher/${visibleUsername}`}
                       className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Movie Matcher
@@ -1780,7 +1880,7 @@ function ProfilePageInner() {
                           key={listedUser.id}
                           className="group flex items-center justify-between rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-[#ff7a1a]/25 hover:bg-[linear-gradient(180deg,rgba(255,122,26,0.10),rgba(255,255,255,0.03))]"
                         >
-                          <Link href={`/profile/${listedUser.username}`} className="flex min-w-0 flex-1 items-center gap-3">
+                          <Link href={`/profile/${listedUser.username || listedUser.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                             {listedUser.avatar_url ? (
                               <img
                                 src={listedUser.avatar_url}

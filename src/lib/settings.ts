@@ -20,6 +20,8 @@ export interface SettingsData {
     commentNotifications: boolean;
     shareNotifications: boolean;
     logNotifications: boolean;
+    shareNotificationUserIds: string[];
+    logNotificationUserIds: string[];
     collaborationInvites: boolean;
     matcherUpdates: boolean;
     emailNotifications: boolean;
@@ -55,6 +57,8 @@ export const DEFAULT_SETTINGS: SettingsData = {
     commentNotifications: true,
     shareNotifications: true,
     logNotifications: false,
+    shareNotificationUserIds: [],
+    logNotificationUserIds: [],
     collaborationInvites: true,
     matcherUpdates: true,
     emailNotifications: false,
@@ -78,6 +82,12 @@ export const DEFAULT_SETTINGS: SettingsData = {
 
 export function mergeSettings(raw: any): SettingsData {
   const legacyLikesAndComments = raw?.notifications?.likesAndComments;
+  const shareNotificationUserIds = Array.isArray(raw?.notifications?.shareNotificationUserIds)
+    ? raw.notifications.shareNotificationUserIds.filter((value: unknown) => typeof value === "string")
+    : DEFAULT_SETTINGS.notifications.shareNotificationUserIds;
+  const logNotificationUserIds = Array.isArray(raw?.notifications?.logNotificationUserIds)
+    ? raw.notifications.logNotificationUserIds.filter((value: unknown) => typeof value === "string")
+    : DEFAULT_SETTINGS.notifications.logNotificationUserIds;
 
   return {
     privacy: {
@@ -94,6 +104,8 @@ export function mergeSettings(raw: any): SettingsData {
         raw?.notifications?.commentNotifications ?? legacyLikesAndComments ?? DEFAULT_SETTINGS.notifications.commentNotifications,
       shareNotifications: raw?.notifications?.shareNotifications ?? DEFAULT_SETTINGS.notifications.shareNotifications,
       logNotifications: raw?.notifications?.logNotifications ?? DEFAULT_SETTINGS.notifications.logNotifications,
+      shareNotificationUserIds,
+      logNotificationUserIds,
       collaborationInvites: raw?.notifications?.collaborationInvites ?? DEFAULT_SETTINGS.notifications.collaborationInvites,
       matcherUpdates: raw?.notifications?.matcherUpdates ?? DEFAULT_SETTINGS.notifications.matcherUpdates,
       emailNotifications: raw?.notifications?.emailNotifications ?? DEFAULT_SETTINGS.notifications.emailNotifications,
@@ -275,12 +287,27 @@ export function shouldShowNotificationForSettings(
 
 export async function shouldDeliverNotificationToUser(
   userId: string,
-  type: NotificationType
+  type: NotificationType,
+  sourceUserId?: string | null
 ): Promise<boolean> {
   const snapshot = await get(ref(db, `users/${userId}`));
   const settings = getSettingsFromUserRecord(snapshot.exists() ? snapshot.val() : null);
   const preferenceKey = notificationPreferenceForType(type);
-  return Boolean(settings.notifications[preferenceKey]);
+  if (settings.notifications[preferenceKey]) return true;
+
+  if (sourceUserId && type === "share_received") {
+    return settings.notifications.shareNotificationUserIds.includes(sourceUserId);
+  }
+
+  if (sourceUserId && type === "share_reply") {
+    return settings.notifications.shareNotificationUserIds.includes(sourceUserId);
+  }
+
+  if (sourceUserId && type === "log_created") {
+    return settings.notifications.logNotificationUserIds.includes(sourceUserId);
+  }
+
+  return false;
 }
 
 export async function shouldEnablePushNotificationsForUser(userId: string): Promise<boolean> {

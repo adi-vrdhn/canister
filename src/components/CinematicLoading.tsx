@@ -6,6 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getUserMovieLogs } from "@/lib/logs";
 import { getBlurDataUrl } from "@/lib/performance";
+import { readBrowserCache, writeBrowserCache } from "@/lib/browser-cache";
 
 type CinematicLoadingProps = {
   message?: string;
@@ -48,6 +49,12 @@ export default function CinematicLoading({
       if (!firebaseUser) return;
 
       try {
+        const cacheKey = `cinematic-loading-posters:${firebaseUser.uid}`;
+        const cachedPosters = readBrowserCache<typeof FALLBACK_POSTERS>(cacheKey);
+        if (cachedPosters && cachedPosters.length > 0) {
+          setRecentPosters(cachedPosters);
+        }
+
         const logs = await getUserMovieLogs(firebaseUser.uid, 8);
         if (cancelled) return;
 
@@ -60,6 +67,7 @@ export default function CinematicLoading({
 
         if (posters.length > 0) {
           setRecentPosters(posters);
+          writeBrowserCache(cacheKey, posters, 15 * 60 * 1000);
         }
       } catch {
         if (!cancelled) {

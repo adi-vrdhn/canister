@@ -40,14 +40,16 @@ function getReactionLabelFromRating(rating: number): "Bad" | "Good" | "Masterpie
   return "Bad";
 }
 
-function getReactionLabelFromLogReaction(reaction: 0 | 1 | 2): "Bad" | "Good" | "Masterpiece" {
+function getReactionLabelFromLogReaction(reaction: 0 | 1 | 1.5 | 2): "Bad" | "Average" | "Good" | "Masterpiece" {
   if (reaction === 2) return "Masterpiece";
+  if (reaction === 1.5) return "Average";
   if (reaction === 1) return "Good";
   return "Bad";
 }
 
-function getReactionBadgeClassFromLabel(label: "Bad" | "Good" | "Masterpiece"): string {
+function getReactionBadgeClassFromLabel(label: "Bad" | "Average" | "Good" | "Masterpiece"): string {
   if (label === "Masterpiece") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
+  if (label === "Average") return "bg-amber-500/20 text-amber-300 border-amber-400/30";
   if (label === "Good") return "bg-blue-500/20 text-[#f5f0de] border-blue-400/30";
   return "bg-rose-500/20 text-rose-300 border-rose-400/30";
 }
@@ -68,7 +70,7 @@ export default function TVShowPage() {
   const [reviews, setReviews] = useState<MovieReviewWithUser[]>([]);
   const [showAddToListModal, setShowAddToListModal] = useState(false);
   const [showLogMovieModal, setShowLogMovieModal] = useState(false);
-  const [reactionBreakdown, setReactionBreakdown] = useState({ bad: 0, good: 0, masterpiece: 0, total: 0 });
+  const [reactionBreakdown, setReactionBreakdown] = useState({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
   const [userLogHistory, setUserLogHistory] = useState<MovieLog[]>([]);
   const [friendLogs, setFriendLogs] = useState<MovieLogWithContent[]>([]);
   const [allLogs, setAllLogs] = useState<MovieLogWithContent[]>([]);
@@ -78,7 +80,7 @@ export default function TVShowPage() {
   const loadShowLogData = async (currentUserId: string) => {
     const numericShowId = Number(showId);
     if (!numericShowId || Number.isNaN(numericShowId)) {
-      setReactionBreakdown({ bad: 0, good: 0, masterpiece: 0, total: 0 });
+      setReactionBreakdown({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
       setUserLogHistory([]);
       setFriendLogs([]);
       setAllLogs([]);
@@ -87,7 +89,7 @@ export default function TVShowPage() {
 
     const logsSnapshot = await get(ref(db, "movie_logs"));
     if (!logsSnapshot.exists()) {
-      setReactionBreakdown({ bad: 0, good: 0, masterpiece: 0, total: 0 });
+      setReactionBreakdown({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
       setUserLogHistory([]);
       setFriendLogs([]);
       setAllLogs([]);
@@ -104,11 +106,12 @@ export default function TVShowPage() {
     ) as MovieLog[];
 
     const bad = showLogs.filter((log) => log.reaction === 0).length;
+    const average = showLogs.filter((log) => log.reaction === 1.5).length;
     const good = showLogs.filter((log) => log.reaction === 1).length;
     const masterpiece = showLogs.filter((log) => log.reaction === 2).length;
-    const total = bad + good + masterpiece;
+    const total = bad + average + good + masterpiece;
 
-    setReactionBreakdown({ bad, good, masterpiece, total });
+    setReactionBreakdown({ bad, average, good, masterpiece, total });
 
     const history = showLogs
       .filter((log) => log.user_id === currentUserId)
@@ -335,6 +338,7 @@ export default function TVShowPage() {
                   </div>
                   {[
                     { label: "Bad", value: reactionBreakdown.bad, color: "bg-rose-400" },
+                    { label: "Average", value: reactionBreakdown.average, color: "bg-amber-400" },
                     { label: "Good", value: reactionBreakdown.good, color: "bg-blue-400" },
                     { label: "Masterpiece", value: reactionBreakdown.masterpiece, color: "bg-[#ff8a1e]" },
                   ].map((item) => {
@@ -384,7 +388,7 @@ export default function TVShowPage() {
           </div>
         </section>
 
-        <div className="border-t border-white/10 bg-neutral-950">
+        <div className="bg-neutral-950">
           <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
             <div>
               <h2 className="mb-5 text-2xl font-bold">Your Log History</h2>
