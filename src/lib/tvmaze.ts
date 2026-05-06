@@ -1,7 +1,10 @@
 import { fetchTmdb } from "./tmdb-transport";
+import { readBrowserCacheEntry, writeBrowserCache } from "./browser-cache";
 
 const TVMAZE_BASE_URL = "https://api.tvmaze.com";
 const LIKELY_TMDB_TV_ID_THRESHOLD = 100000;
+const showSearchRefreshInFlight = new Map<string, Promise<ShowDetails[]>>();
+const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
 
 export interface TVMazeShow {
   id: number;
@@ -78,6 +81,10 @@ function normalizeSearchText(value: string): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function getShowSearchCacheKey(query: string): string {
+  return `tv-search:${normalizeSearchText(query)}`;
 }
 
 function dedupeShows(shows: ShowDetails[]): ShowDetails[] {
@@ -174,6 +181,80 @@ export async function searchShows(query: string): Promise<ShowDetails[]> {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return [];
 
+    const cacheKey = getShowSearchCacheKey(trimmedQuery);
+    const cachedEntry = readBrowserCacheEntry<ShowDetails[]>(cacheKey);
+    if (cachedEntry) {
+      const cached = cachedEntry.value ?? [];
+      if (!showSearchRefreshInFlight.has(cacheKey)) {
+        const refreshPromise = (async () => {
+          const response = await fetch(
+            `${TVMAZE_BASE_URL}/search/shows?q=${encodeURIComponent(trimmedQuery)}`
+          );
+
+          if (!response.ok) {
+            throw new Error("TVMaze search failed");
+          }
+
+          const data = await response.json();
+          const tvmazeShows = data.map((result: any) => {
+            const show = result.show;
+            return {
+              id: show.id,
+              name: show.name,
+              title: show.name,
+              image: show.image,
+              summary: show.summary?.replace(/<[^>]*>/g, "") || "",
+              premiered: show.premiered,
+              runtime: show.runtime,
+              rating: show.rating,
+              genres: show.genres || [],
+              status: show.status,
+              network: show.network,
+              type: "tv" as const,
+              poster_url: show.image?.original || show.image?.medium,
+              poster_path: show.image?.original || show.image?.medium,
+              overview: show.summary?.replace(/<[^>]*>/g, "") || "",
+              release_date: show.premiered,
+            };
+          });
+
+          const shouldUseFallback = trimmedQuery.length <= 2 || tvmazeShows.length < 5;
+          if (!shouldUseFallback) {
+            return rankShows(dedupeShows(tvmazeShows), trimmedQuery);
+          }
+
+          const tmdbResponse = await fetchTmdb("search/tv", {
+            query: trimmedQuery,
+            page: 1,
+          });
+
+          if (!tmdbResponse.ok) {
+            return rankShows(dedupeShows(tvmazeShows), trimmedQuery);
+          }
+
+          const tmdbData: TMDBTVSearchResponse = await tmdbResponse.json();
+          const tmdbShows = (tmdbData.results || []).map(mapTMDBShow);
+
+          return rankShows(dedupeShows([...tvmazeShows, ...tmdbShows]), trimmedQuery);
+        })()
+          .then((fresh) => {
+            writeBrowserCache(cacheKey, fresh, SEARCH_CACHE_TTL_MS);
+            return fresh;
+          })
+          .catch((error) => {
+            console.error("TVMaze search refresh error:", error);
+            return cached;
+          })
+          .finally(() => {
+            showSearchRefreshInFlight.delete(cacheKey);
+          });
+
+        showSearchRefreshInFlight.set(cacheKey, refreshPromise);
+      }
+
+      return cached;
+    }
+
     const response = await fetch(
       `${TVMAZE_BASE_URL}/search/shows?q=${encodeURIComponent(trimmedQuery)}`
     );
@@ -207,7 +288,9 @@ export async function searchShows(query: string): Promise<ShowDetails[]> {
 
     const shouldUseFallback = trimmedQuery.length <= 2 || tvmazeShows.length < 5;
     if (!shouldUseFallback) {
-      return rankShows(dedupeShows(tvmazeShows), trimmedQuery);
+      const results = rankShows(dedupeShows(tvmazeShows), trimmedQuery);
+      writeBrowserCache(cacheKey, results, SEARCH_CACHE_TTL_MS);
+      return results;
     }
 
     const tmdbResponse = await fetchTmdb("search/tv", {
@@ -216,13 +299,17 @@ export async function searchShows(query: string): Promise<ShowDetails[]> {
     });
 
     if (!tmdbResponse.ok) {
-      return rankShows(dedupeShows(tvmazeShows), trimmedQuery);
+      const ranked = rankShows(dedupeShows(tvmazeShows), trimmedQuery);
+      writeBrowserCache(cacheKey, ranked, SEARCH_CACHE_TTL_MS);
+      return ranked;
     }
 
     const tmdbData: TMDBTVSearchResponse = await tmdbResponse.json();
     const tmdbShows = (tmdbData.results || []).map(mapTMDBShow);
 
-    return rankShows(dedupeShows([...tvmazeShows, ...tmdbShows]), trimmedQuery);
+    const results = rankShows(dedupeShows([...tvmazeShows, ...tmdbShows]), trimmedQuery);
+    writeBrowserCache(cacheKey, results, SEARCH_CACHE_TTL_MS);
+    return results;
   } catch (error) {
     console.error("Error searching shows:", error);
     return [];

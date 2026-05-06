@@ -5,11 +5,21 @@ type CacheEnvelope<T> = {
   expiresAt: number;
 };
 
+type BrowserCacheReadResult<T> = {
+  value: T | null;
+  isStale: boolean;
+} | null;
+
 function isBrowserStorageAvailable(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
 export function readBrowserCache<T>(key: string): T | null {
+  const result = readBrowserCacheEntry<T>(key);
+  return result?.value ?? null;
+}
+
+export function readBrowserCacheEntry<T>(key: string): BrowserCacheReadResult<T> {
   if (!isBrowserStorageAvailable()) return null;
 
   try {
@@ -17,12 +27,15 @@ export function readBrowserCache<T>(key: string): T | null {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as CacheEnvelope<T>;
-    if (!parsed || typeof parsed.expiresAt !== "number" || parsed.expiresAt <= Date.now()) {
+    if (!parsed || typeof parsed.expiresAt !== "number") {
       window.localStorage.removeItem(key);
       return null;
     }
 
-    return parsed.value ?? null;
+    return {
+      value: parsed.value ?? null,
+      isStale: parsed.expiresAt <= Date.now(),
+    };
   } catch {
     return null;
   }

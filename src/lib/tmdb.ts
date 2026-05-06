@@ -2,6 +2,7 @@ import { TMDBMovie, TMDBSearchResponse } from "@/types";
 import { ParsedIntent } from "./nlp-parser";
 import { fetchTmdb } from "./tmdb-transport";
 import { getTmdbBackdropUrl, getTmdbImageUrl, getTmdbPosterUrl } from "./performance";
+import { readBrowserCache, readBrowserCacheEntry, writeBrowserCache } from "./browser-cache";
 
 // Genre ID mappings for TMDB discover API
 const GENRE_MAP: Record<string, number> = {
@@ -135,6 +136,9 @@ type MovieDetailsResult = ReturnType<typeof normalizeMovieDetails> | null;
 const movieDetailsCache = new Map<number, MovieDetailsResult>();
 const movieDetailsInFlight = new Map<number, Promise<MovieDetailsResult>>();
 const movieDetailsBlockedUntil = new Map<number, number>();
+const movieSearchRefreshInFlight = new Map<string, Promise<TMDBMovie[]>>();
+const personSearchRefreshInFlight = new Map<string, Promise<TMDBPersonSearchResult[]>>();
+const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
 
 const STOP_WORDS = new Set([
   "a",
@@ -168,6 +172,10 @@ function extractSearchYear(query: string): number | null {
 
 function removeYear(query: string): string {
   return query.replace(/\b(19\d{2}|20\d{2})\b/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function getSearchCacheKey(kind: string, query: string, page: number = 1): string {
+  return `tmdb-search:${kind}:${page}:${normalizeSearchText(query)}`;
 }
 
 function getReleaseYear(movie: Pick<TMDBMovie, "release_date">): number | null {
@@ -216,6 +224,54 @@ async function fetchMovieSearchForYear(query: string, year: number): Promise<TMD
 
   const data: TMDBSearchResponse = await response.json();
   return data.results;
+}
+
+async function performMovieSearch(query: string, page: number = 1): Promise<TMDBMovie[]> {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) {
+    return [];
+  }
+
+  if (page > 1) {
+    return fetchMovieSearch(trimmedQuery, page);
+  }
+
+  const requestedYear = extractSearchYear(trimmedQuery);
+  const meaningfulTokenCount = normalizeSearchText(removeYear(trimmedQuery))
+    .split(" ")
+    .filter((token) => token && !STOP_WORDS.has(token)).length;
+  const people = meaningfulTokenCount >= 3 ? await findPeopleInQuery(trimmedQuery) : [];
+  const titleQuery = removePersonChunksFromQuery(trimmedQuery, people) || removeYear(trimmedQuery);
+  const searchPages = trimmedQuery.length <= 2 ? [1, 2, 3, 4, 5] : [1];
+  const baseSearchQueries = Array.from(
+    new Set([trimmedQuery, removeYear(trimmedQuery), titleQuery].filter((entry) => entry.trim().length >= 1))
+  );
+  const yearSearchQueries = requestedYear
+    ? Array.from(new Set([titleQuery, removeYear(trimmedQuery)].filter((entry) => entry.trim().length >= 1)))
+    : [];
+
+  const [movieResultGroups, personMovieIds] = await Promise.all([
+    Promise.all([
+      ...baseSearchQueries.flatMap((searchQuery) =>
+        searchPages.map((searchPage) => fetchMovieSearch(searchQuery, searchPage).catch(() => []))
+      ),
+      ...yearSearchQueries.map((searchQuery) =>
+        requestedYear ? fetchMovieSearchForYear(searchQuery, requestedYear).catch(() => []) : Promise.resolve([])
+      ),
+    ]),
+    getPersonMovieIds(people),
+  ]);
+
+  const movies = uniqueMovies(movieResultGroups.flat());
+
+  if (movies.length === 0) {
+    return [];
+  }
+
+  return rankMovieSearchResults(movies, trimmedQuery, titleQuery, {
+    requestedYear,
+    personMovieIds,
+  });
 }
 
 function getPossiblePersonChunks(query: string): string[] {
@@ -403,46 +459,33 @@ export async function searchMovies(query: string, page: number = 1) {
       return [];
     }
 
-    if (page > 1) {
-      return fetchMovieSearch(trimmedQuery, page);
+    const cacheKey = getSearchCacheKey("movie", trimmedQuery, page);
+    const cachedEntry = readBrowserCacheEntry<TMDBMovie[]>(cacheKey);
+    if (cachedEntry) {
+      const cached = cachedEntry.value ?? [];
+      if (!movieSearchRefreshInFlight.has(cacheKey)) {
+        const refreshPromise = performMovieSearch(trimmedQuery, page)
+          .then((fresh) => {
+            writeBrowserCache(cacheKey, fresh, SEARCH_CACHE_TTL_MS);
+            return fresh;
+          })
+          .catch((error) => {
+            console.error("TMDB search refresh error:", error);
+            return cached;
+          })
+          .finally(() => {
+            movieSearchRefreshInFlight.delete(cacheKey);
+          });
+
+        movieSearchRefreshInFlight.set(cacheKey, refreshPromise);
+      }
+
+      return cached;
     }
 
-    const requestedYear = extractSearchYear(trimmedQuery);
-    const meaningfulTokenCount = normalizeSearchText(removeYear(trimmedQuery))
-      .split(" ")
-      .filter((token) => token && !STOP_WORDS.has(token)).length;
-    const people = meaningfulTokenCount >= 3 ? await findPeopleInQuery(trimmedQuery) : [];
-    const titleQuery = removePersonChunksFromQuery(trimmedQuery, people) || removeYear(trimmedQuery);
-    const searchPages = trimmedQuery.length <= 2 ? [1, 2, 3, 4, 5] : [1];
-    const baseSearchQueries = Array.from(
-      new Set([trimmedQuery, removeYear(trimmedQuery), titleQuery].filter((entry) => entry.trim().length >= 1))
-    );
-    const yearSearchQueries = requestedYear
-      ? Array.from(new Set([titleQuery, removeYear(trimmedQuery)].filter((entry) => entry.trim().length >= 1)))
-      : [];
-
-    const [movieResultGroups, personMovieIds] = await Promise.all([
-      Promise.all([
-        ...baseSearchQueries.flatMap((searchQuery) =>
-          searchPages.map((searchPage) => fetchMovieSearch(searchQuery, searchPage).catch(() => []))
-        ),
-        ...yearSearchQueries.map((searchQuery) =>
-          requestedYear ? fetchMovieSearchForYear(searchQuery, requestedYear).catch(() => []) : Promise.resolve([])
-        ),
-      ]),
-      getPersonMovieIds(people),
-    ]);
-
-    const movies = uniqueMovies(movieResultGroups.flat());
-
-    if (movies.length === 0) {
-      return [];
-    }
-
-    return rankMovieSearchResults(movies, trimmedQuery, titleQuery, {
-      requestedYear,
-      personMovieIds,
-    });
+    const fresh = await performMovieSearch(trimmedQuery, page);
+    writeBrowserCache(cacheKey, fresh, SEARCH_CACHE_TTL_MS);
+    return fresh;
   } catch (error) {
     console.error("TMDB search error:", error);
     return [];
@@ -456,6 +499,49 @@ export async function searchPeople(query: string): Promise<TMDBPersonSearchResul
       return [];
     }
 
+    const cacheKey = getSearchCacheKey("person", trimmedQuery, 1);
+    const cachedEntry = readBrowserCacheEntry<TMDBPersonSearchResult[]>(cacheKey);
+    if (cachedEntry) {
+      const cached = cachedEntry.value ?? [];
+      if (!personSearchRefreshInFlight.has(cacheKey)) {
+        const refreshPromise = (async () => {
+          const response = await fetchTmdb("search/person", {
+            query: trimmedQuery,
+            page: 1,
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to search people");
+          }
+
+          const data: TMDBPersonSearchResponse = await response.json();
+          return data.results
+            .slice()
+            .sort((a, b) => {
+              const aHasImage = a.profile_path ? 1 : 0;
+              const bHasImage = b.profile_path ? 1 : 0;
+              if (aHasImage !== bHasImage) return bHasImage - aHasImage;
+              return (b.popularity || 0) - (a.popularity || 0);
+            });
+        })()
+          .then((fresh) => {
+            writeBrowserCache(cacheKey, fresh, SEARCH_CACHE_TTL_MS);
+            return fresh;
+          })
+          .catch((error) => {
+            console.error("TMDB people search refresh error:", error);
+            return cached;
+          })
+          .finally(() => {
+            personSearchRefreshInFlight.delete(cacheKey);
+          });
+
+        personSearchRefreshInFlight.set(cacheKey, refreshPromise);
+      }
+
+      return cached;
+    }
+
     const response = await fetchTmdb("search/person", {
       query: trimmedQuery,
       page: 1,
@@ -466,7 +552,7 @@ export async function searchPeople(query: string): Promise<TMDBPersonSearchResul
     }
 
     const data: TMDBPersonSearchResponse = await response.json();
-    return data.results
+    const results = data.results
       .slice()
       .sort((a, b) => {
         const aHasImage = a.profile_path ? 1 : 0;
@@ -474,6 +560,8 @@ export async function searchPeople(query: string): Promise<TMDBPersonSearchResul
         if (aHasImage !== bHasImage) return bHasImage - aHasImage;
         return (b.popularity || 0) - (a.popularity || 0);
       });
+    writeBrowserCache(cacheKey, results, SEARCH_CACHE_TTL_MS);
+    return results;
   } catch (error) {
     console.error("TMDB people search error:", error);
     return [];
