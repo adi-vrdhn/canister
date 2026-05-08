@@ -14,6 +14,8 @@ type UserRecord = Record<string, unknown> & {
   createdAt?: string;
 };
 
+type NormalizableUserRecord = UserRecord | User;
+
 const PROFILE_TTL_MS = 5 * 60 * 1000;
 const ALL_USERS_TTL_MS = 2 * 60 * 1000;
 
@@ -64,9 +66,10 @@ export function getDisplayUserName(user: Pick<User, "id" | "username" | "name">,
   return formatFallbackUserName(user.id);
 }
 
-export function normalizeUserRecord(id: string, raw: UserRecord): User {
+export function normalizeUserRecord(id: string, raw: NormalizableUserRecord): User {
   const username = normalizeLabel(raw.username);
   const name = normalizeLabel(raw.name);
+  const createdAt = "created_at" in raw ? raw.created_at : "createdAt" in raw ? raw.createdAt : undefined;
   const displayName =
     (name && !isPlaceholderLabel(name) && name !== id.trim() ? name : null) ||
     (username && !isPlaceholderLabel(username) && username !== id.trim() ? username : null) ||
@@ -77,7 +80,7 @@ export function normalizeUserRecord(id: string, raw: UserRecord): User {
     username: username || id,
     name: displayName,
     avatar_url: raw.avatar_url || null,
-    created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
+    created_at: createdAt || new Date().toISOString(),
   };
 }
 
