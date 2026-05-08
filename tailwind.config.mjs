@@ -12,6 +12,9 @@ const config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        playfair: ['var(--font-playfair)'],
+      },
       colors: {
         'bg-main': '#0D0D0D',
         'bg-secondary': '#161616',

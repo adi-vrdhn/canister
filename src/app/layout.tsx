@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Playfair_Display } from "next/font/google";
 import "./globals.css";
 import HydrationFix from "@/components/HydrationFix";
 import AutoPushPrompt from "@/components/AutoPushPrompt";
@@ -9,11 +8,6 @@ import ForegroundPushListener from "@/components/ForegroundPushListener";
 import GlobalErrorListener from "@/components/GlobalErrorListener";
 import LocalhostServiceWorkerCleanup from "@/components/LocalhostServiceWorkerCleanup";
 import PwaBottomNav from "@/components/PwaBottomNav";
-
-const playfairDisplay = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-playfair",
-});
 
 export const metadata: Metadata = {
   title: "Canisterr",
@@ -43,7 +37,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${playfairDisplay.variable} antialiased`} suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-N81XQ4GZ9S"
           strategy="afterInteractive"

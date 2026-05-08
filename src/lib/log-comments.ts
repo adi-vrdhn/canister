@@ -83,39 +83,44 @@ async function createLogCommentNotification(
   fromUser: User,
   commentId: string
 ): Promise<void> {
-  if (!(await shouldDeliverNotificationToUser(userId, type))) return;
+  try {
+    if (!(await shouldDeliverNotificationToUser(userId, type))) return;
 
-  const notificationRef = push(ref(db, `notifications/${userId}`));
-  await set(notificationRef, {
-    type,
-    ref_id: logId,
-    logId,
-    commentId,
-    seen: false,
-    fromUser: {
-      id: fromUser.id,
-      username: fromUser.username,
-      name: fromUser.name,
-      avatar_url: fromUser.avatar_url || null,
-    },
-    created_at: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-  });
+    const notificationRef = push(ref(db, `notifications/${userId}`));
+    const now = new Date().toISOString();
+    await set(notificationRef, {
+      type,
+      ref_id: logId,
+      logId,
+      commentId,
+      seen: false,
+      fromUser: {
+        id: fromUser.id,
+        username: fromUser.username,
+        name: fromUser.name,
+        avatar_url: fromUser.avatar_url || null,
+      },
+      created_at: now,
+      createdAt: now,
+    });
 
-  const titleByType: Record<typeof type, string> = {
-    log_comment: `${fromUser.name} commented on your log`,
-    log_comment_reply: `${fromUser.name} replied to your log comment`,
-    log_comment_like: `${fromUser.name} liked your log comment`,
-  };
+    const titleByType: Record<typeof type, string> = {
+      log_comment: `${fromUser.name} commented on your log`,
+      log_comment_reply: `${fromUser.name} replied to your log comment`,
+      log_comment_like: `${fromUser.name} liked your log comment`,
+    };
 
-  await sendPushNotification({
-    userId,
-    title: titleByType[type],
-    body: "Open Canisterr to view it.",
-    url: `/logs/${logId}${commentId ? `?comment=${commentId}` : ""}`,
-    type,
-    notificationId: `${logId}-${commentId}-${type}`,
-  });
+    await sendPushNotification({
+      userId,
+      title: titleByType[type],
+      body: "Open Canisterr to view it.",
+      url: `/logs/${logId}${commentId ? `?comment=${commentId}` : ""}`,
+      type,
+      notificationId: `${logId}-${commentId}-${type}`,
+    });
+  } catch (error) {
+    console.warn("Failed to create log comment notification:", error);
+  }
 }
 
 export async function getLogComments(

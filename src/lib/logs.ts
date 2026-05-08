@@ -197,9 +197,18 @@ export async function createMovieLog(
   }
 
   await set(logRef, newLog);
-  await upsertWatchedMovie(userId, contentId, contentType, "log");
+  try {
+    await upsertWatchedMovie(userId, contentId, contentType, "log");
+  } catch (error) {
+    console.warn("Failed to update watched movie state after logging:", error);
+  }
+
   if (!importedFromCsv) {
-    await createLogCreatedNotifications(newLog);
+    try {
+      await createLogCreatedNotifications(newLog);
+    } catch (error) {
+      console.warn("Failed to create log created notifications:", error);
+    }
   }
   return newLog;
 }

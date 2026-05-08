@@ -462,61 +462,69 @@ export async function createFollowAcceptedNotification(
 }
 
 export async function createLogCreatedNotifications(log: MovieLog): Promise<void> {
-  if (!log.id || !log.user_id || log.watch_later || !log.watched_date) return;
+  try {
+    if (!log.id || !log.user_id || log.watch_later || !log.watched_date) return;
 
-  const followsRef = ref(db, "follows");
-  const snapshot = await get(followsRef);
-  if (!snapshot.exists()) return;
+    const followsRef = ref(db, "follows");
+    const snapshot = await get(followsRef);
+    if (!snapshot.exists()) return;
 
-  const followerIds = Array.from(
-    new Set(
-      Object.values(snapshot.val() as Record<string, any>)
-        .filter((follow: any) => follow?.following_id === log.user_id && follow?.status === "accepted")
-        .map((follow: any) => follow?.follower_id)
-        .filter((followerId): followerId is string => Boolean(followerId) && followerId !== log.user_id)
-    )
-  );
+    const followerIds = Array.from(
+      new Set(
+        Object.values(snapshot.val() as Record<string, any>)
+          .filter((follow: any) => follow?.following_id === log.user_id && follow?.status === "accepted")
+          .map((follow: any) => follow?.follower_id)
+          .filter((followerId): followerId is string => Boolean(followerId) && followerId !== log.user_id)
+      )
+    );
 
-  if (followerIds.length === 0) return;
+    if (followerIds.length === 0) return;
 
-  const fromUser = await getUserProfile(log.user_id);
-  const createdAt = log.created_at || new Date().toISOString();
-  const logTitle = log.content_type === "tv" ? "show" : "movie";
+    const fromUser = await getUserProfile(log.user_id);
+    const createdAt = log.created_at || new Date().toISOString();
+    const logTitle = log.content_type === "tv" ? "show" : "movie";
 
-  await Promise.all(
-    followerIds.map(async (recipientId) => {
-      if (!(await shouldDeliverNotificationToUser(recipientId, "log_created", log.user_id))) return;
+    await Promise.all(
+      followerIds.map(async (recipientId) => {
+        try {
+          if (!(await shouldDeliverNotificationToUser(recipientId, "log_created", log.user_id))) return;
 
-      const notificationRef = push(ref(db, `notifications/${recipientId}`));
-      await set(
-        notificationRef,
-        stripUndefinedFields({
-          type: "log_created",
-          seen: false,
-          logId: log.id,
-          contentId: log.content_id,
-          contentType: log.content_type,
-          fromUser: {
-            id: fromUser.id,
-            username: fromUser.username,
-            name: fromUser.name,
-            avatar_url: fromUser.avatar_url || null,
-          },
-          created_at: createdAt,
-          createdAt,
-        })
-      );
+          const notificationRef = push(ref(db, `notifications/${recipientId}`));
+          await set(
+            notificationRef,
+            stripUndefinedFields({
+              type: "log_created",
+              seen: false,
+              logId: log.id,
+              contentId: log.content_id,
+              contentType: log.content_type,
+              fromUser: {
+                id: fromUser.id,
+                username: fromUser.username,
+                name: fromUser.name,
+                avatar_url: fromUser.avatar_url || null,
+              },
+              created_at: createdAt,
+              createdAt,
+            })
+          );
 
-      await sendPushNotification({
-        userId: recipientId,
-        title: `${fromUser.name} logged a new ${logTitle}`,
-        body: "Open Canisterr to view the log.",
-        url: `/logs/${log.id}`,
-        type: "log_created",
-        notificationId: `${log.id}-${recipientId}`,
-      });
-    })
-  );
+          await sendPushNotification({
+            userId: recipientId,
+            title: `${fromUser.name} logged a new ${logTitle}`,
+            body: "Open Canisterr to view the log.",
+            url: `/logs/${log.id}`,
+            type: "log_created",
+            notificationId: `${log.id}-${recipientId}`,
+          });
+        } catch (error) {
+          console.warn("Failed to create log_created notification for recipient:", recipientId, error);
+        }
+      })
+    );
+  } catch (error) {
+    console.warn("Failed to create log created notifications:", error);
+  }
 }
 
 export async function createCollaborationRequestNotification(

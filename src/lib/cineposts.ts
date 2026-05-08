@@ -783,38 +783,42 @@ async function createCinePostNotification(
   refId: string,
   fromUser: User
 ): Promise<void> {
-  if (!(await shouldDeliverNotificationToUser(userId, type))) return;
+  try {
+    if (!(await shouldDeliverNotificationToUser(userId, type))) return;
 
-  const notificationRef = push(ref(db, `notifications/${userId}`));
-  const now = new Date().toISOString();
+    const notificationRef = push(ref(db, `notifications/${userId}`));
+    const now = new Date().toISOString();
 
-  await set(notificationRef, {
-    type,
-    ref_id: refId,
-    seen: false,
-    fromUser: {
-      id: fromUser.id,
-      username: fromUser.username,
-      name: fromUser.name,
-      avatar_url: fromUser.avatar_url || null,
-    },
-    created_at: now,
-    createdAt: now,
-  });
+    await set(notificationRef, {
+      type,
+      ref_id: refId,
+      seen: false,
+      fromUser: {
+        id: fromUser.id,
+        username: fromUser.username,
+        name: fromUser.name,
+        avatar_url: fromUser.avatar_url || null,
+      },
+      created_at: now,
+      createdAt: now,
+    });
 
-  const titleByType: Record<typeof type, string> = {
-    post_like: `${fromUser.name} liked your post`,
-    post_save: `${fromUser.name} saved your post`,
-    post_comment: `${fromUser.name} commented on your post`,
-    comment_reply: `${fromUser.name} replied to your comment`,
-  };
+    const titleByType: Record<typeof type, string> = {
+      post_like: `${fromUser.name} liked your post`,
+      post_save: `${fromUser.name} saved your post`,
+      post_comment: `${fromUser.name} commented on your post`,
+      comment_reply: `${fromUser.name} replied to your comment`,
+    };
 
-  await sendPushNotification({
-    userId,
-    title: titleByType[type],
-    body: "Open Canisterr to view it.",
-    url: `/posts/${refId}`,
-    type,
-    notificationId: notificationRef.key || `${refId}-${type}`,
-  });
+    await sendPushNotification({
+      userId,
+      title: titleByType[type],
+      body: "Open Canisterr to view it.",
+      url: `/posts/${refId}`,
+      type,
+      notificationId: notificationRef.key || `${refId}-${type}`,
+    });
+  } catch (error) {
+    console.warn("Failed to create cine post notification:", error);
+  }
 }

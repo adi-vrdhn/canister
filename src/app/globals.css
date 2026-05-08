@@ -3,6 +3,7 @@
 
 /* FilmShare Retro Dark Edition Color Tokens */
 :root {
+  --font-playfair: "Playfair Display", "Times New Roman", serif;
   --bg-main: #0D0D0D;
   --bg-secondary: #161616;
   --bg-card: #1E1E1E;
