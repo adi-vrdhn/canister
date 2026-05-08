@@ -173,20 +173,24 @@ export async function createLogComment(
 }
 
 export async function likeLogComment(logId: string, commentId: string, userId: string): Promise<void> {
-  const [commentSnapshot, userSnapshot] = await Promise.all([
-    get(ref(db, `log_comments/${logId}/${commentId}`)),
-    get(ref(db, `users/${userId}`)),
-  ]);
-
   await set(ref(db, `log_comment_likes/${logId}/${commentId}/${userId}`), true);
 
-  if (!commentSnapshot.exists()) return;
+  try {
+    const [commentSnapshot, userSnapshot] = await Promise.all([
+      get(ref(db, `log_comments/${logId}/${commentId}`)),
+      get(ref(db, `users/${userId}`)),
+    ]);
 
-  const comment = commentSnapshot.val() as LogComment;
-  if (comment.user_id === userId) return;
+    if (!commentSnapshot.exists()) return;
 
-  const fromUser = normalizeUser(userId, userSnapshot.val());
-  await createLogCommentNotification(comment.user_id, "log_comment_like", logId, fromUser, commentId);
+    const comment = commentSnapshot.val() as LogComment;
+    if (comment.user_id === userId) return;
+
+    const fromUser = normalizeUser(userId, userSnapshot.val());
+    await createLogCommentNotification(comment.user_id, "log_comment_like", logId, fromUser, commentId);
+  } catch (error) {
+    console.warn("Failed to create log comment like notification:", error);
+  }
 }
 
 export async function unlikeLogComment(logId: string, commentId: string, userId: string): Promise<void> {

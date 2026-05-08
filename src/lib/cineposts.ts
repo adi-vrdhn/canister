@@ -394,6 +394,7 @@ export async function getCinePosts(
 
       return {
         ...post,
+        tags: Array.isArray(post.tags) ? post.tags : [],
         list_cover_images: listCoverImagesByPostId.get(post.id),
         user: usersById[post.user_id] || fallbackUser(post.user_id),
         comments: nestComments(postComments, usersById),
@@ -485,6 +486,7 @@ export async function getCinePost(
 
   return {
     ...post,
+    tags: Array.isArray(post.tags) ? post.tags : [],
     list_cover_images: listCoverImages.length > 0 ? listCoverImages : undefined,
     user: usersById[post.user_id] || fallbackUser(post.user_id),
     comments: nestComments(postComments, usersById),

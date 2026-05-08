@@ -21,7 +21,7 @@ import { getUsersByIds, searchUsersCached } from "@/lib/users";
 import { getBlurDataUrl } from "@/lib/performance";
 import { getTmdbPosterUrl } from "@/lib/performance";
 import Link from "next/link";
-import { Clapperboard, Film, Loader2, MessageCircle, MessageSquareText, Plus, Search, Share2, X } from "lucide-react";
+import { Clapperboard, Film, Loader2, MessageCircle, MessageSquareText, Plus, RotateCcw, Search, Share2, X } from "lucide-react";
 
 const CinePostsFeed = dynamic(() => import("@/components/CinePostsFeed"), {
   ssr: false,
@@ -413,6 +413,13 @@ export default function DashboardPage() {
   // Separate unwatched shares for the home preview.
   const unwatchedShares = shares.filter((s: any) => !s.watched);
 
+  const friendLogVisitCounts = friendLogs.reduce<Record<string, number>>((counts, log) => {
+    const key = `${log.friend.id}:${log.content_type}:${log.content.id}`;
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+  const repeatWatchKeys = new Set<string>();
+
   const friendActivity = [
     ...unwatchedShares.slice(0, 6).map((share) => ({
       id: `share-${share.id}`,
@@ -431,6 +438,12 @@ export default function DashboardPage() {
       poster_url: log.content?.poster_url || null,
       title: log.content?.title || "Unknown",
       byline: `by ${log.friend.name}`,
+      repeatWatch: (() => {
+        const key = `${log.friend.id}:${log.content_type}:${log.content.id}`;
+        const shouldShow = (friendLogVisitCounts[key] || 0) > 1 && !repeatWatchKeys.has(key);
+        repeatWatchKeys.add(key);
+        return shouldShow;
+      })(),
       reaction: log.reaction == null ? "Unrated" : log.reaction === 2 ? "Masterpiece" : log.reaction === 1.5 ? "Average" : log.reaction === 1 ? "Good" : "Bad",
       createdAt: log.created_at,
       onClick: () => router.push(buildLogUrl(log)),
@@ -639,21 +652,21 @@ export default function DashboardPage() {
           {friendActivity.length > 0 ? (
             <>
               <div className="-mx-3 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-0 sm:pb-4">
-                <div className="flex gap-2 sm:gap-4">
+                <div className="flex gap-2 sm:gap-3 md:gap-4">
                   {friendActivity.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={item.onClick}
-                      className="w-[6rem] min-w-[6rem] max-w-[6rem] flex-shrink-0 cursor-pointer overflow-hidden border border-white/10 bg-[#111111] text-left transition hover:border-[#ff7a1a]/50 hover:shadow-[0_12px_30px_rgba(0,0,0,0.35)] sm:w-52 sm:min-w-0 sm:max-w-none"
+                      className="w-[6rem] min-w-[6rem] max-w-[6rem] flex-shrink-0 cursor-pointer overflow-hidden border border-white/10 bg-[#111111] text-left transition hover:border-[#ff7a1a]/50 hover:shadow-[0_12px_30px_rgba(0,0,0,0.35)] sm:w-40 sm:min-w-0 sm:max-w-none md:w-44 lg:w-52"
                     >
-                      <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a] sm:h-64 sm:aspect-auto">
+                      <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a] sm:h-56 sm:aspect-auto md:h-60 lg:h-64">
                         {item.poster_url ? (
                           <Image
                             src={item.poster_url}
                             alt={item.title}
                             fill
-                            sizes="(max-width: 640px) 96px, 180px"
+                            sizes="(max-width: 768px) 120px, 180px"
                             className="object-cover"
                             placeholder="blur"
                             blurDataURL={getBlurDataUrl()}
@@ -661,6 +674,15 @@ export default function DashboardPage() {
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-xs text-white/40">
                             No poster
+                          </div>
+                        )}
+                        {item.kind === "logged" && item.repeatWatch && (
+                          <div
+                            className="absolute bottom-2 right-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-[#ffb36b] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+                            aria-label="Rewatched"
+                            title="Rewatched"
+                          >
+                            <RotateCcw className="h-2.5 w-2.5" />
                           </div>
                         )}
                       </div>

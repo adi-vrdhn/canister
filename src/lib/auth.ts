@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   browserLocalPersistence,
   indexedDBLocalPersistence,
+  inMemoryPersistence,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   setPersistence,
@@ -31,7 +32,12 @@ async function ensureAuthPersistence() {
         await setPersistence(auth, indexedDBLocalPersistence);
       } catch (error) {
         console.warn("IndexedDB auth persistence failed, falling back to browser persistence:", error);
-        await setPersistence(auth, browserLocalPersistence);
+        try {
+          await setPersistence(auth, browserLocalPersistence);
+        } catch (browserError) {
+          console.warn("Browser auth persistence failed, falling back to in-memory persistence:", browserError);
+          await setPersistence(auth, inMemoryPersistence);
+        }
       }
     })();
   }

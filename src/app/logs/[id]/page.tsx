@@ -591,20 +591,24 @@ export default function LogDetailPage() {
         await likeLog(log.id, user.id);
         setLiked(true);
         setLikeCount((c) => c + 1);
-        // Send notification to log owner if not self
-        if (user.id !== log.user.id && (await shouldDeliverNotificationToUser(log.user.id, "like"))) {
-          const notifRef = dbRef(db, `notifications/${log.user.id}`);
-          await dbPush(notifRef, {
-            type: "like",
-            logId: log.id,
-            fromUser: {
-              id: user.id,
-              username: user.username,
-              name: user.name,
-              avatar_url: user.avatar_url || null,
-            },
-            created_at: new Date().toISOString(),
-          });
+        try {
+          // Send notification to log owner if not self.
+          if (user.id !== log.user.id && (await shouldDeliverNotificationToUser(log.user.id, "like"))) {
+            const notifRef = dbRef(db, `notifications/${log.user.id}`);
+            await dbPush(notifRef, {
+              type: "like",
+              logId: log.id,
+              fromUser: {
+                id: user.id,
+                username: user.username,
+                name: user.name,
+                avatar_url: user.avatar_url || null,
+              },
+              created_at: new Date().toISOString(),
+            });
+          }
+        } catch (notificationError) {
+          console.warn("Failed to create log like notification:", notificationError);
         }
       }
     } catch (e) {

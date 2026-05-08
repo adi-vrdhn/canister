@@ -1514,18 +1514,18 @@ function ProfilePageInner() {
               </span>
             </p>
 
-            <div className="mt-4 grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-center">
+            <div className="mt-4 flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
               {!isOwnProfile && currentUser && (
                 <div className="contents">
                   {hasBlockRelationship ? (
-                    <div className="col-span-2 inline-flex w-full min-w-0 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-[11px] font-black text-rose-200 sm:px-5 sm:py-2.5 sm:text-sm">
+                    <div className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-[11px] font-black text-rose-200 sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm">
                       Blocked
                     </div>
                   ) : (
                     <button
                       onClick={handlePrimaryProfileFollowAction}
                       disabled={profileFollowActionLoading}
-                      className={`inline-flex w-full min-w-0 items-center justify-center rounded-full px-2 py-2 text-[11px] font-black transition sm:px-5 sm:py-2.5 sm:text-sm ${
+                      className={`inline-flex w-full min-w-0 items-center justify-center rounded-full px-2 py-2 text-[11px] font-black transition sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm ${
                         profileFollowState === "following"
                           ? "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
                           : profileFollowState === "follow-back"
@@ -1547,13 +1547,13 @@ function ProfilePageInner() {
                 <>
                   <Link
                     href="/profile/edit"
-                    className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                    className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm"
                   >
                     Edit Profile
                   </Link>
                   <Link
                     href={`/movie-matcher/${visibleUsername}`}
-                    className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                    className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm"
                   >
                     Movie Matcher
                   </Link>
@@ -1563,7 +1563,7 @@ function ProfilePageInner() {
                   {canShowSharedMoviesLink && (
                     <Link
                       href={`/profile/${visibleUsername}/shared-movies`}
-                      className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                      className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Shared Movies
                     </Link>
@@ -1571,7 +1571,7 @@ function ProfilePageInner() {
                   {canAccessProfile && currentUser && !hasBlockRelationship && (
                     <Link
                       href={`/movie-matcher/${visibleUsername}`}
-                      className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:px-5 sm:py-2.5 sm:text-sm"
+                      className="inline-flex w-full min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 py-2 text-[11px] font-black text-[#f5f0de] transition hover:bg-white/10 sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm"
                     >
                       Movie Matcher
                     </Link>

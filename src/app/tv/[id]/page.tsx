@@ -78,6 +78,7 @@ export default function TVShowPage() {
   const [allLogs, setAllLogs] = useState<MovieLogWithContent[]>([]);
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
 
   const loadShowLogData = async (currentUserId: string) => {
     const numericShowId = Number(showId);
@@ -135,6 +136,23 @@ export default function TVShowPage() {
 
     return () => window.clearTimeout(timer);
   }, [bannerMessage]);
+
+  useEffect(() => {
+    const collapseAt = 120;
+
+    const updateHeroState = () => {
+      setHeroCollapsed(window.scrollY > collapseAt);
+    };
+
+    updateHeroState();
+    window.addEventListener("scroll", updateHeroState, { passive: true });
+    window.addEventListener("resize", updateHeroState);
+
+    return () => {
+      window.removeEventListener("scroll", updateHeroState);
+      window.removeEventListener("resize", updateHeroState);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -231,12 +249,12 @@ export default function TVShowPage() {
     <PageLayout user={user} onSignOut={handleSignOut} fullWidth>
       <TopActionBanner message={bannerMessage} />
       <div className="min-h-screen bg-black text-white">
-        <section className="relative overflow-hidden px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+        <section className="relative flex min-h-[100svh] items-center overflow-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
           <div className="absolute inset-0 bg-black" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,138,30,0.18),_transparent_34%),radial-gradient(circle_at_50%_0%,_rgba(255,255,255,0.05),_transparent_22%)]" />
 
           <div className="relative z-10 mx-auto max-w-5xl">
-            <div className="mb-6 flex items-center justify-between gap-3">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <button
                 onClick={() => router.back()}
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-md transition-colors hover:border-[#ff8a1e]/40 hover:bg-[#ff8a1e]/10 hover:text-white"
@@ -244,15 +262,19 @@ export default function TVShowPage() {
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </button>
-
-              <span className="rounded-full border border-[#ff8a1e]/30 bg-[#ff8a1e]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ffb36b]">
-                Now Playing
-              </span>
             </div>
 
-            <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+            <div
+              className={`mx-auto flex max-w-4xl flex-col items-center text-center transition-all duration-500 ease-out ${
+                heroCollapsed ? "gap-1" : "gap-0"
+              }`}
+            >
               {show.poster_url ? (
-                <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_20px_80px_rgba(0,0,0,0.55)] w-[7.5rem] sm:w-[9rem] lg:w-[10.5rem]">
+                <div
+                  className={`overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_20px_80px_rgba(0,0,0,0.55)] transition-all duration-500 ease-out ${
+                    heroCollapsed ? "w-[7.5rem] sm:w-[9rem] lg:w-[10.5rem]" : "w-[16rem] sm:w-[21rem] lg:w-[24rem]"
+                  }`}
+                >
                   <img
                     src={show.poster_url}
                     alt={show.title}
@@ -260,15 +282,27 @@ export default function TVShowPage() {
                   />
                 </div>
               ) : (
-                <div className="flex h-[10.5rem] w-[7.5rem] items-center justify-center rounded-[1.5rem] border border-white/10 bg-white/5 text-3xl font-black text-white/30 sm:h-[13rem] sm:w-[9rem] lg:h-[15rem] lg:w-[10.5rem]">
+                <div
+                  className={`flex items-center justify-center rounded-[1.75rem] border border-white/10 bg-white/5 text-3xl font-black text-white/30 transition-all duration-500 ease-out ${
+                    heroCollapsed ? "h-[10.5rem] w-[7.5rem] sm:h-[13rem] sm:w-[9rem] lg:h-[15rem] lg:w-[10.5rem]" : "h-[20rem] w-[16rem] sm:h-[24rem] sm:w-[21rem] lg:h-[28rem] lg:w-[24rem]"
+                  }`}
+                >
                   ?
                 </div>
               )}
 
-              <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/45">
+              <p
+                className={`mt-5 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/45 transition-all duration-500 ease-out ${
+                  heroCollapsed ? "opacity-75" : "opacity-100"
+                }`}
+              >
                 TV Show
               </p>
-              <h1 className="mt-2 text-3xl font-black leading-[0.95] tracking-tight text-[#f5f0de] sm:text-5xl lg:text-6xl">
+              <h1
+                className={`mt-2 max-w-5xl px-2 font-black leading-[0.92] tracking-tight text-[#f5f0de] transition-all duration-500 ease-out ${
+                  heroCollapsed ? "text-3xl sm:text-5xl lg:text-6xl" : "text-4xl sm:text-6xl lg:text-7xl"
+                }`}
+              >
                 {show.title}
               </h1>
 
@@ -306,7 +340,11 @@ export default function TVShowPage() {
                 </p>
               )}
 
-              <div className="mt-6 flex w-full max-w-2xl flex-wrap justify-center gap-2.5">
+              <div
+                className={`mt-6 flex w-full max-w-2xl flex-wrap justify-center gap-2.5 transition-all duration-500 ease-out ${
+                  heroCollapsed ? "scale-[0.98]" : "scale-100"
+                }`}
+              >
                 <button
                   onClick={() => setShowLogMovieModal(true)}
                   className="inline-flex min-w-[11rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ff8a1e]/25 bg-[#ff8a1e] px-4 py-3 text-sm font-bold text-black shadow-[0_10px_28px_rgba(255,138,30,0.18)] transition-transform hover:translate-y-[-1px]"
@@ -331,34 +369,54 @@ export default function TVShowPage() {
               </div>
 
               <div className="mt-8 grid w-full gap-3 md:grid-cols-[1fr_auto]">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <h2 className="text-sm font-bold uppercase tracking-[0.22em] text-white/70">
                       Rating Distribution
                     </h2>
                     <span className="text-xs text-white/45">{reactionBreakdown.total} logs</span>
                   </div>
-                  {[
-                    { label: "Bad", value: reactionBreakdown.bad, color: "bg-rose-400" },
-                    { label: "Average", value: reactionBreakdown.average, color: "bg-amber-400" },
-                    { label: "Good", value: reactionBreakdown.good, color: "bg-blue-400" },
-                    { label: "Masterpiece", value: reactionBreakdown.masterpiece, color: "bg-[#ff8a1e]" },
-                  ].map((item) => {
-                    const percent = reactionBreakdown.total > 0 ? Math.round((item.value / reactionBreakdown.total) * 100) : 0;
-                    return (
-                      <div key={item.label} className="mb-3 last:mb-0">
-                        <div className="mb-1.5 flex justify-between text-xs text-white/75">
-                          <span>{item.label}</span>
-                          <span>
-                            {item.value} ({percent}%)
-                          </span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                          <div className={`h-full rounded-full ${item.color}`} style={{ width: `${percent}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                    <div className="flex h-full w-full">
+                      {[
+                        { label: "Bad", value: reactionBreakdown.bad, color: "bg-rose-400" },
+                        { label: "Average", value: reactionBreakdown.average, color: "bg-amber-400" },
+                        { label: "Good", value: reactionBreakdown.good, color: "bg-blue-400" },
+                        { label: "Masterpiece", value: reactionBreakdown.masterpiece, color: "bg-[#ff8a1e]" },
+                      ].map((item) => {
+                        const percent = reactionBreakdown.total > 0 ? (item.value / reactionBreakdown.total) * 100 : 0;
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => setBannerMessage(`${item.value} ${item.label.toLowerCase()} rating${item.value === 1 ? "" : "s"}`)}
+                            className={`${item.color} h-full transition-opacity hover:opacity-90`}
+                            style={{ width: `${percent}%` }}
+                            aria-label={`${item.label} ${item.value}`}
+                            title={`${item.label} ${item.value}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px] text-white/75">
+                    <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+                      Bad {reactionBreakdown.bad}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                      Average {reactionBreakdown.average}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-blue-400" />
+                      Good {reactionBreakdown.good}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#ff8a1e]" />
+                      Masterpiece {reactionBreakdown.masterpiece}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 md:w-[18rem] md:grid-cols-1">

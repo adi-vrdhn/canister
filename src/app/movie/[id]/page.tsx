@@ -73,9 +73,9 @@ function getReactionLabelFromLogReaction(reaction: 0 | 1 | 1.5 | 2 | null | unde
 
 function getReactionBadgeClassFromLabel(label: "Unrated" | "Bad" | "Average" | "Good" | "Masterpiece"): string {
   if (label === "Unrated") return "bg-slate-500/20 text-slate-300 border-slate-400/30";
-  if (label === "Masterpiece") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
+  if (label === "Masterpiece") return "bg-orange-500/20 text-orange-300 border-orange-400/30";
   if (label === "Average") return "bg-amber-500/20 text-amber-300 border-amber-400/30";
-  if (label === "Good") return "bg-blue-500/20 text-[#f5f0de] border-blue-400/30";
+  if (label === "Good") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
   return "bg-rose-500/20 text-rose-300 border-rose-400/30";
 }
 
@@ -132,6 +132,7 @@ export default function MoviePage() {
   const [showLogMovieModal, setShowLogMovieModal] = useState(false);
   const [showScanThanksModal, setShowScanThanksModal] = useState(false);
   const [reactionBreakdown, setReactionBreakdown] = useState({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
+  const [movieStats, setMovieStats] = useState({ totalLogs: 0, totalWatched: 0 });
   const [friendLogs, setFriendLogs] = useState<MovieLogWithContent[]>([]);
   const [allLogs, setAllLogs] = useState<MovieLogWithContent[]>([]);
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -139,11 +140,13 @@ export default function MoviePage() {
   const [activeDetailTab, setActiveDetailTab] = useState<MovieDetailTab>("cast");
   const [showAllCast, setShowAllCast] = useState(false);
   const [expandedReviewIds, setExpandedReviewIds] = useState<Set<string>>(new Set());
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
 
   const loadMovieLogData = async () => {
     const numericMovieId = Number(movieId);
     if (!numericMovieId || Number.isNaN(numericMovieId)) {
       setReactionBreakdown({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
+      setMovieStats({ totalLogs: 0, totalWatched: 0 });
       setFriendLogs([]);
       setAllLogs([]);
       return;
@@ -154,6 +157,7 @@ export default function MoviePage() {
 
     if (!logsSnapshot.exists()) {
       setReactionBreakdown({ bad: 0, average: 0, good: 0, masterpiece: 0, total: 0 });
+      setMovieStats({ totalLogs: 0, totalWatched: 0 });
       setFriendLogs([]);
       setAllLogs([]);
       return;
@@ -173,8 +177,11 @@ export default function MoviePage() {
     const good = movieLogs.filter((log) => log.reaction === 1).length;
     const masterpiece = movieLogs.filter((log) => log.reaction === 2).length;
     const total = bad + average + good + masterpiece;
+    const totalLogs = movieLogs.length;
+    const totalWatched = new Set(movieLogs.map((log) => log.user_id)).size;
 
     setReactionBreakdown({ bad, average, good, masterpiece, total });
+    setMovieStats({ totalLogs, totalWatched });
   };
 
   useEffect(() => {
@@ -186,6 +193,23 @@ export default function MoviePage() {
 
     return () => window.clearTimeout(timer);
   }, [bannerMessage]);
+
+  useEffect(() => {
+    const collapseAt = 120;
+
+    const updateHeroState = () => {
+      setHeroCollapsed(window.scrollY > collapseAt);
+    };
+
+    updateHeroState();
+    window.addEventListener("scroll", updateHeroState, { passive: true });
+    window.addEventListener("resize", updateHeroState);
+
+    return () => {
+      window.removeEventListener("scroll", updateHeroState);
+      window.removeEventListener("resize", updateHeroState);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -289,6 +313,25 @@ export default function MoviePage() {
   const castPeople = useMemo(() => movie?.cast_details || [], [movie]);
   const visibleCastPeople = showAllCast ? castPeople : castPeople.slice(0, 10);
   const crewBuckets = useMemo(() => getCrewBuckets(movie?.crew_details || []), [movie]);
+  const myReviewLog = useMemo(() => {
+    if (allLogs.length === 0) return null;
+
+    return [...allLogs].sort((a, b) => {
+      const watchedDiff = new Date(b.watched_date).getTime() - new Date(a.watched_date).getTime();
+      if (watchedDiff !== 0) return watchedDiff;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })[0] || null;
+    }, [allLogs]);
+  const verdictLabel = useMemo(() => {
+    const counts = [
+      { label: "Bad", count: reactionBreakdown.bad },
+      { label: "Average", count: reactionBreakdown.average },
+      { label: "Good", count: reactionBreakdown.good },
+      { label: "Masterpiece", count: reactionBreakdown.masterpiece },
+    ];
+
+    return counts.reduce((best, current) => (current.count > best.count ? current : best), counts[0]).label;
+  }, [reactionBreakdown]);
 
   const toggleReviewExpanded = (reviewId: string) => {
     setExpandedReviewIds((current) => {
@@ -299,23 +342,50 @@ export default function MoviePage() {
     });
   };
 
-  const renderCastCard = (person: MovieCreditPerson) => (
+  const renderCastRow = (person: MovieCreditPerson) => (
     <div
       key={person.id}
-      className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-left"
+      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-left"
     >
-      <div className="overflow-hidden rounded-xl bg-white/5">
+      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full bg-white/10">
         {person.profile_url ? (
-          <img src={person.profile_url} alt={person.name} className="aspect-[3/4] w-full object-cover" />
+          <img src={person.profile_url} alt={person.name} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex aspect-[3/4] w-full items-center justify-center bg-white/10 text-2xl font-black text-white/30">
+          <div className="flex h-full w-full items-center justify-center text-sm font-black text-white/35">
             {person.name.charAt(0).toUpperCase()}
           </div>
         )}
       </div>
-      <div className="min-w-0">
-        <p className="line-clamp-1 text-sm font-semibold text-[#f5f0de]">{person.name}</p>
-        {person.character && <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/55">{person.character}</p>}
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="truncate text-sm font-semibold text-[#f5f0de]">{person.name}</p>
+          {person.character && <span className="text-xs text-white/30">|</span>}
+          {person.character && <p className="truncate text-xs text-white/55">{person.character}</p>}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCrewRow = (person: MovieCreditPerson, group: string) => (
+    <div
+      key={`${group}-${person.id}-${person.name}`}
+      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-left"
+    >
+      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full bg-white/10">
+        {person.profile_url ? (
+          <img src={person.profile_url} alt={person.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm font-black text-white/35">
+            {person.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="truncate text-sm font-semibold text-[#f5f0de]">{person.name}</p>
+          <span className="text-xs text-white/30">|</span>
+          <p className="truncate text-xs text-white/55">{person.job || person.department || group}</p>
+        </div>
       </div>
     </div>
   );
@@ -341,12 +411,12 @@ export default function MoviePage() {
     <PageLayout user={user} onSignOut={handleSignOut} fullWidth>
       <TopActionBanner message={bannerMessage} />
       <div className="min-h-screen bg-black text-white">
-        <section className="relative overflow-hidden px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+        <section className="relative flex min-h-[100svh] items-start overflow-hidden px-4 pt-4 pb-8 sm:px-6 sm:pt-5 sm:pb-10 lg:px-8 lg:pt-6 lg:pb-10">
           <div className="absolute inset-0 bg-black" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,138,30,0.18),_transparent_34%),radial-gradient(circle_at_50%_0%,_rgba(255,255,255,0.05),_transparent_22%)]" />
 
           <div className="relative z-10 mx-auto max-w-5xl">
-            <div className="mb-6 flex items-center justify-between gap-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
               <button
                 onClick={() => router.back()}
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-md transition-colors hover:border-[#ff8a1e]/40 hover:bg-[#ff8a1e]/10 hover:text-white"
@@ -354,15 +424,19 @@ export default function MoviePage() {
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </button>
-
-              <span className="rounded-full border border-[#ff8a1e]/30 bg-[#ff8a1e]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ffb36b]">
-                Now Playing
-              </span>
             </div>
 
-            <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+            <div
+              className={`mx-auto flex max-w-4xl flex-col items-center text-center transition-all duration-500 ease-out ${
+                heroCollapsed ? "gap-1" : "gap-0"
+              }`}
+            >
               {movie.poster_url && (
-                <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_20px_80px_rgba(0,0,0,0.55)] w-[7.5rem] sm:w-[9rem] lg:w-[10.5rem]">
+                <div
+                  className={`overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_20px_80px_rgba(0,0,0,0.55)] transition-all duration-500 ease-out ${
+                    heroCollapsed ? "w-[7.5rem] sm:w-[9rem] lg:w-[10.5rem]" : "w-[16rem] sm:w-[21rem] lg:w-[24rem]"
+                  }`}
+                >
                   <img
                     src={movie.poster_url}
                     alt={movie.title}
@@ -371,14 +445,26 @@ export default function MoviePage() {
                 </div>
               )}
 
-              <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/45">
+              <p
+                className={`mt-5 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/45 transition-all duration-500 ease-out ${
+                  heroCollapsed ? "opacity-75" : "opacity-100"
+                }`}
+              >
                 Movie
               </p>
-              <h1 className="mt-2 text-3xl font-black leading-[0.95] tracking-tight text-[#f5f0de] sm:text-5xl lg:text-6xl">
+              <h1
+                className={`mt-2 max-w-5xl px-2 font-black leading-[0.92] tracking-tight text-[#f5f0de] transition-all duration-500 ease-out ${
+                  heroCollapsed ? "text-3xl sm:text-5xl lg:text-6xl" : "text-4xl sm:text-6xl lg:text-7xl"
+                }`}
+              >
                 {movie.title}
               </h1>
 
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-medium text-white/70">
+              <div
+                className={`mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-medium text-white/70 transition-all duration-500 ease-out ${
+                  heroCollapsed ? "scale-100" : "scale-[1.02]"
+                }`}
+              >
                 {movieMetaParts.map((part, index) => (
                   <span key={`${part}-${index}`} className="inline-flex items-center gap-2">
                     {index > 0 && <span className="text-white/30">•</span>}
@@ -388,68 +474,147 @@ export default function MoviePage() {
               </div>
 
               {movie.overview && (
-                <p className="mt-5 max-w-3xl text-sm leading-7 text-white/80 text-justify sm:text-base">
+                <p
+                  className={`mt-5 max-w-3xl text-sm leading-7 text-white/80 text-justify transition-all duration-500 ease-out sm:text-base ${
+                    heroCollapsed ? "opacity-80" : "opacity-100"
+                  }`}
+                >
                   {movie.overview}
                 </p>
               )}
 
-              <div className="mt-6 flex w-full max-w-2xl flex-wrap justify-center gap-2.5">
+              <div
+                className={`mt-6 flex w-full max-w-2xl flex-nowrap justify-center gap-2 transition-all duration-500 ease-out ${
+                  heroCollapsed ? "scale-[0.98]" : "scale-100"
+                }`}
+              >
                 <button
                   onClick={() => setShowAddToListModal(true)}
-                  className="inline-flex min-w-[11rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10"
+                  className="inline-flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-[13px] font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10 sm:px-4 sm:text-sm"
                 >
                   <Bookmark className="h-4 w-4" />
                   Add to List
                 </button>
                 <button
                   onClick={() => router.push(`/share?movie_id=${movie.id}`)}
-                  className="inline-flex min-w-[11rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10"
+                  className="inline-flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-[13px] font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10 sm:px-4 sm:text-sm"
                 >
                   <Share2 className="h-4 w-4" />
                   Share
                 </button>
                 <button
                   onClick={() => setShowLogMovieModal(true)}
-                  className="inline-flex min-w-[11rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ff8a1e]/25 bg-[#ff8a1e] px-4 py-3 text-sm font-bold text-black shadow-[0_10px_28px_rgba(255,138,30,0.18)] transition-transform hover:translate-y-[-1px]"
+                  className="inline-flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-2xl border border-[#ff8a1a]/30 bg-white/5 px-3 py-3 text-[13px] font-bold text-white transition-colors hover:border-[#ff8a1e]/40 hover:bg-[#ff8a1e]/10 sm:px-4 sm:text-sm"
                 >
                   <LogsIcon className="h-4 w-4" />
                   Log Movie
                 </button>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-sm">
-                <span className="text-white/45">Rating distribution:</span>
-                <button
-                  type="button"
-                  onClick={() => setBannerMessage(`${reactionBreakdown.bad} bad rating${reactionBreakdown.bad === 1 ? "" : "s"}`)}
-                  className="text-rose-300 transition hover:text-rose-200"
-                >
-                  Bad {reactionBreakdown.bad}
-                </button>
-                <span className="text-white/20">•</span>
-                <button
-                  type="button"
-                  onClick={() => setBannerMessage(`${reactionBreakdown.average} average rating${reactionBreakdown.average === 1 ? "" : "s"}`)}
-                  className="text-amber-300 transition hover:text-amber-200"
-                >
-                  Average {reactionBreakdown.average}
-                </button>
-                <span className="text-white/20">•</span>
-                <button
-                  type="button"
-                  onClick={() => setBannerMessage(`${reactionBreakdown.good} good rating${reactionBreakdown.good === 1 ? "" : "s"}`)}
-                  className="text-[#f5f0de] transition hover:text-white"
-                >
-                  Good {reactionBreakdown.good}
-                </button>
-                <span className="text-white/20">•</span>
-                <button
-                  type="button"
-                  onClick={() => setBannerMessage(`${reactionBreakdown.masterpiece} masterpiece rating${reactionBreakdown.masterpiece === 1 ? "" : "s"}`)}
-                  className="text-[#ffb36b] transition hover:text-[#ffcf9b]"
-                >
-                  Masterpiece {reactionBreakdown.masterpiece}
-                </button>
+              <div className="mt-5 w-full max-w-3xl text-center">
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.22em] text-white/45">
+                  <span>Rating distribution</span>
+                  <span>{reactionBreakdown.total} logs</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                  <div className="flex h-full w-full">
+                    {[
+                      { label: "Bad", value: reactionBreakdown.bad, color: "bg-rose-400" },
+                      { label: "Average", value: reactionBreakdown.average, color: "bg-amber-400" },
+                      { label: "Good", value: reactionBreakdown.good, color: "bg-emerald-400" },
+                      { label: "Masterpiece", value: reactionBreakdown.masterpiece, color: "bg-orange-400" },
+                    ].map((item) => {
+                      const percent = reactionBreakdown.total > 0 ? (item.value / reactionBreakdown.total) * 100 : 0;
+                      return (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setBannerMessage(`${item.value} ${item.label.toLowerCase()} rating${item.value === 1 ? "" : "s"}`)}
+                          className={`${item.color} h-full transition-opacity hover:opacity-90`}
+                          style={{ width: `${percent}%` }}
+                          aria-label={`${item.label} ${item.value}`}
+                          title={`${item.label} ${item.value}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-3 text-center">
+                  <p className="text-[9px] uppercase tracking-[0.34em] text-white/40">Verdict</p>
+                  <p
+                    className={`mt-1 text-[22px] font-semibold leading-none tracking-[0.08em] ${
+                      verdictLabel === "Masterpiece"
+                        ? "text-orange-300"
+                        : verdictLabel === "Good"
+                          ? "text-emerald-300"
+                          : verdictLabel === "Average"
+                            ? "text-amber-300"
+                            : "text-rose-300"
+                    }`}
+                    style={{ fontFamily: 'var(--font-playfair), "Playfair Display", serif' }}
+                  >
+                    {verdictLabel}
+                  </p>
+                  <div className="-mx-1 mt-3 flex flex-nowrap justify-center gap-3 overflow-x-auto px-1 pb-1 text-[10px] text-white/70 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <span className="inline-flex shrink-0 items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+                      Bad {reactionBreakdown.bad}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                      Average {reactionBreakdown.average}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                      Good {reactionBreakdown.good}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-orange-400" />
+                      Masterpiece {reactionBreakdown.masterpiece}
+                    </span>
+                  </div>
+                </div>
+                {myReviewLog && (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">My review</p>
+                        <p className="mt-1 text-sm font-semibold text-[#f5f0de]">Your latest log</p>
+                      </div>
+                      <span className={`rounded-full border px-2.5 py-1 text-xs ${getReactionBadgeClassFromLabel(getReactionLabelFromLogReaction(myReviewLog.reaction))}`}>
+                        {getReactionLabelFromLogReaction(myReviewLog.reaction)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => router.push(buildLogUrl(myReviewLog))}
+                      className="block w-full text-left"
+                    >
+                      <p className="text-sm leading-7 text-white/80">
+                        {myReviewLog.notes?.trim() ? myReviewLog.notes : "No review text yet."}
+                      </p>
+                    </button>
+                  </div>
+                )}
+                <div className="mt-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    <Link
+                      href={`/movie/${movie.id}/reviews`}
+                      className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10"
+                    >
+                      <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Reviews</span>
+                      <span className="mt-1 text-lg font-black text-[#f5f0de]">{reviews.length}</span>
+                    </Link>
+                    <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center">
+                      <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Logs</span>
+                      <span className="mt-1 text-lg font-black text-[#f5f0de]">{movieStats.totalLogs}</span>
+                    </div>
+                    <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center">
+                      <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Watched</span>
+                      <span className="mt-1 text-lg font-black text-[#f5f0de]">{movieStats.totalWatched}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -460,25 +625,31 @@ export default function MoviePage() {
             {/* Friends' logs row */}
             {friendLogs.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold mb-3">Friends who logged this movie</h3>
-                <div className="flex flex-wrap gap-4">
-                  {friendLogs.map((log) => {
+                <h3 className="mb-3 text-lg font-semibold">Friends who watched it</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {friendLogs.slice(0, 10).map((log) => {
                     const label = getReactionLabelFromLogReaction(log.reaction);
                     const userLabel = getDisplayUserLabel(log.user);
                     return (
-                      <div key={log.id} className="flex flex-col items-center cursor-pointer group" onClick={() => router.push(buildLogUrl(log))} title={`View ${userLabel}'s log`}>
+                      <button
+                        key={log.id}
+                        type="button"
+                        className="flex cursor-pointer flex-col items-center p-1 text-center transition-colors hover:opacity-90"
+                        onClick={() => router.push(buildLogUrl(log))}
+                        title={`View ${userLabel}'s log`}
+                      >
                         <div className="relative flex flex-col items-center">
                           {log.user.avatar_url ? (
-                            <img src={log.user.avatar_url} alt={userLabel} className="w-12 h-12 rounded-full border-2 border-white group-hover:scale-105 transition-transform" />
+                            <img src={log.user.avatar_url} alt={userLabel} className="h-12 w-12 rounded-full border-2 border-white transition-transform group-hover:scale-105" />
                           ) : (
-                            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-lg font-bold text-white border-2 border-white">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-white/10 text-lg font-bold text-white">
                               {userLabel.charAt(0).toUpperCase()}
                             </div>
                           )}
                           <span className={`mt-2 text-xs px-2 py-0.5 rounded-full border block ${getReactionBadgeClassFromLabel(label)}`}>{label}</span>
                         </div>
                         <span className="mt-2 text-xs text-white/80 group-hover:underline">{userLabel}</span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -566,8 +737,8 @@ export default function MoviePage() {
                       )}
                     </div>
                     {castPeople.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                        {visibleCastPeople.map(renderCastCard)}
+                      <div className="grid gap-3">
+                        {visibleCastPeople.map(renderCastRow)}
                       </div>
                     ) : (
                       <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
@@ -590,27 +761,8 @@ export default function MoviePage() {
                         {crewBuckets.map(([group, people]) => (
                           <div key={group} className="space-y-3">
                             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white/45">{group}</p>
-                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                              {people.map((person) => (
-                                <div
-                                  key={`${group}-${person.id}-${person.name}`}
-                                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
-                                >
-                                  <div className="h-14 w-14 overflow-hidden rounded-xl bg-white/10">
-                                    {person.profile_url ? (
-                                      <img src={person.profile_url} alt={person.name} className="h-full w-full object-cover" />
-                                    ) : (
-                                      <div className="flex h-full w-full items-center justify-center text-sm font-black text-white/35">
-                                        {person.name.charAt(0).toUpperCase()}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-[#f5f0de]">{person.name}</p>
-                                    <p className="truncate text-xs text-white/55">{person.job || person.department || group}</p>
-                                  </div>
-                                </div>
-                              ))}
+                            <div className="grid gap-3">
+                              {people.map((person) => renderCrewRow(person, group))}
                             </div>
                           </div>
                         ))}
