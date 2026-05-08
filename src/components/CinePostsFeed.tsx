@@ -17,6 +17,7 @@ import { getPublicLists, getListWithDetails } from "@/lib/lists";
 import { getPopularMovies } from "@/lib/tmdb";
 import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
 import { getBlurDataUrl, getTmdbPosterUrl } from "@/lib/performance";
+import { getDisplayUserName } from "@/lib/users";
 
 interface CinePostsFeedProps {
   currentUser: User | null;
@@ -37,6 +38,10 @@ function relativeTime(dateString: string): string {
 
 function profileHref(user: User): string {
   return `/profile/${user.username || user.id}`;
+}
+
+function getAuthorDisplayName(post: CinePostWithDetails, currentUser: User | null): string {
+  return getDisplayUserName(post.user, currentUser);
 }
 
 function Avatar({
@@ -792,7 +797,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                         onClick={(event) => event.stopPropagation()}
                         className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-[#f5f0de]"}`}
                       >
-                        {post.user.name}
+                        {getAuthorDisplayName(post, currentUser)}
                       </Link>
                       <span className={`text-[10px] sm:text-xs ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>{relativeTime(post.created_at)}</span>
                     </div>

@@ -11,6 +11,7 @@ import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import ShareLinkButton from "@/components/ShareLinkButton";
 import PageLayout from "@/components/PageLayout";
 import CinePostArtwork from "@/components/CinePostArtwork";
+import { getDisplayUserName } from "@/lib/users";
 import {
   CinePostCommentWithUser,
   CinePostEngagementType,
@@ -552,6 +553,7 @@ export default function CinePostPage() {
   }
 
   const href = contentHref(post);
+  const postTags = post.tags || [];
   const sortedComments = [...post.comments].sort((a, b) => {
     if (commentSort === "newest") {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -599,7 +601,7 @@ export default function CinePostPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <Link href={profileHref(post.user)} className="text-lg font-black text-[#f5f0de] hover:text-[#ffb36b]">
-                      {post.user.name}
+                      {getDisplayUserName(post.user, user)}
                     </Link>
                     <span className="text-sm text-white/45">{relativeTime(post.created_at)}</span>
                   </div>
@@ -610,8 +612,8 @@ export default function CinePostPage() {
                 <div className="flex items-center gap-1.5">
                   <ShareLinkButton
                     href={`/posts/${post.id}`}
-                    title={`${post.user.name}'s post`}
-                    text={`Shared from Canisterr by ${post.user.name}.`}
+                    title={`${getDisplayUserName(post.user, user)}'s post`}
+                    text={`Shared from Canisterr by ${getDisplayUserName(post.user, user)}.`}
                     showLabel
                     className="rounded-full border border-white/10 bg-[#111111] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-[#ff7a1a]/35 hover:bg-white/[0.08] hover:text-[#ffb36b]"
                     ariaLabel="Share post link"
@@ -630,9 +632,9 @@ export default function CinePostPage() {
                 {linkify(post.body)}
               </div>
 
-              {post.tags.length > 0 && (
+              {postTags.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-2">
-                  {post.tags.map((tag) => (
+                  {postTags.map((tag) => (
                     <span
                       key={tag}
                       className="rounded-full border border-white/10 bg-white/[0.025] px-3 py-1.5 text-sm font-bold text-[#f5f0de]/65"
@@ -646,42 +648,41 @@ export default function CinePostPage() {
           </div>
 
           <div className="border-t border-white/10 py-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-4">
                 <button
                   type="button"
                   onClick={() => handleEngagement("like", !post.liked_by_current_user)}
-                  className={`inline-flex items-center justify-center rounded-full px-2.5 py-2 transition ${
+                  className={`inline-flex items-center gap-2 text-sm font-black transition ${
                     post.liked_by_current_user
-                      ? "text-rose-300 hover:text-rose-200"
-                      : "text-white/60 hover:text-[#ffb36b]"
+                      ? "text-rose-200 hover:text-rose-100"
+                      : "text-white/70 hover:text-[#ffb36b]"
                   }`}
                 >
-                  <Heart className={`h-5 w-5 ${post.liked_by_current_user ? "fill-rose-500" : ""}`} />
+                  <Heart className={`h-4 w-4 ${post.liked_by_current_user ? "fill-rose-500" : ""}`} />
+                  <span className="tabular-nums">{post.likes_count}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => openPeopleModal("like", "Liked by")}
                   disabled={post.likes_count === 0}
-                  className="rounded-full px-1 py-2 text-sm font-black text-[#ffb36b] disabled:text-white/30"
+                  className="inline-flex items-center gap-2 text-sm font-black text-white/70 transition hover:text-[#f5f0de] disabled:cursor-default disabled:opacity-40"
                 >
-                  {post.likes_count} like{post.likes_count === 1 ? "" : "s"}
-                </button>
-                <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-2 text-sm font-bold text-white/55">
                   <MessageCircle className="h-4 w-4" />
-                  {post.comments_count}
-                </span>
+                  <span className="tabular-nums">{post.comments_count}</span>
+                </button>
               </div>
               <button
                 type="button"
                 onClick={() => handleEngagement("save", !post.saved_by_current_user)}
-                className={`inline-flex items-center justify-center rounded-full px-2.5 py-2 transition ${
+                className={`inline-flex items-center justify-center transition ${
                   post.saved_by_current_user
-                    ? "bg-[#ffb36b]/20 text-[#ff7a1a]"
+                    ? "text-[#ff7a1a]"
                     : "text-white/60 hover:text-[#ffb36b]"
                 }`}
+                aria-label={post.saved_by_current_user ? "Unsave post" : "Save post"}
               >
-                <Bookmark className={`h-5 w-5 ${post.saved_by_current_user ? "fill-[#ff7a1a]" : ""}`} />
+                <Bookmark className={`h-4 w-4 ${post.saved_by_current_user ? "fill-[#ff7a1a]" : ""}`} />
               </button>
             </div>
           </div>

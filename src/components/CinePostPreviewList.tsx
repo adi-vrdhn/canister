@@ -4,6 +4,7 @@ import Link from "next/link";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import CinePostArtwork from "@/components/CinePostArtwork";
 import { CinePostWithDetails, User } from "@/types";
+import { getDisplayUserName } from "@/lib/users";
 
 const PREVIEW_LIMIT = 130;
 
@@ -105,7 +106,7 @@ export default function CinePostPreviewList({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex flex-wrap items-center gap-2">
                   <Link href={profileHref(post.user)} className="font-black text-[#f5f0de] hover:text-[#ffb36b]">
-                    {post.user.name}
+                    {getDisplayUserName(post.user, currentUser)}
                   </Link>
                   <span className="text-xs text-white/45">{relativeTime(post.created_at)}</span>
                   <span className="rounded-full bg-[#ff7a1a] px-2 py-0.5 text-[10px] font-black text-black">

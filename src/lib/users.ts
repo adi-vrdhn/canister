@@ -38,6 +38,32 @@ export function formatFallbackUserName(userId: string) {
   return shortId ? `User ${shortId}` : "User";
 }
 
+export function getDisplayUserName(user: Pick<User, "id" | "username" | "name">, currentUser?: User | null): string {
+  if (currentUser && currentUser.id === user.id) {
+    const currentName = currentUser.name?.trim();
+    if (currentName && !isPlaceholderLabel(currentName)) {
+      return currentName;
+    }
+
+    const currentUsername = currentUser.username?.trim();
+    if (currentUsername && !isPlaceholderLabel(currentUsername)) {
+      return currentUsername.startsWith("@") ? currentUsername : `@${currentUsername}`;
+    }
+  }
+
+  const name = user.name?.trim();
+  if (name && !isPlaceholderLabel(name) && name !== user.id.trim()) {
+    return name;
+  }
+
+  const username = user.username?.trim();
+  if (username && !isPlaceholderLabel(username) && username !== user.id.trim()) {
+    return username.startsWith("@") ? username : `@${username}`;
+  }
+
+  return formatFallbackUserName(user.id);
+}
+
 export function normalizeUserRecord(id: string, raw: UserRecord): User {
   const username = normalizeLabel(raw.username);
   const name = normalizeLabel(raw.name);
