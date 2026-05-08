@@ -248,7 +248,7 @@ export interface MovieLog {
   content_id: number;
   content_type: "movie" | "tv";
   watched_date: string; // Date when the movie was watched (YYYY-MM-DD)
-  reaction: MovieReactionValue; // 0=Bad, 1=Good, 1.5=Average, 2=Masterpiece
+  reaction: MovieReactionValue | null; // 0=Bad, 1=Good, 1.5=Average, 2=Masterpiece, null=unrated
   notes: string; // Review/thoughts
   mood?: string; // How they felt (e.g., "happy", "sad", "excited")
   watch_later?: boolean; // For watchlist - movie to watch later (not watched yet)

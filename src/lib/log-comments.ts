@@ -9,20 +9,14 @@ import {
 import type { LogComment, LogCommentWithUser, User } from "@/types";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
-import { createFallbackUser, getUsersByIds } from "./users";
+import { createFallbackUser, normalizeUserRecord, getUsersByIds } from "./users";
 
 function fallbackUser(userId: string): User {
   return createFallbackUser(userId);
 }
 
 function normalizeUser(userId: string, userData: any): User {
-  return {
-    id: userData?.id || userId,
-    username: userData?.username || userData?.name || userId,
-    name: userData?.name || userData?.username || "Unknown user",
-    avatar_url: userData?.avatar_url || null,
-    created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
-  };
+  return normalizeUserRecord(userId, userData || {});
 }
 
 async function getUsersById(userIds: string[]): Promise<Record<string, User>> {

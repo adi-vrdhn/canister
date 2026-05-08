@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Canisterr</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #111111;
+        --border: rgba(255, 255, 255, 0.1);
+        --text: #f5f0de;
+        --muted: rgba(245, 240, 222, 0.68);
+        --accent: #ff7a1a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, rgba(255, 122, 26, 0.14), transparent 38%),
+          linear-gradient(180deg, #121212 0%, var(--bg) 100%);
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+        padding: 24px;
+      }
+
+      .card {
+        max-width: 560px;
+        width: 100%;
+        border: 1px solid var(--border);
+        background: rgba(17, 17, 17, 0.96);
+        padding: 28px;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--accent);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 34px;
+        line-height: 1.05;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.7;
+        font-size: 16px;
+      }
+
+      code {
+        display: inline-block;
+        margin-top: 14px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">Canisterr APK Shell</p>
+      <h1>Capacitor is ready.</h1>
+      <p>
+        This Android project is configured to load your deployed Canisterr site when
+        <code>CAPACITOR_SERVER_URL</code> is set.
+      </p>
+      <p style="margin-top: 12px;">
+        Next step: set the server URL, sync the Android project, and build the APK in Android Studio.
+      </p>
+    </main>
+  </body>
+</html>

@@ -18,7 +18,7 @@ import { getMovieRecommendations, RecommendationFilters } from "@/lib/movie-reco
 import { getSimilarMovies } from "@/lib/tmdb";
 import { quickRateMovie, addToWatchlist, getUserMovieLogs } from "@/lib/logs";
 import { createMatcherUpdateNotification } from "@/lib/notifications";
-import { ArrowLeft, Plus, Trash2, Loader2, Search, X, Sparkles, Zap, Users, Heart, ChevronLeft, ChevronRight, Flame, Clock, BarChart3, ChevronDown, Star } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, X, Sparkles, Zap, Users, Heart, ChevronLeft, ChevronRight, Flame, Clock, BarChart3, ChevronDown, Star } from "lucide-react";
 import Link from "next/link";
 
 type MatcherContent = Content & {
@@ -796,24 +796,12 @@ export default function MovieMatcherPage() {
         )}
 
         {/* Page Header */}
-        <div className="mb-6 flex flex-col gap-4 rounded-[1.75rem] border border-white/10 bg-white/5 p-4 text-center shadow-[0_14px_35px_rgba(0,0,0,0.18)] sm:mb-10 sm:p-6 sm:text-left">
-          <div className="space-y-3">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-[#f5f0de] transition hover:bg-white/10"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to dashboard
-            </Link>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#ffb36b]">Movie Matcher</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f5f0de] sm:text-4xl">
-                Build your taste profile
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-[#f5f0de]/65 sm:text-base">
-                Add movies and shows, then get matches based on taste, eras, directors, genres, and real cinematic overlap.
-              </p>
-            </div>
+        <div className="mb-6 flex flex-col gap-4 px-1 text-center sm:mb-10 sm:text-left">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-[#ffb36b]">Movie Matcher</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f5f0de] sm:text-4xl">
+              Build your taste profile
+            </h1>
           </div>
         </div>
 

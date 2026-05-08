@@ -1,6 +1,6 @@
-import { UserTasteWithContent, UserTaste } from "@/types";
+import { UserTasteWithContent } from "@/types";
 import { getUserTasteProfile, getAllUserTastesProfiles } from "./user-taste";
-import { getUsersByIds } from "./users";
+import { normalizeUserRecord, getUsersByIds } from "./users";
 
 export interface Friend {
   userId: string;
@@ -34,11 +34,13 @@ export async function getAvailableFriends(
 
       if (!userData) return;
 
+      const normalized = normalizeUserRecord(userId, userData);
+
       friends.push({
         userId,
-        username: userData.username || userData.name || userId,
-        name: userData.name || userData.username || "Unknown user",
-        avatar_url: userData.avatar_url || null,
+        username: normalized.username,
+        name: normalized.name,
+        avatar_url: normalized.avatar_url,
         tasteCount,
         isComplete,
       });

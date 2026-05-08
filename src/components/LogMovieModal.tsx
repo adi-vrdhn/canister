@@ -139,7 +139,7 @@ export default function LogMovieModal({
     if (!isOpen) return;
     if (isEditMode && existingLog) {
       setWatchedDate(existingLog.watched_date || new Date().toISOString().split("T")[0]);
-      setReaction((typeof existingLog.reaction === "number" ? existingLog.reaction : 1) as 0 | 1 | 1.5 | 2);
+      setReaction(typeof existingLog.reaction === "number" ? existingLog.reaction : null);
       setNotes(existingLog.notes || "");
       setTicketImageUrl(existingLog.ticket_image_url || null);
       setShowReviewEditor(false);
@@ -231,11 +231,6 @@ export default function LogMovieModal({
 
     if (!watchedDate) {
       setError("Please select a date");
-      return;
-    }
-
-    if (reaction === null) {
-      setError("Please select a reaction (Bad, Average, Good, or Masterpiece)");
       return;
     }
 
@@ -341,7 +336,7 @@ export default function LogMovieModal({
 
   const hasPreviousWatch = previousWatchDates.length > 0;
   const shareReactionLabel =
-    reaction === 2 ? "Masterpiece" : reaction === 1.5 ? "Average" : reaction === 1 ? "Good" : "Bad";
+    reaction === 2 ? "Masterpiece" : reaction === 1.5 ? "Average" : reaction === 1 ? "Good" : reaction === 0 ? "Bad" : "Unrated";
 
   return (
     <>
@@ -527,13 +522,16 @@ export default function LogMovieModal({
           {/* Reaction Selection */}
           <div>
             <label className={`mb-3 block text-sm font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-              What did you think? *
+              What did you think? (optional)
             </label>
+            <p className={`mb-2 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+              Leave this blank if you want to log the title without a rating.
+            </p>
             <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
               {/* Bad */}
               <button
                 type="button"
-                onClick={() => setReaction(0)}
+                onClick={() => setReaction((current) => (current === 0 ? null : 0))}
                 className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
                   reaction === 0
                     ? isBrutalist
@@ -550,7 +548,7 @@ export default function LogMovieModal({
               {/* Average */}
               <button
                 type="button"
-                onClick={() => setReaction(1.5)}
+                onClick={() => setReaction((current) => (current === 1.5 ? null : 1.5))}
                 className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
                   reaction === 1.5
                     ? isBrutalist
@@ -567,7 +565,7 @@ export default function LogMovieModal({
               {/* Good */}
               <button
                 type="button"
-                onClick={() => setReaction(1)}
+                onClick={() => setReaction((current) => (current === 1 ? null : 1))}
                 className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
                   reaction === 1
                     ? isBrutalist
@@ -584,7 +582,7 @@ export default function LogMovieModal({
               {/* Masterpiece */}
               <button
                 type="button"
-                onClick={() => setReaction(2)}
+                onClick={() => setReaction((current) => (current === 2 ? null : 2))}
                 className={`flex h-9 w-full items-center justify-center rounded-[0.55rem] border px-1 py-0.5 text-center transition-all duration-200 sm:h-10 ${
                   reaction === 2
                     ? isBrutalist

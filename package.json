@@ -10,9 +10,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "deploy:database": "npx firebase-tools deploy --only database"
+    "deploy:database": "npx firebase-tools deploy --only database",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "cap:add": "npx cap add android"
   },
   "dependencies": {
+    "@capacitor/core": "^8.3.1",
     "@types/dompurify": "^3.0.5",
     "axios": "^1.14.0",
     "date-fns": "^4.1.0",
@@ -27,6 +31,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^7.6.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

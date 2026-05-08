@@ -63,14 +63,16 @@ function getReactionLabelFromRating(rating: number): "Bad" | "Good" | "Masterpie
   return "Bad";
 }
 
-function getReactionLabelFromLogReaction(reaction: 0 | 1 | 1.5 | 2): "Bad" | "Average" | "Good" | "Masterpiece" {
+function getReactionLabelFromLogReaction(reaction: 0 | 1 | 1.5 | 2 | null | undefined): "Unrated" | "Bad" | "Average" | "Good" | "Masterpiece" {
+  if (reaction == null) return "Unrated";
   if (reaction === 2) return "Masterpiece";
   if (reaction === 1.5) return "Average";
   if (reaction === 1) return "Good";
   return "Bad";
 }
 
-function getReactionBadgeClassFromLabel(label: "Bad" | "Average" | "Good" | "Masterpiece"): string {
+function getReactionBadgeClassFromLabel(label: "Unrated" | "Bad" | "Average" | "Good" | "Masterpiece"): string {
+  if (label === "Unrated") return "bg-slate-500/20 text-slate-300 border-slate-400/30";
   if (label === "Masterpiece") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
   if (label === "Average") return "bg-amber-500/20 text-amber-300 border-amber-400/30";
   if (label === "Good") return "bg-blue-500/20 text-[#f5f0de] border-blue-400/30";
@@ -103,6 +105,12 @@ function getCrewBuckets(crew: MovieCreditPerson[]) {
   };
 
   return Object.entries(buckets).filter(([, people]) => people.length > 0);
+}
+
+function getDisplayUserLabel(user: User): string {
+  if (user.name && user.name.trim()) return user.name;
+  if (user.username && user.username !== user.id) return `@${user.username}`;
+  return "User";
 }
 
 export default function MoviePage() {
@@ -234,10 +242,11 @@ export default function MoviePage() {
           }
         });
         logs = Array.from(latestLogByUser.values());
-        // Show only friends (not self)
+        // Keep friend logs for the top row, but show only the current user's own logs in history.
+        const myLogs = logs.filter((log) => log.user_id === currentUser.id);
         const friendLogsFiltered = logs.filter(l => l.user_id !== currentUser.id);
         setFriendLogs(friendLogsFiltered);
-        setAllLogs(logs);
+        setAllLogs(myLogs);
 
         setLoading(false);
       } catch (error) {
@@ -455,19 +464,20 @@ export default function MoviePage() {
                 <div className="flex flex-wrap gap-4">
                   {friendLogs.map((log) => {
                     const label = getReactionLabelFromLogReaction(log.reaction);
+                    const userLabel = getDisplayUserLabel(log.user);
                     return (
-                      <div key={log.id} className="flex flex-col items-center cursor-pointer group" onClick={() => router.push(buildLogUrl(log))} title={`View ${log.user.name}'s log`}>
+                      <div key={log.id} className="flex flex-col items-center cursor-pointer group" onClick={() => router.push(buildLogUrl(log))} title={`View ${userLabel}'s log`}>
                         <div className="relative flex flex-col items-center">
                           {log.user.avatar_url ? (
-                            <img src={log.user.avatar_url} alt={log.user.name} className="w-12 h-12 rounded-full border-2 border-white group-hover:scale-105 transition-transform" />
+                            <img src={log.user.avatar_url} alt={userLabel} className="w-12 h-12 rounded-full border-2 border-white group-hover:scale-105 transition-transform" />
                           ) : (
                             <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-lg font-bold text-white border-2 border-white">
-                              {log.user.name.charAt(0).toUpperCase()}
+                              {userLabel.charAt(0).toUpperCase()}
                             </div>
                           )}
                           <span className={`mt-2 text-xs px-2 py-0.5 rounded-full border block ${getReactionBadgeClassFromLabel(label)}`}>{label}</span>
                         </div>
-                        <span className="mt-2 text-xs text-white/80 group-hover:underline">{log.user.name}</span>
+                        <span className="mt-2 text-xs text-white/80 group-hover:underline">{userLabel}</span>
                       </div>
                     );
                   })}
@@ -488,20 +498,21 @@ export default function MoviePage() {
                   <div className="rounded-2xl bg-white/5 border border-white/10 divide-y divide-white/10">
                     {allLogs.map((log) => {
                       const label = getReactionLabelFromLogReaction(log.reaction);
+                      const userLabel = "You";
                       return (
                         <div key={log.id} className="flex items-center gap-4 p-4 sm:p-5">
-                          <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(log))} title={`View ${log.user.name}'s log`}>
+                          <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(log))} title={`View ${userLabel}'s log`}>
                             {log.user.avatar_url ? (
-                              <img src={log.user.avatar_url} alt={log.user.name} className="w-10 h-10 rounded-full border-2 border-white" />
+                              <img src={log.user.avatar_url} alt={userLabel} className="w-10 h-10 rounded-full border-2 border-white" />
                             ) : (
                               <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-base font-bold text-white border-2 border-white">
-                                {log.user.name.charAt(0).toUpperCase()}
+                                Y
                               </div>
                             )}
                             <span className={`mt-1 text-xs px-2 py-0.5 rounded-full border block ${getReactionBadgeClassFromLabel(label)}`}>{label}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-white/90 cursor-pointer hover:underline" onClick={() => router.push(buildLogUrl(log))}>{log.user.name}</span>
+                            <span className="font-semibold text-white/90 cursor-pointer hover:underline" onClick={() => router.push(buildLogUrl(log))}>{userLabel}</span>
                             {log.notes && (
                               <p className="text-white/80 mt-1 line-clamp-3">{log.notes}</p>
                             )}

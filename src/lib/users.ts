@@ -17,11 +17,39 @@ type UserRecord = Record<string, unknown> & {
 const PROFILE_TTL_MS = 5 * 60 * 1000;
 const ALL_USERS_TTL_MS = 2 * 60 * 1000;
 
-function normalizeUserRecord(id: string, raw: UserRecord): User {
+function normalizeLabel(value?: string | null): string {
+  return value?.trim().replace(/^@/, "") || "";
+}
+
+function isPlaceholderLabel(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return (
+    !normalized ||
+    normalized === "unknown" ||
+    normalized === "unknown user" ||
+    normalized === "anonymous" ||
+    normalized === "guest" ||
+    normalized === "user"
+  );
+}
+
+export function formatFallbackUserName(userId: string) {
+  const shortId = userId.trim().slice(0, 6);
+  return shortId ? `User ${shortId}` : "User";
+}
+
+export function normalizeUserRecord(id: string, raw: UserRecord): User {
+  const username = normalizeLabel(raw.username);
+  const name = normalizeLabel(raw.name);
+  const displayName =
+    (name && !isPlaceholderLabel(name) && name !== id.trim() ? name : null) ||
+    (username && !isPlaceholderLabel(username) && username !== id.trim() ? username : null) ||
+    formatFallbackUserName(id);
+
   return {
     id: raw.id || id,
-    username: raw.username || id,
-    name: raw.name || raw.username || "Unknown user",
+    username: username || id,
+    name: displayName,
     avatar_url: raw.avatar_url || null,
     created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
   };
@@ -31,7 +59,7 @@ export function createFallbackUser(userId: string): User {
   return {
     id: userId,
     username: userId,
-    name: "Unknown user",
+    name: formatFallbackUserName(userId),
     avatar_url: null,
     created_at: new Date().toISOString(),
   };

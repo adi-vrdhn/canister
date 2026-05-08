@@ -6,6 +6,7 @@ import { get, ref } from "firebase/database";
 import { auth, db } from "@/lib/firebase";
 import type { User } from "@/types";
 import { DEFAULT_SETTINGS, mergeSettings, type SettingsData } from "@/lib/settings";
+import { normalizeUserRecord } from "@/lib/users";
 
 type CurrentUserContextValue = {
   user: User | null;
@@ -20,13 +21,13 @@ function buildFallbackUser(firebaseUser: {
   displayName: string | null;
   email: string | null;
 }): User {
-  return {
+  return normalizeUserRecord(firebaseUser.uid, {
     id: firebaseUser.uid,
     username: firebaseUser.email?.split("@")[0] || "user",
     name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
     avatar_url: null,
     created_at: new Date().toISOString(),
-  };
+  });
 }
 
 export function CurrentUserProvider({ children }: { children: ReactNode }) {
@@ -51,12 +52,16 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
         const userData = userSnapshot.exists() ? userSnapshot.val() : null;
 
         setSettings(mergeSettings(userData?.settings));
-        setUser({
+        const normalizedUser = normalizeUserRecord(firebaseUser.uid, {
           id: userData?.id || firebaseUser.uid,
           username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
           name: userData?.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
           avatar_url: userData?.avatar_url || null,
           created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
+        });
+
+        setUser({
+          ...normalizedUser,
           bio: userData?.bio || "",
           display_list_id: userData?.display_list_id || undefined,
           mood_tags: userData?.mood_tags || [],

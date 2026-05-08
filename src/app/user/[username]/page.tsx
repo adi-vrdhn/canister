@@ -290,7 +290,7 @@ export default function UserProfilePage() {
                       </p>
                       <div className="flex items-center gap-3 text-sm">
                         <span className="font-medium text-gray-900">
-                          {log.reaction === 2 ? "Masterpiece" : log.reaction === 1.5 ? "Average" : log.reaction === 1 ? "Good" : "Bad"}
+                          {log.reaction == null ? "Unrated" : log.reaction === 2 ? "Masterpiece" : log.reaction === 1.5 ? "Average" : log.reaction === 1 ? "Good" : "Bad"}
                         </span>
                         {log.mood && (
                           <span className="px-2 py-1 bg-blue-100 text-[#f5f0de] rounded text-xs">

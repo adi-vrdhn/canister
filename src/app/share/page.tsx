@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import SearchBar from "@/components/SearchBar";
@@ -43,6 +43,54 @@ type ShareRecord = {
   movie?: Content | null;
   content?: Content | null;
 } & Record<string, unknown>;
+
+const RECIPIENT_PRIORITY_STORAGE_PREFIX = "share-recipient-priority";
+
+function recipientPriorityStorageKey(userId: string): string {
+  return `${RECIPIENT_PRIORITY_STORAGE_PREFIX}:${userId}`;
+}
+
+function readRecipientPriority(userId: string): Record<string, number> {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const raw = window.localStorage.getItem(recipientPriorityStorageKey(userId));
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => typeof value === "number" && Number.isFinite(value))
+    ) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+function writeRecipientPriority(userId: string, priorityMap: Record<string, number>): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(recipientPriorityStorageKey(userId), JSON.stringify(priorityMap));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function bumpRecipientPriority(
+  currentMap: Record<string, number>,
+  userId: string,
+  recipientId: string
+): Record<string, number> {
+  const nextMap = {
+    ...currentMap,
+    [recipientId]: (currentMap[recipientId] || 0) + 1,
+  };
+
+  writeRecipientPriority(userId, nextMap);
+  return nextMap;
+}
 
 function createMovieContent(
   movie: Awaited<ReturnType<typeof getMovieDetails>>,
@@ -110,6 +158,10 @@ function SharePageContent() {
   const [watchConflictRecipients, setWatchConflictRecipients] = useState<User[]>([]);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const hasInitializedFromParams = useRef(false);
+  const recipientPriority = useMemo(
+    () => (user ? readRecipientPriority(user.id) : {}),
+    [user]
+  );
 
   useEffect(() => {
     let unsubscribeFollowers = () => {};
@@ -349,15 +401,42 @@ function SharePageContent() {
 
   const progressPercentage = (currentStep / 2) * 100;
 
-  const filteredFollowers = followers.filter((friend) => {
-    const query = followersSearchQuery.toLowerCase();
-    const username = typeof friend.username === "string" ? friend.username.toLowerCase() : "";
-    const name = typeof friend.name === "string" ? friend.name.toLowerCase() : "";
-    return (
-      username.includes(query) ||
-      name.includes(query)
-    );
-  });
+  const filteredFollowers = useMemo(() => {
+    const query = followersSearchQuery.trim().toLowerCase();
+
+    return [...followers]
+      .filter((friend) => {
+        if (!query) return true;
+
+        const username = typeof friend.username === "string" ? friend.username.toLowerCase() : "";
+        const name = typeof friend.name === "string" ? friend.name.toLowerCase() : "";
+        return username.includes(query) || name.includes(query);
+      })
+      .sort((a, b) => {
+        const aUsername = typeof a.username === "string" ? a.username.toLowerCase() : "";
+        const aName = typeof a.name === "string" ? a.name.toLowerCase() : "";
+        const bUsername = typeof b.username === "string" ? b.username.toLowerCase() : "";
+        const bName = typeof b.name === "string" ? b.name.toLowerCase() : "";
+
+        const scoreFriend = (username: string, name: string, id: string) => {
+          let score = recipientPriority[id] || 0;
+          if (query) {
+            if (username === query || name === query) score += 1000;
+            if (username.startsWith(query) || name.startsWith(query)) score += 500;
+            if (username.includes(query) || name.includes(query)) score += 250;
+          }
+          return score;
+        };
+
+        const scoreDiff = scoreFriend(bUsername, bName, b.id) - scoreFriend(aUsername, aName, a.id);
+        if (scoreDiff !== 0) return scoreDiff;
+
+        const nameDiff = aName.localeCompare(bName);
+        if (nameDiff !== 0) return nameDiff;
+
+        return aUsername.localeCompare(bUsername);
+      });
+  }, [followers, followersSearchQuery, recipientPriority]);
 
   const filteredSentShares = sentShares.filter((share) => {
     const query = sharedSearchQuery.trim().toLowerCase();
@@ -456,6 +535,10 @@ function SharePageContent() {
     const recipient = followers.find((friend) => friend.id === recipientId);
     if (!recipient) {
       return;
+    }
+
+    if (user?.id) {
+      bumpRecipientPriority(readRecipientPriority(user.id), user.id, recipientId);
     }
 
     if (!selectedRecipients.find((existing) => existing.id === recipientId)) {
@@ -862,12 +945,12 @@ function SharePageContent() {
                       filteredFollowers.map((friend) => (
                         <button
                           key={friend.id}
-                          className="flex w-full items-center justify-between gap-3 border-b border-white/10 px-0 py-3 text-left transition-colors hover:border-white/20"
+                          className="flex w-full items-center justify-between gap-3 border border-white/10 bg-white/[0.03] px-3 py-3 text-left transition-colors hover:border-white/20 hover:bg-white/[0.06]"
                           onClick={() => handleAddRecipient(friend.id)}
                         >
                           <div>
-                            <p className="text-sm font-semibold text-[#f5f0de]">@{friend.username}</p>
-                            <p className="text-xs text-white/55">{friend.name}</p>
+                            <p className="text-sm font-semibold text-slate-200">@{friend.username}</p>
+                            <p className="text-xs text-slate-400">{friend.name}</p>
                           </div>
 
                           <div

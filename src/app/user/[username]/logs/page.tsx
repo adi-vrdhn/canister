@@ -99,6 +99,7 @@ function groupLogsByMonth(logsToGroup: MovieLogWithContent[]): Array<{ month: st
 }
 
 function getReactionLabel(log: MovieLogWithContent): string {
+  if (log.reaction == null) return "Unrated";
   if (log.reaction === 2) return "Masterpiece";
   if (log.reaction === 1.5) return "Average";
   if (log.reaction === 1) return "Good";
@@ -106,6 +107,7 @@ function getReactionLabel(log: MovieLogWithContent): string {
 }
 
 function getReactionClasses(log: MovieLogWithContent): string {
+  if (log.reaction == null) return "bg-slate-50 text-slate-500 border border-slate-200";
   if (log.reaction === 2) return "bg-emerald-50 text-emerald-700 border border-emerald-200";
   if (log.reaction === 1.5) return "bg-amber-50 text-amber-700 border border-amber-200";
   if (log.reaction === 1) return "bg-sky-50 text-[#f5f0de] border border-sky-200";

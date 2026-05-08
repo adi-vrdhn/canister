@@ -40,14 +40,16 @@ function getReactionLabelFromRating(rating: number): "Bad" | "Good" | "Masterpie
   return "Bad";
 }
 
-function getReactionLabelFromLogReaction(reaction: 0 | 1 | 1.5 | 2): "Bad" | "Average" | "Good" | "Masterpiece" {
+function getReactionLabelFromLogReaction(reaction: 0 | 1 | 1.5 | 2 | null | undefined): "Unrated" | "Bad" | "Average" | "Good" | "Masterpiece" {
+  if (reaction == null) return "Unrated";
   if (reaction === 2) return "Masterpiece";
   if (reaction === 1.5) return "Average";
   if (reaction === 1) return "Good";
   return "Bad";
 }
 
-function getReactionBadgeClassFromLabel(label: "Bad" | "Average" | "Good" | "Masterpiece"): string {
+function getReactionBadgeClassFromLabel(label: "Unrated" | "Bad" | "Average" | "Good" | "Masterpiece"): string {
+  if (label === "Unrated") return "bg-slate-500/20 text-slate-300 border-slate-400/30";
   if (label === "Masterpiece") return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
   if (label === "Average") return "bg-amber-500/20 text-amber-300 border-amber-400/30";
   if (label === "Good") return "bg-blue-500/20 text-[#f5f0de] border-blue-400/30";

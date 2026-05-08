@@ -103,12 +103,12 @@ export default function PageLayout({
           <Image
             src="/logo.png"
             alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 rounded-full object-cover sm:h-8 sm:w-8"
+            width={34}
+            height={34}
+            className="h-8 w-8 rounded-full object-cover sm:h-9 sm:w-9"
             aria-hidden="true"
           />
-          <span className="brand-wordmark text-xl font-bold tracking-tight sm:text-2xl">
+          <span className="brand-wordmark text-2xl font-bold tracking-tight sm:text-[2rem]">
             Canisterr
           </span>
         </Link>

@@ -535,7 +535,7 @@ export default function LogDetailPage() {
           content_id: logContentId,
           content_type: contentType,
           watched_date: logData.watched_date || new Date().toISOString().slice(0, 10),
-          reaction: typeof logData.reaction === "number" ? logData.reaction : 1,
+          reaction: typeof logData.reaction === "number" ? logData.reaction : null,
           notes: getVisibleLogNotes(logData),
           created_at: logData.created_at || new Date().toISOString(),
           updated_at: logData.updated_at || new Date().toISOString(),
@@ -752,35 +752,38 @@ export default function LogDetailPage() {
     return `${dayNum}${daySuffix} ${monthName} ${d.getFullYear()}`;
   };
 
-  const getReactionDisplay = (reaction: 0 | 1 | 1.5 | 2) => {
+  const getReactionDisplay = (reaction: 0 | 1 | 1.5 | 2 | null | undefined) => {
+    if (reaction == null) {
+      return {
+        label: "Unrated",
+        textClass: "text-[#f5f0de]",
+        icon: CalendarDays,
+      };
+    }
     switch (reaction) {
       case 2:
         return {
           label: "Masterpiece",
-          textClass: "text-emerald-700",
-          badgeClass: "bg-emerald-50 border-emerald-200",
+          textClass: "text-[#ff7a1a]",
           icon: Sparkles,
         };
       case 1.5:
         return {
           label: "Average",
-          textClass: "text-amber-700",
-          badgeClass: "bg-amber-50 border-amber-200",
+          textClass: "text-[#ffb36b]/90",
           icon: Sparkles,
         };
       case 1:
         return {
           label: "Good",
-          textClass: "text-[#f5f0de]",
-          badgeClass: "bg-sky-50 border-sky-200",
+          textClass: "text-[#ffb36b]",
           icon: Heart,
         };
       case 0:
       default:
         return {
           label: "Bad",
-          textClass: "text-rose-700",
-          badgeClass: "bg-rose-50 border-rose-200",
+          textClass: "text-[#ffb36b]/85",
           icon: ThumbsDown,
         };
     }
@@ -1205,15 +1208,10 @@ export default function LogDetailPage() {
                 )}
               </h2>
               {(() => {
-                const reaction = getReactionDisplay(log.reaction as 0 | 1 | 1.5 | 2);
-                const reactionLabel = <span className={reaction.textClass}>{reaction.label}</span>;
+                const reaction = getReactionDisplay(log.reaction);
                 return (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-2 border px-4 py-1.5 text-sm font-bold ${reaction.badgeClass}`}
-                    >
-                      {reactionLabel}
-                    </span>
+                    <span className={`text-lg font-black tracking-tight sm:text-xl ${reaction.textClass}`}>{reaction.label}</span>
                   </div>
                 );
               })()}
@@ -1352,11 +1350,11 @@ export default function LogDetailPage() {
             {showUserLogs && (
               <div className="divide-y divide-white/10">
                 {userLogs.map((l) => {
-                  const reaction = getReactionDisplay(l.reaction as 0 | 1 | 1.5 | 2);
+                  const reaction = getReactionDisplay(l.reaction);
                   return (
                     <div key={l.id} className="flex items-center gap-4 py-4">
                       <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(l))} title={`View this log`}>
-                        <span className={`mt-1 text-xs px-2 py-0.5 rounded-full border block ${reaction.badgeClass}`}>{reaction.label}</span>
+                        <span className={`mt-1 block text-sm font-bold sm:text-base ${reaction.textClass}`}>{reaction.label}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-slate-900 cursor-pointer hover:underline" onClick={() => router.push(buildLogUrl(l))}>

@@ -15,7 +15,7 @@ import {
 import { getListCoverImages } from "./lists";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
-import { createFallbackUser, getUsersByIds } from "./users";
+import { createFallbackUser, normalizeUserRecord, getUsersByIds } from "./users";
 
 type CreateCinePostInput = {
   user: User;
@@ -55,13 +55,7 @@ function fallbackUser(userId: string): User {
 }
 
 function normalizeUser(userId: string, userData: any): User {
-  return {
-    id: userData?.id || userId,
-    username: userData?.username || userData?.name || userId,
-    name: userData?.name || userData?.username || "Unknown user",
-    avatar_url: userData?.avatar_url || null,
-    created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
-  };
+  return normalizeUserRecord(userId, userData || {});
 }
 
 function cleanTags(tags: string[]): string[] {
@@ -75,7 +69,8 @@ function cleanTags(tags: string[]): string[] {
   ).slice(0, 8);
 }
 
-function reactionLabel(reaction: 0 | 1 | 1.5 | 2): string {
+function reactionLabel(reaction: 0 | 1 | 1.5 | 2 | null | undefined): string {
+  if (reaction == null) return "Unrated";
   if (reaction === 2) return "Masterpiece";
   if (reaction === 1.5) return "Average";
   if (reaction === 1) return "Good";

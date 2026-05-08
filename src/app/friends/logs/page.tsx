@@ -65,7 +65,10 @@ export default function FriendLogsPage() {
     return `${day}/${month}/${year.slice(-2)}`;
   };
 
-  const getReactionLabel = (reaction: 0 | 1 | 1.5 | 2) => {
+  const getReactionLabel = (reaction: 0 | 1 | 1.5 | 2 | null | undefined) => {
+    if (reaction == null) {
+      return { label: "Unrated", color: "text-gray-500" };
+    }
     switch (reaction) {
       case 2:
         return { label: "Masterpiece", color: "text-slate-700" };
@@ -193,7 +196,7 @@ export default function FriendLogsPage() {
                   {/* Reaction */}
                   <div className="sm:mb-3">
                     {(() => {
-                      const reaction = getReactionLabel(log.reaction as 0 | 1 | 1.5 | 2);
+                      const reaction = getReactionLabel(log.reaction as 0 | 1 | 1.5 | 2 | null | undefined);
                       return <span className={`text-[10px] font-medium leading-tight sm:text-sm ${reaction.color}`}>{reaction.label}</span>;
                     })()}
                   </div>

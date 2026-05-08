@@ -738,6 +738,7 @@ export async function getMostWatchedGenres(
 
           if (content && content.genres) {
             // Weight by reaction: 2=masterpiece (+2), 1=good (+1), 0=bad (-1)
+            if (log.reaction == null) return;
             const weight = log.reaction === 2 ? 2 : log.reaction === 1 ? 1 : -1;
 
             content.genres.forEach((genre: string) => {
@@ -857,6 +858,7 @@ export async function getPersonalityCard(userId: string): Promise<{
 
           if (content) {
             // Weight genres by reaction: 2=masterpiece (+2), 1=good (+1), 0=bad (-1)
+            if (log.reaction == null) return;
             const weight = log.reaction === 2 ? 2 : log.reaction === 1 ? 1 : -1;
             if (content.genres) {
               content.genres.forEach((g: string) => {

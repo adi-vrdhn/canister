@@ -3,7 +3,8 @@ import { db } from "@/lib/firebase";
 import { MovieReviewWithUser, User } from "@/types";
 import { getUserProfile, getUsersByIds } from "@/lib/users";
 
-function mapReactionToRating(reaction: 0 | 1 | 1.5 | 2 | undefined): 1 | 2 | 3 | 4 | 5 {
+function mapReactionToRating(reaction: 0 | 1 | 1.5 | 2 | null | undefined): 1 | 2 | 3 | 4 | 5 {
+  if (reaction == null) return 3;
   if (reaction === 2) return 5;
   if (reaction === 1) return 4;
   if (reaction === 1.5) return 3;

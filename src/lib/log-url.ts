@@ -10,6 +10,13 @@ function slugifySegment(value: string): string {
     .slice(0, 80) || "item";
 }
 
+function slugifyTitleWithYear(title: string, year?: string | number | null): string {
+  const base = slugifySegment(title);
+  const yearValue = year == null ? "" : String(year).trim();
+  if (!yearValue) return base;
+  return `${base}-${yearValue}`;
+}
+
 export function buildLogUrl(
   log: Pick<MovieLogWithContent, "id" | "content" | "user" | "user_id">,
   extraParams?: Record<string, string | number | null | undefined>
@@ -18,9 +25,10 @@ export function buildLogUrl(
   const username = log.user?.username || log.user_id || log.user?.id || "user";
   const movieName =
     log.content?.title || ("name" in log.content ? log.content.name : undefined) || "log";
+  const releaseYear = log.content?.release_date ? new Date(log.content.release_date).getFullYear() : null;
 
   params.set("user", slugifySegment(username));
-  params.set("movie", slugifySegment(movieName));
+  params.set("movie", slugifyTitleWithYear(movieName, Number.isFinite(releaseYear) ? releaseYear : null));
 
   if (extraParams) {
     Object.entries(extraParams).forEach(([key, value]) => {
@@ -37,11 +45,12 @@ export function buildLogUrlFromUserAndTitle(
   logId: string,
   user: Pick<User, "id" | "username"> | null | undefined,
   title: string,
+  year?: string | number | null,
   extraParams?: Record<string, string | number | null | undefined>
 ): string {
   const params = new URLSearchParams();
   params.set("user", slugifySegment(user?.username || user?.id || "user"));
-  params.set("movie", slugifySegment(title || "log"));
+  params.set("movie", slugifyTitleWithYear(title || "log", year));
 
   if (extraParams) {
     Object.entries(extraParams).forEach(([key, value]) => {

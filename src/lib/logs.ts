@@ -143,7 +143,7 @@ export async function createMovieLog(
   contentId: number,
   contentType: "movie" | "tv",
   watchedDate: string,
-  reaction: 0 | 1 | 1.5 | 2, // 0=Bad, 1=Good, 1.5=Average, 2=Masterpiece
+  reaction: MovieLog["reaction"] = null,
   notes: string,
   mood?: string,
   contextLog?: {
@@ -172,7 +172,7 @@ export async function createMovieLog(
     content_id: contentId,
     content_type: contentType,
     watched_date: watchedDate,
-    reaction,
+    reaction: reaction ?? null,
     notes,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

@@ -46,7 +46,8 @@ type ActivityItem =
       log: MovieLogWithContent & { friend: User };
     };
 
-function reactionLabel(reaction: 0 | 1 | 1.5 | 2): string {
+function reactionLabel(reaction: 0 | 1 | 1.5 | 2 | null | undefined): string {
+  if (reaction == null) return "Unrated";
   if (reaction === 2) return "Masterpiece";
   if (reaction === 1.5) return "Average";
   if (reaction === 1) return "Good";

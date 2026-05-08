@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Content } from "@/types";
 
 interface WatchHistoryProps {
-  movies: Array<{ content: Content; reaction?: 0 | 1 | 1.5 | 2; watched_at?: string }>;
+  movies: Array<{ content: Content; reaction?: 0 | 1 | 1.5 | 2 | null; watched_at?: string }>;
   isOwnProfile: boolean;
 }
 
@@ -96,7 +96,7 @@ export default function WatchHistory({ movies, isOwnProfile }: WatchHistoryProps
                 )}
 
                 {/* Reaction Badge */}
-                {item.reaction !== undefined && (
+                {item.reaction != null && (
                   <div
                     className={`absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white ${
                       item.reaction === 2 ? "bg-slate-900" : item.reaction === 1.5 ? "bg-slate-700" : item.reaction === 1 ? "bg-slate-600" : "bg-slate-500"

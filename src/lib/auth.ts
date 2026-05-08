@@ -20,6 +20,7 @@ import {
   query,
 } from "firebase/database";
 import { User as DBUser } from "@/types";
+import { normalizeUserRecord } from "@/lib/users";
 
 let persistencePromise: Promise<void> | null = null;
 
@@ -109,34 +110,40 @@ export async function getCurrentUser(): Promise<DBUser | null> {
 
         if (snapshot.exists()) {
           const userData = snapshot.val();
-          resolve({
-            id: userData.id,
-            username: userData.username,
-            name: userData.name,
-            avatar_url: userData.avatar_url || null,
-            created_at: userData.createdAt || new Date().toISOString(),
-          });
+          resolve(
+            normalizeUserRecord(firebaseUser.uid, {
+              id: userData.id || firebaseUser.uid,
+              username: userData.username,
+              name: userData.name,
+              avatar_url: userData.avatar_url || null,
+              created_at: userData.createdAt || userData.created_at || new Date().toISOString(),
+            }) as DBUser
+          );
           return;
         }
 
         // Fallback: create user object from auth data if profile doesn't exist
-        resolve({
-          id: firebaseUser.uid,
-          username: firebaseUser.email?.split("@")[0] || "user",
-          name: firebaseUser.displayName || firebaseUser.email || "User",
-          avatar_url: null,
-          created_at: new Date().toISOString(),
-        });
+        resolve(
+          normalizeUserRecord(firebaseUser.uid, {
+            id: firebaseUser.uid,
+            username: firebaseUser.email?.split("@")[0] || "user",
+            name: firebaseUser.displayName || firebaseUser.email || "User",
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+          }) as DBUser
+        );
       } catch (err) {
         console.warn("Database query failed, using auth data:", err);
         // Fallback to auth data if query fails
-        resolve({
-          id: firebaseUser.uid,
-          username: firebaseUser.email?.split("@")[0] || "user",
-          name: firebaseUser.displayName || firebaseUser.email || "User",
-          avatar_url: null,
-          created_at: new Date().toISOString(),
-        });
+        resolve(
+          normalizeUserRecord(firebaseUser.uid, {
+            id: firebaseUser.uid,
+            username: firebaseUser.email?.split("@")[0] || "user",
+            name: firebaseUser.displayName || firebaseUser.email || "User",
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+          }) as DBUser
+        );
       }
     });
   });
