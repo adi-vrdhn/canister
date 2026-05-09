@@ -35,7 +35,7 @@ export function useSettingsUser() {
         const raw = snapshot.val();
 
         setUser({
-          id: raw?.id || firebaseUser.uid,
+          id: firebaseUser.uid,
           username: raw?.username || firebaseUser.email?.split("@")[0] || "user",
           name: raw?.name || firebaseUser.displayName || "User",
           avatar_url: raw?.avatar_url || null,

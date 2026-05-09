@@ -220,13 +220,7 @@ export async function sendTestPushNotification(userId: string): Promise<PushSend
     return { ok: false, error: "Missing user id for test push notification." };
   }
 
-  const targetToken = getCurrentPushToken();
-  if (!targetToken) {
-    return {
-      ok: false,
-      error: "This device has not registered a push token yet. Enable notifications on this device first.",
-    };
-  }
+  const targetToken = getCurrentPushToken() || undefined;
 
   try {
     const response = await fetch("/api/push/send", {
@@ -240,7 +234,7 @@ export async function sendTestPushNotification(userId: string): Promise<PushSend
         body: "Push notifications are working on this device.",
         url: "/notifications",
         tag: "canisterr-test",
-        targetToken,
+        ...(targetToken ? { targetToken } : {}),
       }),
     });
 

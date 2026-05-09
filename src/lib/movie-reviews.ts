@@ -30,39 +30,6 @@ export async function getMovieReviewFeed(
   const mergedReviews: MovieReviewWithUser[] = [];
 
   try {
-    const reviewsSnapshot = await get(ref(db, "reviews"));
-    if (reviewsSnapshot.exists()) {
-      const allReviews = reviewsSnapshot.val() || {};
-      const tableReviews = Object.entries(allReviews)
-        .map(([key, review]: any) => ({ id: key, ...review }))
-        .filter(
-          (review: any) =>
-            Number(review.content_id) === contentId && review.content_type === contentType
-        );
-
-      const tableUsers = await getUsersByIds(tableReviews.map((review) => review.user_id));
-
-      for (const review of tableReviews) {
-        const resolvedUser = tableUsers[review.user_id] || (await resolveUser(review.user_id));
-        mergedReviews.push({
-          id: String(review.id),
-          user_id: review.user_id,
-          content_id: contentId,
-          content_type: contentType,
-          rating: review.rating,
-          text: review.text || "",
-          likes_count: review.likes_count || 0,
-          created_at: review.created_at || new Date().toISOString(),
-          updated_at: review.updated_at || review.created_at || new Date().toISOString(),
-          user: resolvedUser,
-        });
-      }
-    }
-  } catch (error) {
-    console.warn("Skipping legacy reviews table for movie feed:", error);
-  }
-
-  try {
     const movieLogsSnapshot = await get(ref(db, "movie_logs"));
     if (movieLogsSnapshot.exists()) {
       const allLogs = movieLogsSnapshot.val() || {};

@@ -183,7 +183,7 @@ function SharePageContent() {
         if (userSnapshot.exists()) {
           const userData = userSnapshot.val();
           currentUser = {
-            id: userData.id,
+            id: firebaseUser.uid,
             username: userData.username,
             name: userData.name,
             avatar_url: userData.avatar_url || null,

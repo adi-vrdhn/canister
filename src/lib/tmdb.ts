@@ -3,6 +3,7 @@ import { ParsedIntent } from "./nlp-parser";
 import { fetchTmdb } from "./tmdb-transport";
 import { getTmdbBackdropUrl, getTmdbImageUrl, getTmdbPosterUrl } from "./performance";
 import { readBrowserCache, readBrowserCacheEntry, writeBrowserCache } from "./browser-cache";
+import { searchMovieCatalog, upsertMovieCatalog } from "./movie-catalog";
 
 // Genre ID mappings for TMDB discover API
 const GENRE_MAP: Record<string, number> = {
@@ -233,7 +234,9 @@ async function performMovieSearch(query: string, page: number = 1): Promise<TMDB
   }
 
   if (page > 1) {
-    return fetchMovieSearch(trimmedQuery, page);
+    const pagedResults = await fetchMovieSearch(trimmedQuery, page);
+    await upsertMovieCatalog(pagedResults);
+    return pagedResults;
   }
 
   const requestedYear = extractSearchYear(trimmedQuery);
@@ -250,6 +253,14 @@ async function performMovieSearch(query: string, page: number = 1): Promise<TMDB
     ? Array.from(new Set([titleQuery, removeYear(trimmedQuery)].filter((entry) => entry.trim().length >= 1)))
     : [];
 
+  const localResults = await searchMovieCatalog(trimmedQuery);
+  if (localResults.length >= 10) {
+    return rankMovieSearchResults(localResults, trimmedQuery, titleQuery, {
+      requestedYear,
+      personMovieIds: new Set(),
+    });
+  }
+
   const [movieResultGroups, personMovieIds] = await Promise.all([
     Promise.all([
       ...baseSearchQueries.flatMap((searchQuery) =>
@@ -262,11 +273,13 @@ async function performMovieSearch(query: string, page: number = 1): Promise<TMDB
     getPersonMovieIds(people),
   ]);
 
-  const movies = uniqueMovies(movieResultGroups.flat());
+  const movies = uniqueMovies([...localResults, ...movieResultGroups.flat()]);
 
   if (movies.length === 0) {
     return [];
   }
+
+  await upsertMovieCatalog(movies);
 
   return rankMovieSearchResults(movies, trimmedQuery, titleQuery, {
     requestedYear,
@@ -577,7 +590,9 @@ export async function getPopularMovies(page: number = 1, limit: number = 12): Pr
     }
 
     const data: TMDBSearchResponse = await response.json();
-    return data.results.slice(0, limit);
+    const results = data.results.slice(0, limit);
+    await upsertMovieCatalog(results);
+    return results;
   } catch (error) {
     console.error("TMDB popular movies error:", error);
     return [];
@@ -632,7 +647,9 @@ export async function discoverMoviesByGenre(
       }
     }
 
-    return rankDiscoverResults(Array.from(results.values()), preferredGenreIds);
+    const ranked = rankDiscoverResults(Array.from(results.values()), preferredGenreIds);
+    await upsertMovieCatalog(ranked);
+    return ranked;
   } catch (error) {
     console.error("TMDB discover error:", error);
     return [];

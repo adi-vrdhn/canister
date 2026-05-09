@@ -20,12 +20,13 @@ function buildFallbackUser(firebaseUser: {
   uid: string;
   displayName: string | null;
   email: string | null;
+  photoURL: string | null;
 }): User {
   return normalizeUserRecord(firebaseUser.uid, {
     id: firebaseUser.uid,
     username: firebaseUser.email?.split("@")[0] || "user",
     name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
-    avatar_url: null,
+    avatar_url: firebaseUser.photoURL || null,
     created_at: new Date().toISOString(),
   });
 }
@@ -56,7 +57,7 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
           id: userData?.id || firebaseUser.uid,
           username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
           name: userData?.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
-          avatar_url: userData?.avatar_url || null,
+          avatar_url: userData?.avatar_url || firebaseUser.photoURL || null,
           created_at: userData?.created_at || userData?.createdAt || new Date().toISOString(),
         });
 
@@ -69,7 +70,14 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
         });
       } catch {
         setSettings(DEFAULT_SETTINGS);
-        setUser(buildFallbackUser(firebaseUser));
+        setUser(
+          buildFallbackUser({
+            uid: firebaseUser.uid,
+            displayName: firebaseUser.displayName,
+            email: firebaseUser.email,
+            photoURL: firebaseUser.photoURL,
+          })
+        );
       } finally {
         setLoading(false);
       }

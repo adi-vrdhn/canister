@@ -11,6 +11,7 @@ import { CinePostEngagementType, CinePostWithDetails, Content, TMDBMovie, User }
 import {
   getCinePostEngagementUsers,
   getCinePosts,
+  getCinePostDisplayBody,
   setCinePostEngagement,
 } from "@/lib/cineposts";
 import { getPublicLists, getListWithDetails } from "@/lib/lists";
@@ -54,7 +55,11 @@ function Avatar({
   dark?: boolean;
 }) {
   if (user.avatar_url) {
-    return <img src={user.avatar_url} alt={user.name} className={`${size} rounded-full object-cover`} />;
+    return (
+      <div className={`${size} overflow-hidden rounded-full border border-white/15 bg-white/5 shadow-sm`}>
+        <img src={user.avatar_url} alt={user.name} className="h-full w-full object-cover" />
+      </div>
+    );
   }
 
   return (
@@ -725,7 +730,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   const renderPostCard = (post: CinePostWithDetails, index: number, withDiscoveryRails = true) => {
     const contentHref = getContentHref(post);
     const postHref = `/posts/${post.id}`;
-    const preview = getPreview(post.body);
+    const preview = getPreview(getCinePostDisplayBody(post));
     const shouldIgnorePostClick = (target: EventTarget | null) => {
       if (!(target instanceof Element)) return false;
       return Boolean(target.closest("a,button,[role='button'],input,textarea,select,label"));

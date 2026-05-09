@@ -66,6 +66,22 @@ export function getDisplayUserName(user: Pick<User, "id" | "username" | "name">,
   return formatFallbackUserName(user.id);
 }
 
+export function getDisplayUserHandle(user: Pick<User, "id" | "username">, currentUser?: User | null): string {
+  if (currentUser && currentUser.id === user.id) {
+    const currentUsername = currentUser.username?.trim();
+    if (currentUsername && !isPlaceholderLabel(currentUsername)) {
+      return currentUsername.startsWith("@") ? currentUsername : `@${currentUsername}`;
+    }
+  }
+
+  const username = user.username?.trim();
+  if (username && !isPlaceholderLabel(username) && username !== user.id.trim()) {
+    return username.startsWith("@") ? username : `@${username}`;
+  }
+
+  return `@${user.id.trim().slice(0, 6) || "user"}`;
+}
+
 export function normalizeUserRecord(id: string, raw: NormalizableUserRecord): User {
   const username = normalizeLabel(raw.username);
   const name = normalizeLabel(raw.name);
@@ -76,7 +92,8 @@ export function normalizeUserRecord(id: string, raw: NormalizableUserRecord): Us
     formatFallbackUserName(id);
 
   return {
-    id: raw.id || id,
+    // The RTDB key is the canonical user id; never trust a stored `raw.id` to override it.
+    id,
     username: username || id,
     name: displayName,
     avatar_url: raw.avatar_url || null,

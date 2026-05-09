@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { ref, get, push, set, remove } from "firebase/database";
 import {
   CinePost,
@@ -67,6 +67,34 @@ function cleanTags(tags: string[]): string[] {
         .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`))
     )
   ).slice(0, 8);
+}
+
+export function getCinePostDisplayBody(post: Pick<CinePostWithDetails, "type" | "body">): string {
+  const body = post.body || "";
+  if (post.type !== "log" || !body) return body;
+
+  const legacyPrefixMatch = body.match(/^Just watched[^\n]*(?:\n\n)?/i);
+  if (!legacyPrefixMatch) return body;
+
+  return body.slice(legacyPrefixMatch[0].length).trimStart();
+}
+
+export function getCinePostLogRatingLabel(
+  post: Pick<CinePostWithDetails, "type" | "body" | "tags">
+): string | null {
+  if (post.type !== "log") return null;
+
+  const tags = Array.isArray(post.tags) ? post.tags : [];
+  const tagMatch = tags.find((tag) => ["Bad", "Average", "Good", "Masterpiece"].includes(String(tag)));
+  if (tagMatch) return String(tagMatch);
+
+  const bodyMatch = (post.body || "").match(/-\s*(Bad|Average|Good|Masterpiece)\s*$/i);
+  if (bodyMatch?.[1]) {
+    const normalized = bodyMatch[1].toLowerCase();
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  return null;
 }
 
 function reactionLabel(reaction: 0 | 1 | 1.5 | 2 | null | undefined): string {
@@ -319,7 +347,7 @@ export async function createLogCinePost(
 ): Promise<CinePost> {
   const title = content.title || (content as any).name || "this title";
   const rating = reactionLabel(log.reaction);
-  const body = [`Just watched ${title} - ${rating}`, caption?.trim()].filter(Boolean).join("\n\n");
+  const body = caption?.trim() || "";
 
   return createCinePost({
     user,
@@ -330,7 +358,7 @@ export async function createLogCinePost(
     content,
     posterUrl: log.ticket_image_url || content.poster_url || null,
     logId: log.id,
-    tags: [rating, "watched"],
+    tags: [rating, "log"],
   });
 }
 
@@ -602,7 +630,13 @@ export async function setCinePostEngagement(
   });
 
   if (post.user_id !== user.id) {
-    await createCinePostNotification(post.user_id, type === "like" ? "post_like" : "post_save", post.id, user);
+    await createCinePostNotification(
+      post.user_id,
+      type === "like" ? "post_like" : "post_save",
+      post.id,
+      user,
+      auth.currentUser?.uid || user.id
+    );
   }
 }
 
@@ -678,11 +712,23 @@ export async function createCinePostComment(
   await set(commentRef, comment);
 
   if (post.user_id !== user.id) {
-    await createCinePostNotification(post.user_id, "post_comment", post.id, user);
+    await createCinePostNotification(
+      post.user_id,
+      "post_comment",
+      post.id,
+      user,
+      auth.currentUser?.uid || user.id
+    );
   }
 
   if (replyOwnerId && replyOwnerId !== user.id && replyOwnerId !== post.user_id) {
-    await createCinePostNotification(replyOwnerId, "comment_reply", post.id, user);
+    await createCinePostNotification(
+      replyOwnerId,
+      "comment_reply",
+      post.id,
+      user,
+      auth.currentUser?.uid || user.id
+    );
   }
 
   return comment;
@@ -781,7 +827,8 @@ async function createCinePostNotification(
   userId: string,
   type: "post_like" | "post_save" | "post_comment" | "comment_reply",
   refId: string,
-  fromUser: User
+  fromUser: User,
+  actorId: string
 ): Promise<void> {
   try {
     if (!(await shouldDeliverNotificationToUser(userId, type))) return;
@@ -794,7 +841,7 @@ async function createCinePostNotification(
       ref_id: refId,
       seen: false,
       fromUser: {
-        id: fromUser.id,
+        id: actorId,
         username: fromUser.username,
         name: fromUser.name,
         avatar_url: fromUser.avatar_url || null,

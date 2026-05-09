@@ -23,16 +23,14 @@ import { signOut as authSignOut } from "@/lib/auth";
 import {
   createCinePostComment,
   deleteCinePostComment,
+  getCinePostLogRatingLabel,
   getCinePost,
   getCinePostEngagementUsers,
+  getCinePostDisplayBody,
   setCinePostEngagement,
   updateCinePostComment,
 } from "@/lib/cineposts";
 import { reportAppError } from "@/lib/report-error";
-
-function formatPostType(type: string): string {
-  return type.charAt(0).toUpperCase() + type.slice(1);
-}
 
 function relativeTime(dateString: string): string {
   const diff = Date.now() - new Date(dateString).getTime();
@@ -75,7 +73,11 @@ function linkify(text: string) {
 
 function Avatar({ user, size = "h-10 w-10" }: { user: User; size?: string }) {
   if (user.avatar_url) {
-    return <img src={user.avatar_url} alt={user.name} className={`${size} rounded-full object-cover`} />;
+    return (
+      <div className={`${size} overflow-hidden rounded-full border border-white/15 bg-white/5 shadow-sm`}>
+        <img src={user.avatar_url} alt={user.name} className="h-full w-full object-cover" />
+      </div>
+    );
   }
 
   return (
@@ -441,7 +443,7 @@ export default function CinePostPage() {
         const userSnapshot = await get(ref(db, `users/${firebaseUser.uid}`));
         const userData = userSnapshot.val();
         const currentUser: User = {
-          id: userData?.id || firebaseUser.uid,
+          id: firebaseUser.uid,
           username: userData?.username || firebaseUser.email?.split("@")[0] || "user",
           name: userData?.name || firebaseUser.displayName || "User",
           avatar_url: userData?.avatar_url || null,
@@ -553,7 +555,6 @@ export default function CinePostPage() {
   }
 
   const href = contentHref(post);
-  const postTags = post.tags || [];
   const sortedComments = [...post.comments].sort((a, b) => {
     if (commentSort === "newest") {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -605,9 +606,18 @@ export default function CinePostPage() {
                     </Link>
                     <span className="text-sm text-white/45">{relativeTime(post.created_at)}</span>
                   </div>
-                  <span className="mt-2 inline-flex rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-black text-black">
-                    {formatPostType(post.type)}
-                  </span>
+                {post.type === "log" ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-black text-black">
+                      Log
+                    </span>
+                    {getCinePostLogRatingLabel(post) ? (
+                      <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-[#f5f0de]">
+                        {getCinePostLogRatingLabel(post)}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <ShareLinkButton
@@ -629,21 +639,8 @@ export default function CinePostPage() {
               </div>
 
               <div className="mt-6 max-w-3xl whitespace-pre-wrap text-[16px] leading-8 text-[#f5f0de]/82">
-                {linkify(post.body)}
+                {linkify(getCinePostDisplayBody(post))}
               </div>
-
-              {postTags.length > 0 && (
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {postTags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-white/10 bg-white/[0.025] px-3 py-1.5 text-sm font-bold text-[#f5f0de]/65"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
@@ -660,13 +657,23 @@ export default function CinePostPage() {
                   }`}
                 >
                   <Heart className={`h-4 w-4 ${post.liked_by_current_user ? "fill-rose-500" : ""}`} />
-                  <span className="tabular-nums">{post.likes_count}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => openPeopleModal("like", "Liked by")}
                   disabled={post.likes_count === 0}
-                  className="inline-flex items-center gap-2 text-sm font-black text-white/70 transition hover:text-[#f5f0de] disabled:cursor-default disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 text-sm font-black text-white/70 transition hover:text-[#f5f0de] disabled:cursor-default disabled:opacity-40"
+                  aria-label={post.likes_count === 1 ? "1 like" : `${post.likes_count} likes`}
+                >
+                  <span className="tabular-nums">{post.likes_count}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    document.getElementById("post-comments")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="inline-flex items-center gap-2 text-sm font-black text-white/70 transition hover:text-[#f5f0de]"
+                  aria-label={post.comments_count === 1 ? "1 comment" : `${post.comments_count} comments`}
                 >
                   <MessageCircle className="h-4 w-4" />
                   <span className="tabular-nums">{post.comments_count}</span>
@@ -688,7 +695,7 @@ export default function CinePostPage() {
           </div>
         </article>
 
-        <section className="mt-6">
+        <section id="post-comments" className="mt-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-black text-[#f5f0de]">Comments</h2>

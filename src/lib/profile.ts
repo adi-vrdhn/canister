@@ -226,21 +226,11 @@ async function getContentForStatLog(log: MovieLog): Promise<Content | null> {
 }
 
 async function getMovieLogsForUser(userId: string): Promise<MovieLog[]> {
-  try {
-    const logsQuery = query(ref(db, "movie_logs"), orderByChild("user_id"), equalTo(userId));
-    const snapshot = await get(logsQuery);
+  const snapshot = await get(ref(db, "movie_logs"));
 
-    if (!snapshot.exists()) return [];
+  if (!snapshot.exists()) return [];
 
-    return Object.values(snapshot.val()) as MovieLog[];
-  } catch (error) {
-    console.warn("Indexed movie_logs query failed, falling back to a full scan:", error);
-    const snapshot = await get(ref(db, "movie_logs"));
-
-    if (!snapshot.exists()) return [];
-
-    return (Object.values(snapshot.val()) as MovieLog[]).filter((log) => log.user_id === userId);
-  }
+  return (Object.values(snapshot.val()) as MovieLog[]).filter((log) => log.user_id === userId);
 }
 
 /**

@@ -79,7 +79,7 @@ export default function AllMoviesPage() {
         const userData = userSnapshot.val();
         const currentUser: User = userSnapshot.exists()
           ? {
-              id: userData.id,
+              id: firebaseUser.uid,
               username: userData.username,
               name: userData.name,
               avatar_url: userData.avatar_url || null,

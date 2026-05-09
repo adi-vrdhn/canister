@@ -488,7 +488,7 @@ export default function LogDetailPage() {
         const userData = userSnapshot.val();
 
         const currentUser: User = {
-          id: userData?.id || firebaseUser.uid,
+          id: firebaseUser.uid,
           username: userData?.username || "user",
           name: userData?.name || firebaseUser.displayName || "User",
           avatar_url: userData?.avatar_url || null,
@@ -593,8 +593,9 @@ export default function LogDetailPage() {
         setLikeCount((c) => c + 1);
         try {
           // Send notification to log owner if not self.
-          if (user.id !== log.user.id && (await shouldDeliverNotificationToUser(log.user.id, "like"))) {
-            const notifRef = dbRef(db, `notifications/${log.user.id}`);
+          const logOwnerId = log.user_id;
+          if (user.id !== logOwnerId && (await shouldDeliverNotificationToUser(logOwnerId, "like"))) {
+            const notifRef = dbRef(db, `notifications/${logOwnerId}`);
             await dbPush(notifRef, {
               type: "like",
               logId: log.id,

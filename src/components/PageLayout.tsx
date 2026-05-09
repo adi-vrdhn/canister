@@ -79,11 +79,9 @@ export default function PageLayout({
           aria-label="Open profile"
         >
           {user?.avatar_url ? (
-            <Image
+            <img
               src={user.avatar_url}
               alt={user.name}
-              width={32}
-              height={32}
               className="h-full w-full object-cover"
             />
           ) : (

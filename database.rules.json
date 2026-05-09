@@ -17,7 +17,10 @@
     "notifications": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
-        ".write": "auth != null && (auth.uid == $uid || newData.child('fromUser').child('id').val() == auth.uid)"
+        ".write": "auth != null && auth.uid == $uid",
+        "$notifId": {
+          ".write": "auth != null && (auth.uid == $uid || newData.child('fromUser').child('id').val() == auth.uid)"
+        }
       }
     },
     "movie_logs": {
@@ -37,6 +40,13 @@
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "movies": {
+      ".read": "auth != null",
+      ".indexOn": ["title_lower", "search_title_key", "release_date"],
+      "$movieId": {
+        ".write": "auth != null"
       }
     },
     "user_tastes": {

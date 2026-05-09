@@ -290,24 +290,29 @@ export async function shouldDeliverNotificationToUser(
   type: NotificationType,
   sourceUserId?: string | null
 ): Promise<boolean> {
-  const snapshot = await get(ref(db, `users/${userId}`));
-  const settings = getSettingsFromUserRecord(snapshot.exists() ? snapshot.val() : null);
-  const preferenceKey = notificationPreferenceForType(type);
-  if (settings.notifications[preferenceKey]) return true;
+  try {
+    const snapshot = await get(ref(db, `users/${userId}`));
+    const settings = getSettingsFromUserRecord(snapshot.exists() ? snapshot.val() : null);
+    const preferenceKey = notificationPreferenceForType(type);
+    if (settings.notifications[preferenceKey]) return true;
 
-  if (sourceUserId && type === "share_received") {
-    return settings.notifications.shareNotificationUserIds.includes(sourceUserId);
+    if (sourceUserId && type === "share_received") {
+      return settings.notifications.shareNotificationUserIds.includes(sourceUserId);
+    }
+
+    if (sourceUserId && type === "share_reply") {
+      return settings.notifications.shareNotificationUserIds.includes(sourceUserId);
+    }
+
+    if (sourceUserId && type === "log_created") {
+      return settings.notifications.logNotificationUserIds.includes(sourceUserId);
+    }
+
+    return false;
+  } catch (error) {
+    console.warn("Notification settings lookup failed, allowing delivery by default:", error);
+    return true;
   }
-
-  if (sourceUserId && type === "share_reply") {
-    return settings.notifications.shareNotificationUserIds.includes(sourceUserId);
-  }
-
-  if (sourceUserId && type === "log_created") {
-    return settings.notifications.logNotificationUserIds.includes(sourceUserId);
-  }
-
-  return false;
 }
 
 export async function shouldEnablePushNotificationsForUser(userId: string): Promise<boolean> {

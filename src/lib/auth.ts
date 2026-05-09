@@ -121,7 +121,7 @@ export async function getCurrentUser(): Promise<DBUser | null> {
               id: userData.id || firebaseUser.uid,
               username: userData.username,
               name: userData.name,
-              avatar_url: userData.avatar_url || null,
+              avatar_url: userData.avatar_url || firebaseUser.photoURL || null,
               created_at: userData.createdAt || userData.created_at || new Date().toISOString(),
             }) as DBUser
           );
@@ -134,7 +134,7 @@ export async function getCurrentUser(): Promise<DBUser | null> {
             id: firebaseUser.uid,
             username: firebaseUser.email?.split("@")[0] || "user",
             name: firebaseUser.displayName || firebaseUser.email || "User",
-            avatar_url: null,
+            avatar_url: firebaseUser.photoURL || null,
             created_at: new Date().toISOString(),
           }) as DBUser
         );
@@ -146,7 +146,7 @@ export async function getCurrentUser(): Promise<DBUser | null> {
             id: firebaseUser.uid,
             username: firebaseUser.email?.split("@")[0] || "user",
             name: firebaseUser.displayName || firebaseUser.email || "User",
-            avatar_url: null,
+            avatar_url: firebaseUser.photoURL || null,
             created_at: new Date().toISOString(),
           }) as DBUser
         );
