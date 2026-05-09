@@ -731,6 +731,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     const contentHref = getContentHref(post);
     const postHref = `/posts/${post.id}`;
     const preview = getPreview(getCinePostDisplayBody(post));
+    const postAuthorUser = currentUser && currentUser.id === post.user_id ? currentUser : post.user;
     const shouldIgnorePostClick = (target: EventTarget | null) => {
       if (!(target instanceof Element)) return false;
       return Boolean(target.closest("a,button,[role='button'],input,textarea,select,label"));
@@ -792,13 +793,13 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
 
               <div className="min-w-0 py-1">
                 <div className="flex items-start gap-3">
-                  <Link href={profileHref(post.user)} className="flex-shrink-0" onClick={(event) => event.stopPropagation()}>
-                    <Avatar user={post.user} size="h-7 w-7 sm:h-8 sm:w-8" dark={isBrutalist} />
+                  <Link href={profileHref(postAuthorUser)} className="flex-shrink-0" onClick={(event) => event.stopPropagation()}>
+                    <Avatar user={postAuthorUser} size="h-7 w-7 sm:h-8 sm:w-8" dark={isBrutalist} />
                   </Link>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                       <Link
-                        href={profileHref(post.user)}
+                        href={profileHref(postAuthorUser)}
                         onClick={(event) => event.stopPropagation()}
                         className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-[#f5f0de]"}`}
                       >
