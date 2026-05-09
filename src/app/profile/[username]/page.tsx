@@ -22,7 +22,7 @@ import { db } from "@/lib/firebase";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { getListWithDetails, getUserLists } from "@/lib/lists";
 import { searchMovies } from "@/lib/tmdb";
-import { getUsersByIds } from "@/lib/users";
+import { getUsersByIds, getDisplayUserName, getDisplayUserHandle } from "@/lib/users";
 import {
   DEFAULT_SETTINGS,
   canShowSharedMovies,
@@ -1880,7 +1880,7 @@ function ProfilePageInner() {
                           key={listedUser.id}
                           className="group flex items-center justify-between rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-[#ff7a1a]/25 hover:bg-[linear-gradient(180deg,rgba(255,122,26,0.10),rgba(255,255,255,0.03))]"
                         >
-                          <Link href={`/profile/${listedUser.username || listedUser.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                          <Link href={`/profile/${listedUser.username !== listedUser.id ? listedUser.username : listedUser.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                             {listedUser.avatar_url ? (
                               <img
                                 src={listedUser.avatar_url}
@@ -1889,23 +1889,19 @@ function ProfilePageInner() {
                               />
                             ) : (
                               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,rgba(255,122,26,0.35),rgba(17,17,17,0.95))] text-sm font-semibold text-[#f5f0de] ring-1 ring-white/10 shadow-[0_0_0_4px_rgba(255,255,255,0.03)]">
-                                {listedUser.name.charAt(0).toUpperCase()}
+                                {getDisplayUserName(listedUser, currentUser).charAt(0).toUpperCase()}
                               </div>
                             )}
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="truncate text-sm font-semibold text-[#f5f0de] group-hover:text-[#ffb36b]">{listedUser.name}</p>
-                                {rowFollowState === "following" ? (
-                                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/55">
-                                    Following
-                                  </span>
-                                ) : rowFollowState === "follow-back" ? (
+                                <p className="truncate text-sm font-semibold text-[#f5f0de] group-hover:text-[#ffb36b]">{getDisplayUserName(listedUser, currentUser)}</p>
+                                {rowFollowState === "follow-back" ? (
                                   <span className="rounded-full border border-[#ff7a1a]/30 bg-[#ff7a1a]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#ffb36b]">
                                     Follow back
                                   </span>
                                 ) : null}
                               </div>
-                              <p className="truncate text-xs text-white/55">@{listedUser.username}</p>
+                              <p className="truncate text-xs text-white/55">{getDisplayUserHandle(listedUser, currentUser)}</p>
                             </div>
                           </Link>
 

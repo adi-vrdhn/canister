@@ -277,10 +277,22 @@ export async function getUserByUsername(username: string): Promise<User | null> 
     );
     const snapshot = await get(usersQuery);
 
-    if (!snapshot.exists()) return null;
+    let userKey: string;
+    let userData: any;
 
-    const users = snapshot.val() as Record<string, any>;
-    const [userKey, userData] = Object.entries(users)[0] || [];
+    if (snapshot.exists()) {
+      const users = snapshot.val() as Record<string, any>;
+      const entry = Object.entries(users)[0];
+      if (!entry) return null;
+      [userKey, userData] = entry;
+    } else {
+      // Try direct UID lookup — handles the case where the link uses a raw Firebase UID
+      const uidSnapshot = await get(ref(db, `users/${normalizedUsername}`));
+      if (!uidSnapshot.exists()) return null;
+      userKey = normalizedUsername;
+      userData = uidSnapshot.val();
+    }
+
     if (!userKey || !userData) return null;
 
     return {
