@@ -51,7 +51,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-dvh bg-[#050505] text-[#f5f0de]">
-      <div className="grid h-full w-full lg:grid-cols-[3fr_2fr]">
+      <div className="grid h-full w-full lg:grid-cols-[2fr_3fr]">
         <section className="relative hidden min-h-dvh overflow-hidden border-r border-white/10 bg-[#050505] lg:flex">
           <img
             src="https://image.tmdb.org/t/p/w780/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg"
@@ -65,24 +65,20 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="flex min-h-dvh items-start justify-start bg-[#0a0a0a] px-5 py-6 sm:px-8 sm:py-8 lg:px-4 lg:py-4">
-          <div className="w-full max-w-none">
-            <div className="mb-8 flex items-start gap-4">
-              <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="Canisterr logo" width={56} height={56} className="h-14 w-14 rounded-2xl object-cover" />
-                <div>
-                  <h1 className="mt-1 text-4xl font-black leading-none text-[#f5f0de] sm:text-6xl">
-                    Canisterr
-                  </h1>
-                </div>
-              </div>
+        <section className="flex min-h-dvh items-center justify-center bg-[#0a0a0a] px-8 py-10 lg:px-16">
+          <div className="w-full max-w-lg">
+            <div className="mb-10 flex items-center gap-4">
+              <Image src="/logo.png" alt="Canisterr logo" width={72} height={72} className="h-18 w-18 rounded-2xl object-cover" />
+              <h1 className="text-5xl font-black leading-none text-[#f5f0de] sm:text-6xl">
+                Canisterr
+              </h1>
             </div>
 
-            <p className="max-w-lg text-sm leading-7 text-white/60">
+            <p className="text-base leading-7 text-white/60">
               Enter your credentials to continue.
             </p>
 
-            <div className="mt-5 flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.24em]">
+            <div className="mt-5 flex items-center gap-3 text-[12px] font-black uppercase tracking-[0.24em]">
               <Link href="/auth/login" className="text-[#ff7a1a]">
                 Sign in
               </Link>
@@ -92,7 +88,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               {error && (
                 <div className="flex items-start gap-3 rounded-[1.25rem] border border-[#ff7a1a]/20 bg-[#ff7a1a]/10 p-4">
                   <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#ff7a1a]" />
@@ -101,29 +97,29 @@ export default function LoginPage() {
               )}
 
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]/75">Email</label>
+                <label className="mb-2 block text-base font-semibold text-[#f5f0de]/75">Email</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
+                  <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
-                    className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] px-10 py-3 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
+                    className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] px-12 py-4 text-base text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     placeholder="you@example.com"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-[#f5f0de]/75">Password</label>
+                <label className="mb-2 block text-base font-semibold text-[#f5f0de]/75">Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
+                  <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/35" />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] px-10 py-3 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
+                    className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] px-12 py-4 text-base text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     placeholder="Your password"
                   />
                 </div>
@@ -132,7 +128,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-[1.25rem] bg-[#f5f0de] py-3 text-sm font-black text-[#0a0a0a] transition hover:bg-[#ff7a1a] disabled:opacity-60"
+                className="w-full rounded-[1.25rem] bg-[#f5f0de] py-4 text-base font-black text-[#0a0a0a] transition hover:bg-[#ff7a1a] disabled:opacity-60"
               >
                 {loading ? "Signing in..." : "Sign in"}
               </button>
