@@ -99,7 +99,7 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-dvh bg-[#050505] text-[#f5f0de]">
-      <div className="grid h-full w-full lg:grid-cols-[3fr_2fr]">
+      <div className="grid h-full w-full lg:grid-cols-[2fr_3fr]">
         <section className="relative hidden min-h-dvh overflow-hidden border-r border-white/10 bg-[#050505] lg:flex">
           <img
             src="https://image.tmdb.org/t/p/w780/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg"

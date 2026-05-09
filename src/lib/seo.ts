@@ -251,3 +251,126 @@ export function websiteSchema() {
     },
   };
 }
+
+// ─── Log / review helpers ────────────────────────────────────────────────────
+
+// Parses a movie slug like "inception-2010" → { titleHint: "inception", year: 2010 }
+export function parseMovieSlug(slug: string): { titleHint: string; year: number | null } {
+  const yearMatch = slug.match(/-(\d{4})$/);
+  const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+  const titlePart = year ? slug.slice(0, slug.lastIndexOf(`-${year}`)) : slug;
+  return { titleHint: titlePart.replace(/-/g, " "), year };
+}
+
+// reaction value → human label → schema.org ratingValue (1–5)
+export function reactionToRating(reaction: number | null | undefined): {
+  label: string;
+  value: number;
+} {
+  if (reaction === 2) return { label: "Masterpiece", value: 5 };
+  if (reaction === 1) return { label: "Good", value: 4 };
+  if (reaction === 1.5) return { label: "Average", value: 3 };
+  if (reaction === 0) return { label: "Bad", value: 1 };
+  return { label: "Unrated", value: 0 };
+}
+
+// Metadata for a log page. isPublic=false adds noindex/nofollow.
+export function logMetadata(params: {
+  username: string;
+  movieTitle: string;
+  year: number | null;
+  slug: string;
+  ratingLabel?: string | null;
+  review?: string | null;
+  posterUrl?: string | null;
+  isPublic?: boolean;
+}): Metadata {
+  const { username, movieTitle, year, slug, ratingLabel, review, posterUrl, isPublic = true } = params;
+  const displayTitle = year ? `${movieTitle} (${year})` : movieTitle;
+  const title = `${username} watched ${displayTitle}`;
+
+  const parts = [
+    `${username} logged ${displayTitle} on Canisterr`,
+    ratingLabel && ratingLabel !== "Unrated" ? `— rated ${ratingLabel}` : null,
+    review ? `— "${review.slice(0, 80).trimEnd()}${review.length > 80 ? "…" : ""}"` : null,
+  ].filter(Boolean);
+  const description = parts.join(" ").slice(0, 155);
+
+  const canonicalPath = `/log/${username}/${slug}`;
+
+  return baseMetadata({
+    title,
+    description,
+    alternates: { canonical: canonical(canonicalPath) },
+    robots: isPublic
+      ? { index: true, follow: true, googleBot: { index: true, follow: true } }
+      : { index: false, follow: false, googleBot: { index: false, follow: false } },
+    openGraph: {
+      type: "article",
+      siteName: "Canisterr",
+      locale: "en_US",
+      url: canonical(canonicalPath),
+      title,
+      description,
+      images: posterUrl ? [{ url: posterUrl, width: 500, height: 750, alt: displayTitle }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: posterUrl ? [posterUrl] : undefined,
+    },
+  });
+}
+
+export function reviewSchema(params: {
+  reviewerName: string;
+  reviewerUsername: string;
+  reviewerAvatarUrl?: string | null;
+  reviewBody: string;
+  ratingValue: number;
+  movieTitle: string;
+  movieId: number;
+  datePublished: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Review",
+    author: {
+      "@type": "Person",
+      name: params.reviewerName,
+      url: canonical(`/profile/${params.reviewerUsername}`),
+      image: params.reviewerAvatarUrl ?? undefined,
+    },
+    reviewBody: params.reviewBody,
+    reviewRating: {
+      "@type": "Rating",
+      ratingValue: params.ratingValue,
+      bestRating: 5,
+      worstRating: 1,
+    },
+    itemReviewed: {
+      "@type": "Movie",
+      name: params.movieTitle,
+      url: canonical(`/movie/${params.movieId}`),
+    },
+    datePublished: params.datePublished,
+    publisher: { "@type": "Organization", name: "Canisterr", url: BASE_URL },
+  };
+}
+
+export function personSchema(user: {
+  name: string;
+  username: string;
+  avatar_url?: string | null;
+  bio?: string | null;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: user.name,
+    url: canonical(`/profile/${user.username}`),
+    image: user.avatar_url ?? undefined,
+    description: user.bio ?? undefined,
+  };
+}

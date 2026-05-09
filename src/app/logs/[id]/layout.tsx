@@ -8,10 +8,12 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  // /logs/[id] is the internal route — mark noindex so Google uses /log/[username]/[slug] as canonical.
   return baseMetadata({
     title: "Movie Log",
     description: "See this movie log on Canisterr.",
     alternates: { canonical: canonical(`/logs/${id}`) },
+    robots: { index: false, follow: true },
   });
 }
 

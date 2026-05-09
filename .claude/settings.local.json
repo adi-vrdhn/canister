@@ -4,7 +4,13 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(git checkout *)",
+      "Bash(xargs cat)",
+      "Bash(mkdir -p /Users/aditya/Desktop/cineparte/src/app/log/\\\\[username\\\\]/\\\\[slug\\\\])"
+    ],
+    "additionalDirectories": [
+      "/Users/aditya/Desktop/cineparte/src/app/log/[username]"
     ]
   }
 }

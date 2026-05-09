@@ -7,10 +7,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { User } from "@/types";
 import { ReactNode, useEffect, useState } from "react";
-import { Settings } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { onValue, ref } from "firebase/database";
 import { db } from "@/lib/firebase";
 import { DEFAULT_SETTINGS, mergeSettings, resolveThemePreference } from "@/lib/settings";
+import { useIsPwa } from "@/lib/pwa";
 
 const SidebarShell = dynamic(() => import("./Sidebar"), { ssr: false });
 const NotificationBellShell = dynamic(() => import("./NotificationBell"), { ssr: false });
@@ -35,7 +36,8 @@ export default function PageLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isBrutalist = theme === "brutalist";
   const pathname = usePathname();
-  const reserveBottomNavSpace = !pathname.startsWith("/auth") && !pathname.startsWith("/scan");
+  const isPwa = useIsPwa();
+  const reserveBottomNavSpace = isPwa && !pathname.startsWith("/auth") && !pathname.startsWith("/scan");
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -69,27 +71,42 @@ export default function PageLayout({
           isBrutalist ? "border-b border-white/10 bg-[#0a0a0a]/95" : "bg-white/95"
         }`}
       >
-        <Link
-          href="/profile"
-          className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition lg:hidden ${
-            isBrutalist
-              ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
-              : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
-          }`}
-          aria-label="Open profile"
-        >
-          {user?.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span className={`text-[10px] font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-              {user?.name?.charAt(0)?.toUpperCase() || "U"}
-            </span>
-          )}
-        </Link>
+        {!isPwa ? (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition lg:hidden ${
+              isBrutalist
+                ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
+                : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+            }`}
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        ) : (
+          <Link
+            href="/profile"
+            className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition lg:hidden ${
+              isBrutalist
+                ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
+                : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+            }`}
+            aria-label="Open profile"
+          >
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className={`text-[10px] font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+              </span>
+            )}
+          </Link>
+        )}
 
         <Link
           href="/dashboard"
@@ -127,25 +144,29 @@ export default function PageLayout({
         )}
       </header>
 
-      {/* Sidebar: hidden on mobile, slide-in on open */}
-      <SidebarShell
-        user={user}
-        onSignOut={onSignOut}
-        mobileOpen={sidebarOpen}
-        onCloseMobile={() => setSidebarOpen(false)}
-        theme={theme}
-      />
+      {!isPwa && (
+        <>
+          {/* Sidebar: hidden on mobile, slide-in on open */}
+          <SidebarShell
+            user={user}
+            onSignOut={onSignOut}
+            mobileOpen={sidebarOpen}
+            onCloseMobile={() => setSidebarOpen(false)}
+            theme={theme}
+          />
 
-      {/* Overlay for mobile sidebar */}
-      {sidebarOpen && (
-        <div
-          className={`fixed inset-0 z-40 lg:hidden ${isBrutalist ? "bg-black/70" : "bg-black/30"}`}
-          onClick={() => setSidebarOpen(false)}
-        />
+          {/* Overlay for mobile sidebar */}
+          {sidebarOpen && (
+            <div
+              className={`fixed inset-0 z-40 lg:hidden ${isBrutalist ? "bg-black/70" : "bg-black/30"}`}
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+        </>
       )}
 
       <div
-        className={`min-w-0 flex-1 overflow-auto pt-16 lg:pl-72 ${isBrutalist ? "bg-[#0a0a0a]" : ""} ${
+        className={`min-w-0 flex-1 overflow-auto pt-16 ${!isPwa ? "lg:pl-72" : ""} ${isBrutalist ? "bg-[#0a0a0a]" : ""} ${
           reserveBottomNavSpace ? "pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0" : ""
         }`}
       >

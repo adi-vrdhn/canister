@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { House, LayoutList, NotebookPen, ScanSearch, SendHorizontal } from "lucide-react";
+import { useIsPwa } from "@/lib/pwa";
 
 type NavItem = {
   href: string;
@@ -26,10 +27,11 @@ function isActivePath(pathname: string, href: string, exact?: boolean): boolean 
 
 export default function PwaBottomNav() {
   const pathname = usePathname();
+  const isPwa = useIsPwa();
   const isAuthRoute = pathname.startsWith("/auth");
   const isScanRoute = pathname.startsWith("/scan");
 
-  if (isAuthRoute || isScanRoute) {
+  if (!isPwa || isAuthRoute || isScanRoute) {
     return null;
   }
 
