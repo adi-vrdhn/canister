@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const BASE_URL = "https://www.canisterr.com";
+export const BASE_URL = "https://canisterr.com";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 const DEFAULT_OG_IMAGE = `${BASE_URL}/logo.png`;
 
