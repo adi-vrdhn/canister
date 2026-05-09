@@ -1,5 +1,5 @@
 import { auth, db } from "@/lib/firebase";
-import { ref, get, push, set, remove } from "firebase/database";
+import { ref, get, push, set, remove, query, orderByChild, equalTo } from "firebase/database";
 import {
   CinePost,
   CinePostAnchorType,
@@ -143,21 +143,24 @@ function getAgeHours(createdAt: string): number {
 async function getAcceptedFriendIds(currentUserId?: string): Promise<Set<string>> {
   if (!currentUserId) return new Set();
 
-  const followsSnapshot = await get(ref(db, "follows"));
-  if (!followsSnapshot.exists()) return new Set();
+  const [followingSnap, followersSnap] = await Promise.all([
+    get(query(ref(db, "follows"), orderByChild("follower_id"), equalTo(currentUserId))),
+    get(query(ref(db, "follows"), orderByChild("following_id"), equalTo(currentUserId))),
+  ]);
 
   const friendIds = new Set<string>();
-  const followsRaw = followsSnapshot.val() as Record<string, { follower_id?: string; following_id?: string; status?: string }>;
 
-  Object.values(followsRaw).forEach((follow) => {
-    if (follow.status !== "accepted") return;
-    if (follow.follower_id === currentUserId && follow.following_id) {
-      friendIds.add(follow.following_id);
-    }
-    if (follow.following_id === currentUserId && follow.follower_id) {
-      friendIds.add(follow.follower_id);
-    }
-  });
+  if (followingSnap.exists()) {
+    Object.values(followingSnap.val() as Record<string, any>).forEach((f) => {
+      if (f.status === "accepted" && f.following_id) friendIds.add(f.following_id);
+    });
+  }
+
+  if (followersSnap.exists()) {
+    Object.values(followersSnap.val() as Record<string, any>).forEach((f) => {
+      if (f.status === "accepted" && f.follower_id) friendIds.add(f.follower_id);
+    });
+  }
 
   return friendIds;
 }

@@ -8,10 +8,16 @@ import ForegroundPushListener from "@/components/ForegroundPushListener";
 import GlobalErrorListener from "@/components/GlobalErrorListener";
 import LocalhostServiceWorkerCleanup from "@/components/LocalhostServiceWorkerCleanup";
 import PwaBottomNav from "@/components/PwaBottomNav";
+import JsonLd from "@/components/JsonLd";
+import { websiteSchema } from "@/lib/seo";
+import { baseMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Canisterr",
-  description: "Share movies with people who matter",
+export const metadata: Metadata = baseMetadata({
+  title: {
+    default: "Canisterr",
+    template: "%s | Canisterr",
+  },
+  description: "Log, rate, and share movies with people who matter.",
   applicationName: "Canisterr",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -19,7 +25,7 @@ export const metadata: Metadata = {
     title: "Canisterr",
     statusBarStyle: "black-translucent",
   },
-};
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -50,6 +56,7 @@ export default function RootLayout({
           gtag('config', 'G-N81XQ4GZ9S');
         `}
         </Script>
+        <JsonLd data={websiteSchema()} />
         <LocalhostServiceWorkerCleanup />
         <CurrentUserProvider>
           <HydrationFix>{children}</HydrationFix>

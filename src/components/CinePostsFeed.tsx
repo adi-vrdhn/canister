@@ -18,6 +18,7 @@ import { getPublicLists, getListWithDetails } from "@/lib/lists";
 import { getPopularMovies } from "@/lib/tmdb";
 import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
 import { getBlurDataUrl, getTmdbPosterUrl } from "@/lib/performance";
+import { lsGet, lsSet } from "@/lib/local-cache";
 import { getDisplayUserName } from "@/lib/users";
 
 interface CinePostsFeedProps {
@@ -483,6 +484,9 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     }
   }, [currentUser?.id]);
 
+  const feedCacheKey = `feed_${currentUser?.id ?? "guest"}`;
+  const FEED_TTL = 3 * 60 * 1000; // 3 minutes
+
   const refreshPosts = async () => {
     try {
       setLockedFeedPostIds(new Set());
@@ -491,6 +495,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
         feedContext: { seenPostIds: Array.from(seenPostsRef.current) },
       });
       setPosts(feed);
+      lsSet(feedCacheKey, feed, FEED_TTL);
     } catch (error) {
       console.error("Error loading posts:", error);
     } finally {
@@ -503,6 +508,15 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
 
     let cancelled = false;
 
+    // Show cached feed instantly, then fetch fresh in background
+    const cached = lsGet<CinePostWithDetails[]>(feedCacheKey, FEED_TTL);
+    if (cached && cached.length > 0) {
+      setPosts(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     const loadPosts = async () => {
       try {
         setLockedFeedPostIds(new Set());
@@ -512,6 +526,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
         });
         if (!cancelled) {
           setPosts(feed);
+          lsSet(feedCacheKey, feed, FEED_TTL);
         }
       } catch (error) {
         console.error("Error loading posts:", error);
@@ -522,12 +537,12 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
       }
     };
 
-    setLoading(true);
     loadPosts();
 
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, refreshKey, seenHistoryReady]);
 
   useEffect(() => {

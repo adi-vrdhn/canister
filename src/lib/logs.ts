@@ -5,12 +5,16 @@ import {
   get,
   push,
   remove,
+  query,
+  orderByChild,
+  equalTo,
 } from "firebase/database";
 import { MovieLog, MovieLogWithContent, User, Content, Movie } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
 import { removeWatchedMovieSource, upsertWatchedMovie } from "./watched-movies";
 import { createFallbackUser, getUserProfile } from "./users";
+import { lsGet, lsSet } from "./local-cache";
 import { createLogCreatedNotifications } from "./notifications";
 
 const IMPORTED_RATINGS_CSV_NOTE = "Imported from ratings CSV";
@@ -115,11 +119,10 @@ async function getContentMapForLogs(logs: MovieLog[]): Promise<Map<string, Conte
 }
 
 async function getLogsForUser(userId: string): Promise<MovieLog[]> {
-  const snapshot = await get(ref(db, "movie_logs"));
-
+  const logsQuery = query(ref(db, "movie_logs"), orderByChild("user_id"), equalTo(userId));
+  const snapshot = await get(logsQuery);
   if (!snapshot.exists()) return [];
-
-  return (Object.values(snapshot.val()) as MovieLog[]).filter((log) => log.user_id === userId);
+  return Object.values(snapshot.val()) as MovieLog[];
 }
 
 /**
@@ -256,6 +259,28 @@ export async function getUserMovieLogs(
   limit: number = 50,
   currentUser?: User | null
 ): Promise<MovieLogWithContent[]> {
+  const cacheKey = `logs_${userId}_${limit}`;
+  const TTL = 5 * 60 * 1000; // 5 minutes
+
+  const cached = lsGet<MovieLogWithContent[]>(cacheKey, TTL);
+  if (cached && cached.length > 0) {
+    // Return cache immediately and refresh in background
+    getUserMovieLogsFromNetwork(userId, limit, currentUser).then((fresh) => {
+      if (fresh.length > 0) lsSet(cacheKey, fresh, TTL);
+    }).catch(() => {});
+    return cached;
+  }
+
+  const fresh = await getUserMovieLogsFromNetwork(userId, limit, currentUser);
+  if (fresh.length > 0) lsSet(cacheKey, fresh, TTL);
+  return fresh;
+}
+
+async function getUserMovieLogsFromNetwork(
+  userId: string,
+  limit: number,
+  currentUser?: User | null
+): Promise<MovieLogWithContent[]> {
   try {
     const userLogs = await getLogsForUser(userId);
     const recentLogs = userLogs
@@ -267,14 +292,12 @@ export async function getUserMovieLogs(
       currentUser ? Promise.resolve(currentUser) : getUserProfile(userId),
     ]);
 
-    const logsWithContent: MovieLogWithContent[] = recentLogs.map((log) => ({
+    return recentLogs.map((log) => ({
       ...log,
       notes: getVisibleLogNotes(log),
       content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
       user,
     }));
-
-    return logsWithContent;
   } catch (error) {
     console.error("Error fetching user movie logs:", error);
     return [];
@@ -362,18 +385,18 @@ export async function getLogsForContent(
           }
         : ((await getMovieDetails(contentId)) as unknown as Content) || createFallbackMovieContent(contentId);
 
-    const logsWithContent: MovieLogWithContent[] = await Promise.all(
-      contentLogs.map(async (log) => {
-        const user = await getUserProfile(log.user_id);
-
-        return {
-          ...log,
-          notes: getVisibleLogNotes(log),
-          content,
-          user,
-        };
-      })
+    const uniqueUserIds = [...new Set(contentLogs.map((log) => log.user_id))];
+    const userEntries = await mapWithConcurrency(uniqueUserIds, 6, async (uid) =>
+      [uid, await getUserProfile(uid)] as const
     );
+    const usersById = new Map(userEntries);
+
+    const logsWithContent: MovieLogWithContent[] = contentLogs.map((log) => ({
+      ...log,
+      notes: getVisibleLogNotes(log),
+      content,
+      user: usersById.get(log.user_id) || createFallbackUser(log.user_id),
+    }));
 
     return logsWithContent;
   } catch (error) {
@@ -546,31 +569,17 @@ export async function getUserWatchlist(userId: string): Promise<MovieLogWithCont
       .filter((log) => log.watch_later === true)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    // Fetch content details for each log
-    const logsWithContent: MovieLogWithContent[] = await Promise.all(
-      watchlist.map(async (log) => {
-        let content: Content;
-        if (log.content_type === "tv") {
-          const show = await getShowDetails(log.content_id);
-          content = show as unknown as Content;
-        } else {
-          const movie = await getMovieDetails(log.content_id);
-          content = movie as unknown as Content;
-        }
+    const [contentMap, user] = await Promise.all([
+      getContentMapForLogs(watchlist),
+      getUserProfile(userId),
+    ]);
 
-        // Fetch user info
-        const user = await getUserProfile(log.user_id);
-
-        return {
-          ...log,
-          notes: getVisibleLogNotes(log),
-          content,
-          user,
-        };
-      })
-    );
-
-    return logsWithContent;
+    return watchlist.map((log) => ({
+      ...log,
+      notes: getVisibleLogNotes(log),
+      content: contentMap.get(`${log.content_type}-${log.content_id}`) || createFallbackContentForLog(log),
+      user,
+    }));
   } catch (error) {
     console.error("Error fetching watchlist:", error);
     return [];
