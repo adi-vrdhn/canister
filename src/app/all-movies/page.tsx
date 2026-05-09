@@ -18,7 +18,7 @@ import { MovieLogWithContent, ShareWithDetails, User } from "@/types";
 import { getBlurDataUrl } from "@/lib/performance";
 import { getUsersByIds } from "@/lib/users";
 
-type ActivityFilter = "all" | "shared" | "logged";
+type ActivityFilter = "shared" | "logged";
 type ShareFilter = "recent" | "watched";
 type ViewMode = "grid" | "list";
 
@@ -61,7 +61,7 @@ export default function AllMoviesPage() {
   const [friendLogs, setFriendLogs] = useState<(MovieLogWithContent & { friend: User })[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("shared");
   const [shareFilter, setShareFilter] = useState<ShareFilter>("recent");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedShare, setSelectedShare] = useState<ShareWithDetails | null>(null);
@@ -162,8 +162,8 @@ export default function AllMoviesPage() {
       const title = content?.title || "Unknown";
       const sender = share.sender?.name || "Unknown";
       return {
-        id: `share-${share.id}`,
-        kind: "shared",
+              id: `share-${share.id}`,
+              kind: "shared",
         poster_url: content?.poster_url || null,
         title,
         byline: `shared by ${sender}`,
@@ -186,10 +186,10 @@ export default function AllMoviesPage() {
       log,
     }));
 
-    const combined = [
-      ...(activityFilter === "logged" ? [] : sharedActivities),
-      ...(activityFilter === "shared" ? [] : loggedActivities),
-    ];
+    const combined =
+      activityFilter === "shared"
+        ? [...sharedActivities, ...loggedActivities]
+        : [...loggedActivities, ...sharedActivities];
 
     return combined
       .filter((item) => !query || item.searchText.includes(query))
@@ -228,7 +228,6 @@ export default function AllMoviesPage() {
             <h1 className="truncate text-xl font-bold text-gray-900 sm:text-3xl">
               Friends Activity
             </h1>
-            <p className="text-xs text-gray-500 sm:text-sm">Shared titles and friends&apos; logs combined.</p>
           </div>
 
           <div className="relative">
@@ -276,7 +275,6 @@ export default function AllMoviesPage() {
         <div className="mb-4 space-y-4 sm:mb-6">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {([
-              ["all", "All"],
               ["shared", "Shared"],
               ["logged", "Logged"],
             ] as const).map(([value, label]) => (
@@ -346,10 +344,10 @@ export default function AllMoviesPage() {
                 className={
                   viewMode === "grid"
                     ? "min-w-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-shadow hover:shadow-md"
-                    : "flex w-full cursor-pointer items-center gap-4 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md"
+                    : "flex w-full cursor-pointer items-center gap-4 border-b border-slate-200 py-3 text-left transition-colors hover:bg-slate-50"
                 }
               >
-                <div className={viewMode === "grid" ? "relative aspect-[3/4] overflow-hidden bg-slate-100 sm:h-64 sm:aspect-auto" : "relative h-28 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100"}>
+                <div className={viewMode === "grid" ? "relative aspect-[3/4] overflow-hidden bg-slate-100 sm:h-64 sm:aspect-auto" : "relative h-28 w-20 flex-shrink-0 overflow-hidden bg-slate-100"}>
                   {item.poster_url ? (
                     <Image
                       src={item.poster_url}
@@ -367,7 +365,7 @@ export default function AllMoviesPage() {
                   )}
                 </div>
 
-                <div className={viewMode === "grid" ? "p-2 sm:p-4" : "min-w-0 flex-1"}>
+                <div className={viewMode === "grid" ? "p-2 sm:p-4" : "min-w-0 flex-1 pr-2"}>
                   <h3 className="mb-1 truncate text-[11px] font-semibold leading-tight text-slate-900 sm:text-lg">
                     {item.title}
                   </h3>

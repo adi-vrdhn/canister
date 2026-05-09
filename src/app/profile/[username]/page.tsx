@@ -22,7 +22,7 @@ import { db } from "@/lib/firebase";
 import { createMovieLog, getUserMovieLogs } from "@/lib/logs";
 import { getListWithDetails, getUserLists } from "@/lib/lists";
 import { searchMovies } from "@/lib/tmdb";
-import { getUsersByIds, getDisplayUserName, getDisplayUserHandle } from "@/lib/users";
+import { getDisplayUserHandle } from "@/lib/users";
 import {
   DEFAULT_SETTINGS,
   canShowSharedMovies,
@@ -41,6 +41,7 @@ import {
   getUserFollowRecords,
   getReactionAverageLabel,
   type FollowRecord,
+  getUserProfile as getRawUserProfile,
   updateUserProfile,
 } from "@/lib/profile";
 import {
@@ -109,6 +110,30 @@ function getCurrentMoodGenres(logs: MovieLogWithContent[]): string[] {
   if (recentMovieLogs.length === 0) return [];
 
   return getRecentMoodGenres(recentMovieLogs, 1);
+}
+
+function isFallbackProfileName(value?: string | null): boolean {
+  const normalized = value?.trim().toLowerCase() || "";
+  return /^user\s+[a-z0-9]+$/.test(normalized);
+}
+
+function getFollowListDisplayName(user: Pick<User, "id" | "username" | "name">): string {
+  const name = user.name?.trim();
+  if (name && !isFallbackProfileName(name)) {
+    return name;
+  }
+
+  const username = user.username?.trim();
+  if (username) {
+    return username.startsWith("@") ? username : `@${username}`;
+  }
+
+  return user.id ? `User ${user.id.trim().slice(0, 6)}` : "User";
+}
+
+function shouldShowFollowListHandle(user: Pick<User, "id" | "username" | "name">): boolean {
+  const name = user.name?.trim();
+  return Boolean(name && !isFallbackProfileName(name));
 }
 
 function ProfilePageInner() {
@@ -433,13 +458,17 @@ function ProfilePageInner() {
       try {
         setFollowUsersLoading(true);
         const [followerUsers, followingUsers] = await Promise.all([
-          getUsersByIds(followerIds),
-          getUsersByIds(followingIds),
+          Promise.all(followerIds.map(async (uid) => [uid, await getRawUserProfile(uid)] as const)),
+          Promise.all(followingIds.map(async (uid) => [uid, await getRawUserProfile(uid)] as const)),
         ]);
         if (cancelled) return;
 
-        setFollowers(followerIds.map((uid) => followerUsers[uid]).filter(Boolean) as User[]);
-        setFollowing(followingIds.map((uid) => followingUsers[uid]).filter(Boolean) as User[]);
+        setFollowers(
+          followerUsers.map(([, user]) => user).filter((user): user is User => Boolean(user))
+        );
+        setFollowing(
+          followingUsers.map(([, user]) => user).filter((user): user is User => Boolean(user))
+        );
         setFollowUsersLoaded(true);
       } catch (error) {
         console.error("[PROFILE] Error loading follow lists:", error);
@@ -1889,12 +1918,14 @@ function ProfilePageInner() {
                               />
                             ) : (
                               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,rgba(255,122,26,0.35),rgba(17,17,17,0.95))] text-sm font-semibold text-[#f5f0de] ring-1 ring-white/10 shadow-[0_0_0_4px_rgba(255,255,255,0.03)]">
-                                {getDisplayUserName(listedUser, currentUser).charAt(0).toUpperCase()}
+                                {getFollowListDisplayName(listedUser).charAt(0).toUpperCase()}
                               </div>
                             )}
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="truncate text-sm font-semibold text-[#f5f0de] group-hover:text-[#ffb36b]">{getDisplayUserName(listedUser, currentUser)}</p>
+                                <p className="truncate text-sm font-semibold text-[#f5f0de] group-hover:text-[#ffb36b]">
+                                  {getFollowListDisplayName(listedUser)}
+                                </p>
                                 {rowFollowState === "follow-back" ? (
                                   <span className="rounded-full border border-[#ff7a1a]/30 bg-[#ff7a1a]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#ffb36b]">
                                     Follow back

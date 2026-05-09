@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -680,7 +680,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   };
 
   const renderPopularSection = () => (
-    <div className="pt-6">
+    <div key="popular-movies-rail" className="pt-6">
       <DiscoveryRail
         title="Popular Movies"
         items={popularMovies}
@@ -695,7 +695,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   );
 
   const renderSuggestedSection = () => (
-    <div className="pt-6">
+    <div key="suggested-movies-rail" className="pt-6">
       <DiscoveryRail
         title="Suggested Movies"
         items={suggestedMovies}
@@ -710,7 +710,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   );
 
   const renderDiscoverSection = () => (
-    <div className="pt-6">
+    <div key="discover-lists-rail" className="pt-6">
       <DiscoverListRail
         items={discoverLists}
         loading={discoverLoading}
@@ -722,6 +722,46 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
       />
     </div>
   );
+
+  const renderMainFeedStream = () => {
+    const stream: ReactNode[] = [];
+    let insertedPopular = false;
+    let insertedSuggested = false;
+    let insertedDiscover = false;
+
+    mainFeedPosts.forEach((post, index) => {
+      stream.push(renderPostCard(post, index, false));
+
+      if (!insertedPopular && index === 2) {
+        stream.push(renderPopularSection());
+        insertedPopular = true;
+      }
+
+      if (!insertedSuggested && index === 5) {
+        stream.push(renderSuggestedSection());
+        insertedSuggested = true;
+      }
+
+      if (!insertedDiscover && index === 8) {
+        stream.push(renderDiscoverSection());
+        insertedDiscover = true;
+      }
+    });
+
+    if (!insertedPopular) {
+      stream.push(renderPopularSection());
+    }
+
+    if (!insertedSuggested) {
+      stream.push(renderSuggestedSection());
+    }
+
+    if (!insertedDiscover) {
+      stream.push(renderDiscoverSection());
+    }
+
+    return stream;
+  };
 
   const priorityFriendPosts = posts.filter((post) => post.feedTier === 0);
   const mainFeedPosts = posts.filter((post) => post.feedTier !== 0 && (lockedFeedPostIds.has(post.id) || !post.liked_by_current_user));
@@ -982,7 +1022,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
           </div>
         ) : (
           <div className={isBrutalist ? "divide-y divide-white/10" : "space-y-4"}>
-            {mainFeedPosts.map((post, index) => renderPostCard(post, index))}
+            {renderMainFeedStream()}
           </div>
         )}
 

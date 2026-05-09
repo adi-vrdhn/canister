@@ -178,9 +178,6 @@ export default function NotificationsPage() {
             <h1 className="mt-3 text-3xl font-black tracking-tight text-[#f5f0de] sm:text-4xl">
               Notifications
             </h1>
-            <p className="mt-2 text-sm text-[#f5f0de]/60">
-              Keep the feed clean, filter by type, and remove what you do not need.
-            </p>
           </div>
 
           <button

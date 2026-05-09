@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -22,6 +22,9 @@ import { getBlurDataUrl } from "@/lib/performance";
 import { getTmdbPosterUrl } from "@/lib/performance";
 import Link from "next/link";
 import { Clapperboard, Film, Loader2, MessageCircle, MessageSquareText, Plus, RotateCcw, Search, Share2, X } from "lucide-react";
+
+const SEARCH_HISTORY_STORAGE_KEY = "cine_search_history";
+const MAX_SEARCH_HISTORY = 8;
 
 const CinePostsFeed = dynamic(() => import("@/components/CinePostsFeed"), {
   ssr: false,
@@ -69,6 +72,28 @@ function rankSearchResults<T extends { title: string }>(items: T[], query: strin
   });
 }
 
+function loadSearchHistory(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSearchHistory(entries: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SEARCH_HISTORY_STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user: sessionUser, loading: sessionLoading } = useCurrentUser();
@@ -83,6 +108,7 @@ export default function DashboardPage() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchFilter, setSearchFilter] = useState<"all" | "movie" | "tv" | "accounts">("all");
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   // CinePost modal state
   const [showCinePostModal, setShowCinePostModal] = useState(false);
@@ -100,6 +126,7 @@ export default function DashboardPage() {
   const [searchRequestRef] = useState<{ current: number }>({ current: 0 });
   const [quickLogTimerRef] = useState<{ current: ReturnType<typeof setTimeout> | null }>({ current: null });
   const [quickLogRequestRef] = useState<{ current: number }>({ current: 0 });
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -183,6 +210,14 @@ export default function DashboardPage() {
   }, [router, sessionLoading, sessionUser]);
 
   useEffect(() => {
+    setSearchHistory(loadSearchHistory());
+  }, []);
+
+  useEffect(() => {
+    saveSearchHistory(searchHistory);
+  }, [searchHistory]);
+
+  useEffect(() => {
     if (!bannerMessage) return;
 
     const timer = window.setTimeout(() => {
@@ -202,6 +237,20 @@ export default function DashboardPage() {
       }
     };
   }, []);
+
+  const rememberSearch = (query: string) => {
+    const cleaned = query.trim();
+    if (cleaned.length < 2) return;
+
+    setSearchHistory((current) => {
+      const next = [cleaned, ...current.filter((entry) => entry.toLowerCase() !== cleaned.toLowerCase())];
+      return next.slice(0, MAX_SEARCH_HISTORY);
+    });
+  };
+
+  const clearSearchHistory = () => {
+    setSearchHistory([]);
+  };
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -285,6 +334,7 @@ export default function DashboardPage() {
 
         setAccountResults(usersMatched);
         setShowSearchModal(true);
+        rememberSearch(query);
       } catch (error) {
         reportAppError({
           title: "Search failed",
@@ -305,6 +355,17 @@ export default function DashboardPage() {
     setSearchQuery("");
     setSearchResults([]);
     setAccountResults([]);
+  };
+
+  const openAccountSearch = () => {
+    setSearchFilter("accounts");
+    setSearchQuery("");
+    setSearchResults([]);
+    setAccountResults([]);
+    setShowSearchModal(true);
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
   };
 
   const handleQuickLogSearch = (queryText: string) => {
@@ -454,6 +515,7 @@ export default function DashboardPage() {
   const filteredQuickLogResults = quickLogResults.filter(
     (result) => quickLogFilter === "all" || result.type === quickLogFilter
   );
+  const hasFriendActivity = friendActivity.length > 0;
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
@@ -464,17 +526,59 @@ export default function DashboardPage() {
           <div className="relative max-w-2xl">
             <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 transform text-white/40" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search movies, shows, and usernames..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              onFocus={() => (searchResults.length > 0 || accountResults.length > 0) && setShowSearchModal(true)}
+              onFocus={() => setShowSearchModal(true)}
               className="w-full border border-white/15 bg-[#111111] py-3 pl-10 pr-4 text-base text-[#f5f0de] outline-none focus:border-[#ff7a1a] focus:ring-2 focus:ring-[#ff7a1a]/20"
             />
 
             {/* Dropdown Results */}
-            {showSearchModal && (searchResults.length > 0 || accountResults.length > 0) && (
+            {showSearchModal &&
+              (searchQuery.trim().length > 0 ||
+                searchResults.length > 0 ||
+                accountResults.length > 0 ||
+                searchHistory.length > 0 ||
+                searching ||
+                searchFilter === "accounts") && (
               <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(70dvh,600px)] overflow-y-auto overscroll-contain border border-white/10 bg-[#111111] shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
+                {searchQuery.trim().length === 0 && searchHistory.length > 0 && (
+                  <div className="border-b border-white/10 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-xs font-black uppercase tracking-[0.24em] text-white/45">
+                        Recent Searches
+                      </p>
+                      <button
+                        type="button"
+                        onClick={clearSearchHistory}
+                        className="text-xs font-semibold text-[#ffb36b] hover:text-[#ff7a1a]"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {searchHistory.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => handleSearch(item)}
+                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-[#f5f0de] transition hover:border-[#ff7a1a]/40 hover:bg-white/10"
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {searchQuery.trim().length === 0 && searchHistory.length === 0 && searchFilter === "accounts" && (
+                  <div className="border-b border-white/10 p-4 text-sm text-white/55">
+                    Start typing a name or username to find people and add friends.
+                  </div>
+                )}
+
                 {/* Filter Buttons */}
                 <div className="sticky top-0 flex gap-2 overflow-x-auto border-b border-white/10 bg-[#111111] p-3">
                   <button
@@ -649,7 +753,7 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {friendActivity.length > 0 ? (
+          {hasFriendActivity ? (
             <>
               <div className="-mx-3 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-0 sm:pb-4">
                 <div className="flex gap-2 sm:gap-3 md:gap-4">
@@ -722,10 +826,17 @@ export default function DashboardPage() {
               </Link>
             </>
           ) : (
-            <div className="border border-white/10 bg-[#111111] px-4 py-10 text-center sm:py-12">
-              <Clapperboard className="mx-auto mb-3 h-12 w-12 text-white/20" />
-              <p className="font-medium text-[#f5f0de]">No friends activity yet</p>
-              <p className="mt-1 text-sm text-white/55">Share titles or follow friends to see updates here.</p>
+            <div className="mx-auto flex max-w-sm flex-col items-center justify-center border border-white/10 bg-[#111111] px-4 py-8 text-center sm:py-10">
+              <Clapperboard className="mx-auto mb-3 h-10 w-10 text-white/20" />
+              <p className="font-medium text-[#f5f0de]">No friends yet</p>
+              <p className="mt-1 text-sm text-white/55">Find people to see what they watch and share.</p>
+              <button
+                type="button"
+                onClick={openAccountSearch}
+                className="mt-4 inline-flex items-center justify-center border border-[#ff7a1a] px-3 py-1.5 text-xs font-medium text-[#ffb36b] transition-colors hover:bg-[#ff7a1a]/10"
+              >
+                Add friends
+              </button>
             </div>
           )}
         </div>

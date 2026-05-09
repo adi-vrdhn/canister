@@ -234,7 +234,7 @@
 
   .field {
     width: 100%;
-    border-radius: 1rem;
+    border-radius: 0.25rem;
     border: 1px solid rgb(226 232 240);
     background: rgba(255, 255, 255, 0.96);
     padding: 0.9rem 1rem;
