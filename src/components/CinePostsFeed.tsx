@@ -20,6 +20,7 @@ import { getTasteBasedPopularMovies } from "@/lib/movie-recommendations";
 import { getBlurDataUrl, getTmdbPosterUrl } from "@/lib/performance";
 import { lsGet, lsSet } from "@/lib/local-cache";
 import { getDisplayUserName } from "@/lib/users";
+import CinePostListStrip from "@/components/CinePostListStrip";
 
 interface CinePostsFeedProps {
   currentUser: User | null;
@@ -787,6 +788,7 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     const postHref = `/posts/${post.id}`;
     const preview = getPreview(getCinePostDisplayBody(post));
     const postAuthorUser = currentUser && currentUser.id === post.user_id ? currentUser : post.user;
+    const isListPost = post.content_type === "list" && (post.list_items?.length || 0) > 0;
     const shouldIgnorePostClick = (target: EventTarget | null) => {
       if (!(target instanceof Element)) return false;
       return Boolean(target.closest("a,button,[role='button'],input,textarea,select,label"));
@@ -810,42 +812,8 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
             }
           }}
         >
-          <div className={`grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-5 ${
-            isBrutalist ? "px-0 py-0" : "p-3 sm:p-5"
-          }`}>
-            {contentHref ? (
-              <Link
-                href={contentHref}
-                className={`group relative aspect-[2/3] overflow-hidden shadow-sm ${
-                  isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
-                }`}
-                title={`Open ${post.content_title || post.anchor_label}`}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <CinePostArtwork
-                  src={post.poster_url}
-                  collageImages={post.list_cover_images}
-                  alt={post.content_title || post.anchor_label}
-                  className="h-full w-full"
-                  mediaClassName="transition duration-300 group-hover:scale-105"
-                  theme={theme}
-                />
-              </Link>
-            ) : (
-              <div className={`aspect-[2/3] overflow-hidden shadow-sm ${
-                isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
-              }`}>
-                <CinePostArtwork
-                  src={post.poster_url}
-                  collageImages={post.list_cover_images}
-                  alt={post.content_title || post.anchor_label}
-                  className="h-full w-full"
-                  mediaClassName="transition duration-300 group-hover:scale-105"
-                  theme={theme}
-                />
-              </div>
-            )}
-
+          {isListPost ? (
+            <div className={isBrutalist ? "px-0 py-0" : "p-3 sm:p-5"}>
               <div className="min-w-0 py-1">
                 <div className="flex items-start gap-3">
                   <Link href={profileHref(postAuthorUser)} className="flex-shrink-0" onClick={(event) => event.stopPropagation()}>
@@ -893,8 +861,99 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
                     Show more
                   </Link>
                 )}
+
+                <div className="mt-4">
+                  <CinePostListStrip items={post.list_items || []} theme={theme} />
+                </div>
               </div>
-          </div>
+            </div>
+          ) : (
+            <div className={`grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-5 ${
+              isBrutalist ? "px-0 py-0" : "p-3 sm:p-5"
+            }`}>
+              {contentHref ? (
+                <Link
+                  href={contentHref}
+                  className={`group relative aspect-[2/3] overflow-hidden shadow-sm ${
+                    isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
+                  }`}
+                  title={`Open ${post.content_title || post.anchor_label}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <CinePostArtwork
+                    src={post.poster_url}
+                    collageImages={post.list_cover_images}
+                    alt={post.content_title || post.anchor_label}
+                    className="h-full w-full"
+                    mediaClassName="transition duration-300 group-hover:scale-105"
+                    theme={theme}
+                  />
+                </Link>
+              ) : (
+                <div className={`aspect-[2/3] overflow-hidden shadow-sm ${
+                  isBrutalist ? "bg-black" : "rounded-[1.4rem] bg-slate-950"
+                }`}>
+                  <CinePostArtwork
+                    src={post.poster_url}
+                    collageImages={post.list_cover_images}
+                    alt={post.content_title || post.anchor_label}
+                    className="h-full w-full"
+                    mediaClassName="transition duration-300 group-hover:scale-105"
+                    theme={theme}
+                  />
+                </div>
+              )}
+
+                <div className="min-w-0 py-1">
+                  <div className="flex items-start gap-3">
+                    <Link href={profileHref(postAuthorUser)} className="flex-shrink-0" onClick={(event) => event.stopPropagation()}>
+                      <Avatar user={postAuthorUser} size="h-7 w-7 sm:h-8 sm:w-8" dark={isBrutalist} />
+                    </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        <Link
+                          href={profileHref(postAuthorUser)}
+                          onClick={(event) => event.stopPropagation()}
+                          className={`text-[13px] font-black leading-none sm:text-sm ${isBrutalist ? "text-[#f5f0de] hover:text-[#ffb36b]" : "text-slate-950 hover:text-[#f5f0de]"}`}
+                        >
+                          {getAuthorDisplayName(post, currentUser)}
+                        </Link>
+                        <span className={`text-[10px] sm:text-xs ${isBrutalist ? "text-white/45" : "text-slate-400"}`}>{relativeTime(post.created_at)}</span>
+                      </div>
+                    </div>
+                    <div onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
+                      <CinePostOwnerMenu
+                        post={post}
+                        currentUser={currentUser}
+                        onDeleted={refreshPosts}
+                        onUpdated={refreshPosts}
+                        theme={theme}
+                      />
+                    </div>
+                  </div>
+
+                  <Link href={postHref} className="mt-2 block sm:mt-3" onClick={(event) => event.stopPropagation()}>
+                    <p className={`whitespace-pre-wrap text-[13px] leading-5 sm:text-[14px] sm:leading-6 ${
+                      isBrutalist ? "text-[#f5f0de]/92" : "text-slate-700"
+                    }`}>
+                      {preview.text}
+                    </p>
+                  </Link>
+
+                  {preview.isTrimmed && (
+                    <Link
+                      href={postHref}
+                      className={`mt-1 inline-flex text-[11px] font-black sm:mt-2 sm:text-sm ${
+                        isBrutalist ? "text-[#ffb36b]" : "text-[#f5f0de]"
+                      }`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Show more
+                    </Link>
+                  )}
+                </div>
+            </div>
+          )}
 
           <div className={`py-3 sm:py-4 ${isBrutalist ? "border-t border-white/10" : "border-t border-slate-100 px-3 sm:px-5"}`}>
             <div className="flex items-center justify-between gap-2">

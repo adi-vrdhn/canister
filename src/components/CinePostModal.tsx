@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Film, Search, Tv, UserRound, X } from "lucide-react";
-import { CinePostAnchorType, Content, TMDBMovie, TMDBPersonSearchResult, User } from "@/types";
+import { Film, List as ListIcon, Search, Tv, UserRound, X } from "lucide-react";
+import { CinePostAnchorType, Content, ListWithItems, TMDBMovie, TMDBPersonSearchResult, User } from "@/types";
 import { createCinePost } from "@/lib/cineposts";
+import { getListWithDetails, getPublicLists, getUserLists } from "@/lib/lists";
 import { reportAppError } from "@/lib/report-error";
 import { searchMovies, searchPeople } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
+import CinePostArtwork from "@/components/CinePostArtwork";
 
 const ANCHOR_TYPES: Array<{ value: CinePostAnchorType; label: string }> = [
   { value: "movie", label: "Movie" },
   { value: "tv", label: "TV" },
+  { value: "list", label: "List" },
   { value: "crew", label: "Crew" },
 ];
 
-type AnchorResult = Content | TMDBPersonSearchResult;
+type AnchorResult = Content | TMDBPersonSearchResult | ListWithItems;
 
 function isCrewResult(item: AnchorResult): item is TMDBPersonSearchResult {
   return "profile_path" in item;
@@ -23,18 +26,21 @@ function isCrewResult(item: AnchorResult): item is TMDBPersonSearchResult {
 function anchorTypeLabel(anchorType: CinePostAnchorType): string {
   if (anchorType === "movie") return "movie";
   if (anchorType === "tv") return "TV show";
+  if (anchorType === "list") return "list";
   return "crew member";
 }
 
 function anchorSearchLabel(anchorType: CinePostAnchorType): string {
   if (anchorType === "movie") return "TMDB movies";
   if (anchorType === "tv") return "TV shows";
+  if (anchorType === "list") return "lists";
   return "TMDB people";
 }
 
 function anchorPlaceholder(anchorType: CinePostAnchorType): string {
   if (anchorType === "movie") return "Search La La Land, The Dark Knight...";
   if (anchorType === "tv") return "Search Ted Lasso, Breaking Bad...";
+  if (anchorType === "list") return "Search your lists or public lists...";
   return "Search Brad Pitt, Christopher Nolan...";
 }
 
@@ -67,11 +73,14 @@ function movieToContent(movie: TMDBMovie): Content {
 
 export default function CinePostModal({ isOpen, onClose, user, onCreated, theme = "default" }: CinePostModalProps) {
   const isBrutalist = theme === "brutalist";
+  const userId = user?.id;
   const [anchorType, setAnchorType] = useState<CinePostAnchorType>("movie");
   const [anchorQuery, setAnchorQuery] = useState("");
   const [anchorResults, setAnchorResults] = useState<AnchorResult[]>([]);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<TMDBPersonSearchResult | null>(null);
+  const [selectedList, setSelectedList] = useState<ListWithItems | null>(null);
+  const [listResults, setListResults] = useState<ListWithItems[]>([]);
   const [content, setContent] = useState("");
   const [tags, setTags] = useState("");
   const [error, setError] = useState("");
@@ -81,8 +90,14 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
   useEffect(() => {
     if (!isOpen) return;
     const query = anchorQuery.trim();
-    if (query.length < 1 || selectedContent || selectedPerson) {
+    if (anchorType !== "list" && (query.length < 1 || selectedContent || selectedPerson)) {
       setAnchorResults([]);
+      setSearching(false);
+      return;
+    }
+
+    if (anchorType === "list" && selectedList) {
+      setListResults([]);
       setSearching(false);
       return;
     }
@@ -91,6 +106,46 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     const timeout = window.setTimeout(async () => {
       try {
         setSearching(true);
+        if (anchorType === "list") {
+          if (!userId) {
+            if (!cancelled) setListResults([]);
+            return;
+          }
+
+          const [ownedLists, publicLists] = await Promise.all([
+            getUserLists(userId).catch(() => []),
+            getPublicLists(30).catch(() => []),
+          ]);
+
+          const mergedById = new Map<string, ListWithItems>();
+          [...ownedLists, ...publicLists].forEach((list) => {
+            mergedById.set(list.id, list as ListWithItems);
+          });
+
+          const normalized = query.toLowerCase();
+          const results = Array.from(mergedById.values())
+            .filter((list) => {
+              if (!normalized) return true;
+              return (
+                list.name.toLowerCase().includes(normalized) ||
+                (list.description || "").toLowerCase().includes(normalized) ||
+                list.owner_id.toLowerCase().includes(normalized)
+              );
+            })
+            .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+            .slice(0, 8);
+
+          const detailedResults = await Promise.all(
+            results.map(async (list) => (await getListWithDetails(list.id)) || null)
+          );
+
+          if (!cancelled) {
+            setListResults(detailedResults.filter((list): list is ListWithItems => Boolean(list)));
+            setAnchorResults([]);
+          }
+          return;
+        }
+
         const results: AnchorResult[] =
           anchorType === "movie"
             ? (await searchMovies(query, 1)).slice(0, 8).map(movieToContent)
@@ -98,18 +153,14 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
               ? ((await searchShows(query)).slice(0, 8) as unknown as Content[])
               : await searchPeople(query);
 
-        if (!cancelled) {
-          setAnchorResults(results);
-        }
+        if (!cancelled) setAnchorResults(results);
       } catch (err) {
         reportAppError({
           title: "Post search failed",
           message: "We could not load suggestions for this post.",
           details: err instanceof Error ? err.stack || err.message : String(err),
         });
-        if (!cancelled) {
-          setAnchorResults([]);
-        }
+        if (!cancelled) setAnchorResults([]);
       } finally {
         if (!cancelled) {
           setSearching(false);
@@ -121,7 +172,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [anchorQuery, anchorType, isOpen, selectedContent, selectedPerson]);
+  }, [anchorQuery, anchorType, isOpen, selectedContent, selectedList, selectedPerson, userId]);
 
   if (!isOpen) return null;
 
@@ -131,6 +182,8 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setAnchorResults([]);
     setSelectedContent(null);
     setSelectedPerson(null);
+    setSelectedList(null);
+    setListResults([]);
     setError("");
   };
 
@@ -139,6 +192,8 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setAnchorQuery(item.title || (item as any).name || "");
     setAnchorResults([]);
     setSelectedPerson(null);
+    setSelectedList(null);
+    setListResults([]);
     setError("");
   };
 
@@ -147,6 +202,18 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     setAnchorQuery(person.name);
     setAnchorResults([]);
     setSelectedContent(null);
+    setSelectedList(null);
+    setListResults([]);
+    setError("");
+  };
+
+  const handleSelectList = (list: ListWithItems) => {
+    setSelectedList(list);
+    setAnchorQuery(list.name);
+    setListResults([]);
+    setAnchorResults([]);
+    setSelectedContent(null);
+    setSelectedPerson(null);
     setError("");
   };
 
@@ -171,6 +238,11 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
     if (anchorType === "crew") {
       if (!selectedPerson) {
         setError("Select a crew member from search first.");
+        return;
+      }
+    } else if (anchorType === "list") {
+      if (!selectedList) {
+        setError("Select a list from search first.");
         return;
       }
     } else if (!selectedContent) {
@@ -198,6 +270,24 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
           personProfileUrl: person.profile_path ? `https://image.tmdb.org/t/p/w500${person.profile_path}` : null,
           personDepartment: person.known_for_department || null,
         });
+      } else if (anchorType === "list") {
+        const list = selectedList;
+        if (!list) return;
+
+        const listCoverUrl = list.cover_image_url || list.items[0]?.content.poster_url || null;
+
+        await createCinePost({
+          user,
+          type: "post",
+          anchorType,
+          anchorLabel: list.name,
+          body: content,
+          tags: tags.split(","),
+          listId: list.id,
+          listName: list.name,
+          listCoverUrl,
+          posterUrl: listCoverUrl,
+        });
       } else {
         await createCinePost({
           user,
@@ -214,6 +304,8 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
       setAnchorResults([]);
       setSelectedContent(null);
       setSelectedPerson(null);
+      setSelectedList(null);
+      setListResults([]);
       setContent("");
       setTags("");
       const successMessage =
@@ -221,7 +313,9 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
           ? "TV show posted"
           : anchorType === "movie"
             ? "Movie posted"
-            : "Post created";
+            : anchorType === "list"
+              ? "List posted"
+              : "Post created";
       onCreated?.(successMessage);
       onClose();
     } catch (err) {
@@ -268,13 +362,13 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {ANCHOR_TYPES.map((type) => (
               <button
                 key={type.value}
                 type="button"
                 onClick={() => resetAnchor(type.value)}
-                className={`flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 py-3 text-center text-[12px] font-semibold leading-none transition sm:min-h-12 sm:px-4 sm:text-sm ${
+                className={`flex min-h-11 items-center justify-center gap-1 whitespace-nowrap rounded-full px-1.5 py-3 text-center text-[11px] font-semibold leading-none transition sm:min-h-12 sm:px-4 sm:text-sm ${
                   anchorType === type.value
                     ? "bg-[#ff7a1a] text-black shadow-[0_10px_30px_rgba(255,122,26,0.25)]"
                     : isBrutalist
@@ -286,6 +380,8 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                     <Film className="h-4 w-4" />
                   ) : type.value === "tv" ? (
                     <Tv className="h-4 w-4" />
+                  ) : type.value === "list" ? (
+                    <ListIcon className="h-4 w-4" />
                   ) : (
                     <UserRound className="h-4 w-4" />
                   )}
@@ -310,6 +406,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                   setAnchorQuery(event.target.value);
                   setSelectedContent(null);
                   setSelectedPerson(null);
+                  setSelectedList(null);
                 }}
               />
               {searching && (
@@ -321,7 +418,60 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
               )}
             </div>
 
-            {anchorResults.length > 0 && (
+            {anchorType === "list" && listResults.length > 0 ? (
+              <div className={`mt-2 max-h-80 overflow-y-auto rounded-2xl shadow-xl ${
+                isBrutalist ? "border border-white/10 bg-[#0d0d0d]" : "border border-slate-200 bg-white"
+              }`}>
+                {listResults.map((list) => {
+                  const posterUrls = list.items
+                    .map((item) => item.content.poster_url)
+                    .filter((poster): poster is string => Boolean(poster))
+                    .slice(0, 4);
+                  return (
+                    <button
+                      key={list.id}
+                      type="button"
+                      onClick={() => handleSelectList(list)}
+                      className={`flex w-full items-center gap-3 border-b p-3 text-left transition last:border-b-0 ${
+                        isBrutalist
+                          ? "border-white/10 hover:bg-white/[0.04]"
+                          : "border-slate-100 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="w-14 flex-shrink-0 overflow-hidden rounded-2xl">
+                        <CinePostArtwork
+                          src={list.cover_image_url}
+                          collageImages={posterUrls}
+                          alt={list.name}
+                          className="aspect-[2/3] w-full"
+                          theme={theme}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`truncate text-sm font-black ${isBrutalist ? "text-[#f5f0de]" : "text-slate-950"}`}>
+                          {list.name}
+                        </p>
+                        <p className={`text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+                          {list.item_count} {list.item_count === 1 ? "movie" : "movies"}
+                          <span
+                            className={`ml-2 rounded-full px-2 py-0.5 font-bold uppercase ${
+                              isBrutalist ? "bg-white/10 text-[#f5f0de]" : "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            list
+                          </span>
+                        </p>
+                        {list.description && (
+                          <p className={`mt-1 line-clamp-2 text-xs ${isBrutalist ? "text-white/35" : "text-slate-500"}`}>
+                            {list.description}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : anchorResults.length > 0 ? (
               <div className={`mt-2 max-h-72 overflow-y-auto rounded-2xl shadow-xl ${
                 isBrutalist ? "border border-white/10 bg-[#0d0d0d]" : "border border-slate-200 bg-white"
               }`}>
@@ -381,11 +531,23 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                   </button>
                 ))}
               </div>
-            )}
+            ) : null}
 
-            {(selectedContent || selectedPerson) && (
+            {(selectedContent || selectedPerson || selectedList) && (
               <div className="mt-3 flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3">
-                {selectedPerson ? (
+                {selectedList ? (
+                  <div className="h-20 w-14 overflow-hidden rounded-xl">
+                    <CinePostArtwork
+                      src={selectedList.cover_image_url}
+                      collageImages={selectedList.items
+                        .map((item) => item.content.poster_url)
+                        .filter((poster): poster is string => Boolean(poster))}
+                      alt={selectedList.name}
+                      className="h-full w-full"
+                      theme={theme}
+                    />
+                  </div>
+                ) : selectedPerson ? (
                   selectedPerson.profile_path ? (
                     <img
                       src={`https://image.tmdb.org/t/p/w185${selectedPerson.profile_path}`}
@@ -406,7 +568,7 @@ export default function CinePostModal({ isOpen, onClose, user, onCreated, theme 
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-black text-[#f5f0de]">
-                    {selectedPerson ? selectedPerson.name : selectedContent?.title}
+                    {selectedList ? selectedList.name : selectedPerson ? selectedPerson.name : selectedContent?.title}
                   </p>
                 </div>
               </div>

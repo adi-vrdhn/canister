@@ -12,7 +12,7 @@ import {
   MovieLog,
   User,
 } from "@/types";
-import { getListCoverImages } from "./lists";
+import { getListWithDetails } from "./lists";
 import { shouldDeliverNotificationToUser } from "./settings";
 import { sendPushNotification } from "./push-notifications";
 import { createFallbackUser, normalizeUserRecord, getUsersByIds } from "./users";
@@ -393,14 +393,14 @@ export async function getCinePosts(
     ]),
   ]);
   const listPosts = posts.filter((post) => post.list_id && post.content_type === "list");
-  const listCoverImagesByPostId = new Map<string, string[]>();
+  const listDetailsByPostId = new Map<string, NonNullable<Awaited<ReturnType<typeof getListWithDetails>>>>();
 
   await Promise.all(
     listPosts.map(async (post) => {
       if (!post.list_id) return;
-      const images = await getListCoverImages(post.list_id);
-      if (images.length > 0) {
-        listCoverImagesByPostId.set(post.id, images);
+      const list = await getListWithDetails(post.list_id);
+      if (list) {
+        listDetailsByPostId.set(post.id, list);
       }
     })
   );
@@ -426,7 +426,11 @@ export async function getCinePosts(
       return {
         ...post,
         tags: Array.isArray(post.tags) ? post.tags : [],
-        list_cover_images: listCoverImagesByPostId.get(post.id),
+        list_items: listDetailsByPostId.get(post.id)?.items,
+        list_cover_images:
+          listDetailsByPostId.get(post.id)?.items
+            ?.map((item) => item.content.poster_url)
+            .filter((image): image is string => Boolean(image)) || [],
         user: usersById[post.user_id] || fallbackUser(post.user_id),
         comments: nestComments(postComments, usersById),
         comments_count: postComments.length,
@@ -495,8 +499,11 @@ export async function getCinePost(
   if (!postSnapshot.exists()) return null;
 
   const post = postSnapshot.val() as CinePost;
+  const listDetails = post.list_id && post.content_type === "list" ? await getListWithDetails(post.list_id) : null;
   const listCoverImages =
-    post.list_id && post.content_type === "list" ? await getListCoverImages(post.list_id) : [];
+    listDetails?.items
+      ?.map((item) => item.content.poster_url)
+      .filter((image): image is string => Boolean(image)) || [];
   const postComments = commentsSnapshot.exists()
     ? (Object.values(commentsSnapshot.val()) as CinePostComment[])
     : [];
@@ -519,6 +526,7 @@ export async function getCinePost(
     ...post,
     tags: Array.isArray(post.tags) ? post.tags : [],
     list_cover_images: listCoverImages.length > 0 ? listCoverImages : undefined,
+    list_items: listDetails?.items,
     user: usersById[post.user_id] || fallbackUser(post.user_id),
     comments: nestComments(postComments, usersById),
     comments_count: postComments.length,

@@ -11,17 +11,15 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import {
-  ref,
-  set,
-  get,
-  equalTo,
-  limitToFirst,
-  orderByChild,
-  query,
-} from "firebase/database";
+import { get, ref, set } from "firebase/database";
 import { User as DBUser } from "@/types";
 import { normalizeUserRecord } from "@/lib/users";
+import {
+  getUsernameValidationError,
+  isUsernameAvailable,
+  normalizeUsernameKey,
+  syncUsernameIndex,
+} from "@/lib/username-index";
 
 let persistencePromise: Promise<void> | null = null;
 
@@ -53,6 +51,16 @@ export async function signUp(
 ) {
   await ensureAuthPersistence();
 
+  const usernameError = getUsernameValidationError(username);
+  if (usernameError) {
+    throw new Error(usernameError);
+  }
+
+  const normalizedUsername = normalizeUsernameKey(username);
+  if (!(await isUsernameAvailable(normalizedUsername))) {
+    throw new Error("Username already taken");
+  }
+
   // Sign up with Firebase auth
   const userCredential = await createUserWithEmailAndPassword(
     auth,
@@ -71,12 +79,13 @@ export async function signUp(
   try {
     await set(ref(db, `users/${userCredential.user.uid}`), {
       id: userCredential.user.uid,
-      username: username.trim().toLowerCase(),
-      username_lower: username.trim().toLowerCase(),
+      username: normalizedUsername,
+      username_lower: normalizedUsername,
       name: name.trim(),
       name_lower: name.trim().toLowerCase(),
       createdAt: new Date().toISOString(),
     });
+    await syncUsernameIndex(userCredential.user.uid, normalizedUsername);
   } catch (profileError) {
     console.warn("Profile creation failed, but auth succeeded:", profileError);
     // Don't fail signup if profile creation fails
@@ -156,18 +165,12 @@ export async function getCurrentUser(): Promise<DBUser | null> {
 }
 
 export async function checkUsernameAvailability(username: string) {
-  try {
-    const normalizedUsername = username.trim().toLowerCase();
-    if (!normalizedUsername) return true;
+  if (getUsernameValidationError(username)) {
+    return false;
+  }
 
-    const usersQuery = query(
-      ref(db, "users"),
-      orderByChild("username"),
-      equalTo(normalizedUsername),
-      limitToFirst(1)
-    );
-    const snapshot = await get(usersQuery);
-    return !snapshot.exists();
+  try {
+    return await isUsernameAvailable(username);
   } catch (err) {
     console.warn("Username check failed:", err);
     return true; // Allow signup to proceed if check fails

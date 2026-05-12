@@ -3,6 +3,7 @@
 import Link from "next/link";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
 import CinePostArtwork from "@/components/CinePostArtwork";
+import CinePostListStrip from "@/components/CinePostListStrip";
 import { CinePostWithDetails, User } from "@/types";
 import { getDisplayUserName } from "@/lib/users";
 
@@ -71,6 +72,44 @@ export default function CinePostPreviewList({
               : `/movie/${post.content_id}`
             : null;
         const hasArtwork = Boolean(post.poster_url || (post.list_cover_images && post.list_cover_images.length > 0));
+        const isListPost = post.content_type === "list" && (post.list_items?.length || 0) > 0;
+
+        if (isListPost) {
+          return (
+            <article key={post.id} className="border-b border-white/10 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex flex-wrap items-center gap-2">
+                  <Link href={profileHref(post.user)} className="font-black text-[#f5f0de] hover:text-[#ffb36b]">
+                    {getDisplayUserName(post.user, currentUser)}
+                  </Link>
+                  <span className="text-xs text-white/45">{relativeTime(post.created_at)}</span>
+                  <span className="rounded-full bg-[#ff7a1a] px-2 py-0.5 text-[10px] font-black text-black">
+                    {formatPostType(post.type)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {currentUser && currentUser.id === post.user_id && onPostMutated && (
+                    <CinePostOwnerMenu
+                      post={post}
+                      currentUser={currentUser}
+                      onDeleted={onPostMutated}
+                      onUpdated={onPostMutated}
+                      theme={theme}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <Link href={`/posts/${post.id}`} className="mt-2 block">
+                <p className="whitespace-pre-wrap text-sm leading-6 text-[#f5f0de]/80">{preview(post.body)}</p>
+              </Link>
+
+              <div className="mt-3">
+                <CinePostListStrip items={post.list_items || []} theme={theme} />
+              </div>
+            </article>
+          );
+        }
 
         return (
           <article

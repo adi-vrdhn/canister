@@ -8,9 +8,9 @@ import { get, ref } from "firebase/database";
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreVertical, Pencil, Send, Trash2, X } from "lucide-react";
 import CinematicLoading from "@/components/CinematicLoading";
 import CinePostOwnerMenu from "@/components/CinePostOwnerMenu";
-import ShareLinkButton from "@/components/ShareLinkButton";
 import PageLayout from "@/components/PageLayout";
 import CinePostArtwork from "@/components/CinePostArtwork";
+import CinePostListStrip from "@/components/CinePostListStrip";
 import { getDisplayUserName } from "@/lib/users";
 import {
   CinePostCommentWithUser,
@@ -555,6 +555,7 @@ export default function CinePostPage() {
   }
 
   const href = contentHref(post);
+  const isListPost = post.content_type === "list" && (post.list_items?.length || 0) > 0;
   const sortedComments = [...post.comments].sort((a, b) => {
     if (commentSort === "newest") {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -576,72 +577,113 @@ export default function CinePostPage() {
         </button>
 
         <article className="border-y border-white/10 bg-black">
-          <div className="grid gap-6 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:py-6">
-            {href ? (
-              <Link
-                href={href}
-                className="group relative mx-auto aspect-[2/3] w-full max-w-48 overflow-hidden bg-[#111111] sm:mx-0"
-              >
-                <CinePostArtwork
-                  src={post.poster_url}
-                  collageImages={post.list_cover_images}
-                  alt={post.content_title || post.anchor_label}
-                  className="h-full w-full"
-                  mediaClassName="transition duration-300 group-hover:scale-[1.02]"
-                />
-              </Link>
-            ) : (
-              <div className="mx-auto aspect-[2/3] w-full max-w-48 bg-[#111111] sm:mx-0" />
-            )}
-
-            <div className="min-w-0 pr-4 sm:pr-0">
-              <div className="flex items-start gap-3">
-                <Link href={profileHref(post.user)} className="flex-shrink-0">
-                  <Avatar user={post.user} size="h-11 w-11" />
-                </Link>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <Link href={profileHref(post.user)} className="text-lg font-black text-[#f5f0de] hover:text-[#ffb36b]">
-                      {getDisplayUserName(post.user, user)}
-                    </Link>
-                    <span className="text-sm text-white/45">{relativeTime(post.created_at)}</span>
-                  </div>
-                {post.type === "log" ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-black text-black">
-                      Log
-                    </span>
-                    {getCinePostLogRatingLabel(post) ? (
-                      <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-[#f5f0de]">
-                        {getCinePostLogRatingLabel(post)}
-                      </span>
+          <div className={`py-4 sm:py-6 ${isListPost ? "space-y-5" : "grid gap-6 sm:grid-cols-[12rem_minmax(0,1fr)]"}`}>
+            {isListPost ? (
+              <div className="px-4 sm:px-6">
+                <div className="flex items-start gap-3">
+                  <Link href={profileHref(post.user)} className="flex-shrink-0">
+                    <Avatar user={post.user} size="h-11 w-11" />
+                  </Link>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Link href={profileHref(post.user)} className="text-lg font-black text-[#f5f0de] hover:text-[#ffb36b]">
+                        {getDisplayUserName(post.user, user)}
+                      </Link>
+                      <span className="text-sm text-white/45">{relativeTime(post.created_at)}</span>
+                    </div>
+                    {post.type === "log" ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-black text-black">
+                          Log
+                        </span>
+                        {getCinePostLogRatingLabel(post) ? (
+                          <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-[#f5f0de]">
+                            {getCinePostLogRatingLabel(post)}
+                          </span>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
-                ) : null}
+                  <div className="flex items-center gap-1.5">
+                    <CinePostOwnerMenu
+                      post={post}
+                      currentUser={user}
+                      onDeleted={() => router.push("/dashboard")}
+                      onUpdated={refreshPost}
+                      theme="brutalist"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <ShareLinkButton
-                    href={`/posts/${post.id}`}
-                    title={`${getDisplayUserName(post.user, user)}'s post`}
-                    text={`Shared from Canisterr by ${getDisplayUserName(post.user, user)}.`}
-                    showLabel
-                    className="rounded-full border border-white/10 bg-[#111111] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-[#ff7a1a]/35 hover:bg-white/[0.08] hover:text-[#ffb36b]"
-                    ariaLabel="Share post link"
-                  />
-                  <CinePostOwnerMenu
-                    post={post}
-                    currentUser={user}
-                    onDeleted={() => router.push("/dashboard")}
-                    onUpdated={refreshPost}
-                    theme="brutalist"
-                  />
-                </div>
-              </div>
 
-              <div className="mt-6 max-w-3xl whitespace-pre-wrap text-[16px] leading-8 text-[#f5f0de]/82">
-                {linkify(getCinePostDisplayBody(post))}
+                <div className="mt-6 max-w-3xl whitespace-pre-wrap text-[16px] leading-8 text-[#f5f0de]/82">
+                  {linkify(getCinePostDisplayBody(post))}
+                </div>
+
+                <div className="mt-6">
+                  <CinePostListStrip items={post.list_items || []} theme="brutalist" />
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                {href ? (
+                  <Link
+                    href={href}
+                    className="group relative mx-auto aspect-[2/3] w-full max-w-48 overflow-hidden bg-[#111111] sm:mx-0"
+                  >
+                    <CinePostArtwork
+                      src={post.poster_url}
+                      collageImages={post.list_cover_images}
+                      alt={post.content_title || post.anchor_label}
+                      className="h-full w-full"
+                      mediaClassName="transition duration-300 group-hover:scale-[1.02]"
+                    />
+                  </Link>
+                ) : (
+                  <div className="mx-auto aspect-[2/3] w-full max-w-48 bg-[#111111] sm:mx-0" />
+                )}
+
+                <div className="min-w-0 pr-4 sm:pr-0">
+                  <div className="flex items-start gap-3">
+                    <Link href={profileHref(post.user)} className="flex-shrink-0">
+                      <Avatar user={post.user} size="h-11 w-11" />
+                    </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <Link href={profileHref(post.user)} className="text-lg font-black text-[#f5f0de] hover:text-[#ffb36b]">
+                          {getDisplayUserName(post.user, user)}
+                        </Link>
+                        <span className="text-sm text-white/45">{relativeTime(post.created_at)}</span>
+                      </div>
+                    {post.type === "log" ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex rounded-full bg-[#ff7a1a] px-3 py-1 text-xs font-black text-black">
+                          Log
+                        </span>
+                        {getCinePostLogRatingLabel(post) ? (
+                          <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-[#f5f0de]">
+                            {getCinePostLogRatingLabel(post)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <CinePostOwnerMenu
+                        post={post}
+                        currentUser={user}
+                        onDeleted={() => router.push("/dashboard")}
+                        onUpdated={refreshPost}
+                        theme="brutalist"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 max-w-3xl whitespace-pre-wrap text-[16px] leading-8 text-[#f5f0de]/82">
+                    {linkify(getCinePostDisplayBody(post))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="border-t border-white/10 py-4">

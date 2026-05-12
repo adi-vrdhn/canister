@@ -1,4 +1,10 @@
 import { db } from "@/lib/firebase";
+import {
+  getUsernameValidationError,
+  isUsernameAvailable,
+  normalizeUsernameKey,
+  syncUsernameIndex,
+} from "@/lib/username-index";
 import { equalTo, get, limitToFirst, orderByChild, query, ref, set } from "firebase/database";
 import { User, MovieLog, Content, Follow } from "@/types";
 import { getMovieDetails } from "./tmdb";
@@ -610,23 +616,13 @@ export async function updateUserProfile(
 ): Promise<void> {
   try {
     if (typeof updates.username === "string" && updates.username.trim()) {
-      const requestedUsername = updates.username.trim().toLowerCase();
-      const usersQuery = query(
-        ref(db, "users"),
-        orderByChild("username"),
-        equalTo(requestedUsername),
-        limitToFirst(2)
-      );
-      const usersSnapshot = await get(usersQuery);
-      const users = usersSnapshot.val() || {};
+      const usernameError = getUsernameValidationError(updates.username);
+      if (usernameError) {
+        throw new Error(usernameError);
+      }
 
-      const usernameTaken = Object.entries(users as Record<string, any>).some(([, entry]) => {
-        const entryId = entry?.id || entry?.user_id;
-        const entryUsername = (entry?.username || "").toLowerCase();
-        return entryId !== userId && entryUsername === requestedUsername;
-      });
-
-      if (usernameTaken) {
+      const requestedUsername = normalizeUsernameKey(updates.username);
+      if (!(await isUsernameAvailable(requestedUsername))) {
         throw new Error("Username already taken");
       }
 
@@ -657,6 +653,11 @@ export async function updateUserProfile(
     }
 
     await set(userRef, updateObj);
+
+    if (typeof updates.username === "string" && updates.username.trim()) {
+      const previousUsername = normalizeUsernameKey(currentUser.username || "");
+      await syncUsernameIndex(userId, updateObj.username, previousUsername);
+    }
   } catch (error) {
     console.error("Error updating profile:", error);
     throw error;

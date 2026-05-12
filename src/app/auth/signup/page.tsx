@@ -8,6 +8,7 @@ import { signUp, checkUsernameAvailability } from "@/lib/auth";
 import { Mail, Lock, User, AlertCircle, CheckCircle, ArrowRight } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { getUsernameValidationError } from "@/lib/username-index";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function SignUpPage() {
   const [verificationSent, setVerificationSent] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const usernameCheckDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const usernameValidationError = username.trim() ? getUsernameValidationError(username) : null;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -38,6 +40,12 @@ export default function SignUpPage() {
     if (usernameCheckDebounceRef.current) {
       clearTimeout(usernameCheckDebounceRef.current);
       usernameCheckDebounceRef.current = null;
+    }
+
+    if (usernameValidationError) {
+      setUsernameAvailable(null);
+      setCheckingUsername(false);
+      return;
     }
 
     if (username.length < 3) {
@@ -64,7 +72,7 @@ export default function SignUpPage() {
         usernameCheckDebounceRef.current = null;
       }
     };
-  }, [username]);
+  }, [username, usernameValidationError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +85,11 @@ export default function SignUpPage() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
+      return;
+    }
+
+    if (usernameValidationError) {
+      setError(usernameValidationError);
       return;
     }
 
@@ -184,9 +197,14 @@ export default function SignUpPage() {
                     <input
                       type="text"
                       value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="@username"
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))}
+                      placeholder="username"
                       minLength={3}
+                      maxLength={20}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      pattern="[a-z0-9._]{3,20}"
                       required
                       className="w-full rounded-[1.25rem] border border-white/10 bg-[#111111] py-3 pl-10 pr-10 text-sm text-[#f5f0de] outline-none transition placeholder:text-white/30 focus:border-[#ff7a1a]/45 focus:ring-2 focus:ring-[#ff7a1a]/15"
                     />
@@ -204,6 +222,16 @@ export default function SignUpPage() {
                   </div>
                   {username.length > 0 && username.length < 3 && (
                     <p className="mt-1 text-xs text-[#f5f0de]/45">At least 3 characters</p>
+                  )}
+                  {usernameValidationError && (
+                    <p className="mt-1 text-xs text-[#ffb36b]">
+                      {usernameValidationError}
+                    </p>
+                  )}
+                  {!usernameValidationError && (
+                    <p className="mt-1 text-xs text-[#f5f0de]/45">
+                      Use letters, numbers, dots, and underscores only. No @ or -.
+                    </p>
                   )}
                 </div>
 

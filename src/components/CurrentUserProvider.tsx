@@ -7,6 +7,7 @@ import { auth, db } from "@/lib/firebase";
 import type { User } from "@/types";
 import { DEFAULT_SETTINGS, mergeSettings, type SettingsData } from "@/lib/settings";
 import { normalizeUserRecord } from "@/lib/users";
+import { syncUsernameIndex } from "@/lib/username-index";
 
 type CurrentUserContextValue = {
   user: User | null;
@@ -68,6 +69,10 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
           mood_tags: userData?.mood_tags || [],
           mood_tags_updated_at: userData?.mood_tags_updated_at,
         });
+
+        if (typeof userData?.username === "string" && userData.username.trim()) {
+          void syncUsernameIndex(firebaseUser.uid, userData.username).catch(() => {});
+        }
       } catch {
         setSettings(DEFAULT_SETTINGS);
         setUser(

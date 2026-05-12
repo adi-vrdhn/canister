@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, type ChangeEvent } from "react";
-import { sendEmailVerification } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
@@ -11,6 +10,7 @@ import { onAuthStateChanged, verifyBeforeUpdateEmail, EmailAuthProvider, reauthe
 import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
 import { updateUserProfile } from "@/lib/profile";
+import { getUsernameValidationError } from "@/lib/username-index";
 import { Loader2, ArrowLeft, Save, Upload, Camera, X } from "lucide-react";
 import Link from "next/link";
 
@@ -29,8 +29,9 @@ async function compressImageToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
-      const maxWidth = 512;
-      const maxHeight = 512;
+      // Keep avatars lightweight without making them blurry or over-processed.
+      const maxWidth = 384;
+      const maxHeight = 384;
 
       let { width, height } = image;
       if (width > maxWidth || height > maxHeight) {
@@ -50,7 +51,7 @@ async function compressImageToDataUrl(file: File): Promise<string> {
       }
 
       context.drawImage(image, 0, 0, width, height);
-      const compressed = canvas.toDataURL("image/jpeg", 0.82);
+      const compressed = canvas.toDataURL("image/jpeg", 0.78);
       resolve(compressed);
     };
 
@@ -80,6 +81,10 @@ export default function EditProfilePage() {
     avatar_url: "",
     avatar_scale: 1,
   });
+  const cleanUsername = formData.username.trim().toLowerCase();
+  const currentUsername = user?.username?.trim().toLowerCase() || "";
+  const usernameChanged = cleanUsername !== currentUsername;
+  const usernameValidationError = usernameChanged ? getUsernameValidationError(formData.username) : null;
 
   useEffect(() => {
     // Show verify message if coming from /profile/edit?verify=1
@@ -143,7 +148,6 @@ export default function EditProfilePage() {
 
     const cleanName = formData.name.trim();
     const cleanBio = formData.bio.trim();
-    const cleanUsername = formData.username.trim().toLowerCase();
     const cleanEmail = formData.email.trim().toLowerCase();
 
     if (!cleanName) {
@@ -151,8 +155,8 @@ export default function EditProfilePage() {
       return;
     }
 
-    if (!cleanUsername || !/^[a-z0-9_]{3,20}$/.test(cleanUsername)) {
-      setSaveError("Username must be 3-20 characters (letters, numbers, underscore only).");
+    if (usernameValidationError) {
+      setSaveError(usernameValidationError);
       return;
     }
 
@@ -201,7 +205,7 @@ export default function EditProfilePage() {
 
       await updateUserProfile(user.id, {
         name: cleanName,
-        username: cleanUsername,
+        ...(usernameChanged ? { username: cleanUsername } : {}),
         email: cleanEmail,
         bio: cleanBio,
         avatar_url: formData.avatar_url,
@@ -488,10 +492,20 @@ export default function EditProfilePage() {
                   <input
                     type="text"
                     value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/\s+/g, "") })}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, "") })}
                     className="w-full border border-white/10 bg-black px-4 py-2.5 text-[#f5f0de] outline-none placeholder:text-white/30 focus:border-[#ff7a1a] focus:ring-1 focus:ring-[#ff7a1a]"
                     placeholder="username"
+                    maxLength={20}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    pattern="[a-z0-9._]{3,20}"
                   />
+                  {usernameValidationError ? (
+                    <p className="mt-1 text-xs text-[#ffb36b]">{usernameValidationError}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-white/45">Use letters, numbers, dots, and underscores only. No @ or -.</p>
+                  )}
                 </div>
 
                 <div>

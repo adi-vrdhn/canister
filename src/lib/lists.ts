@@ -1,8 +1,9 @@
 import { auth, db } from "@/lib/firebase";
-import { ref, set, get, push, remove, onValue } from "firebase/database";
+import { ref, set, get, push, remove } from "firebase/database";
 import { List, ListItem, ListCollaborator, ListWithItems, ListItemWithContent, ListCollaboratorWithUser, User, Content } from "@/types";
 import { getMovieDetails } from "./tmdb";
 import { getShowDetails } from "./tvmaze";
+import { normalizeListIdParam } from "./list-ids";
 import { createFallbackUser, getUsersByIds } from "./users";
 
 /**
@@ -64,6 +65,8 @@ export async function syncListCollaboratorIds(listId: string, collaboratorIds: s
  */
 export async function getUserLists(userId: string): Promise<List[]> {
   try {
+    if (!auth.currentUser) return [];
+
     // Get all lists
     const listsRef = ref(db, "lists");
     const listsSnapshot = await get(listsRef);
@@ -109,6 +112,8 @@ export async function getUserLists(userId: string): Promise<List[]> {
  */
 export async function getPublicLists(limit: number = 20): Promise<List[]> {
   try {
+    if (!auth.currentUser) return [];
+
     const snapshot = await get(ref(db, "lists"));
 
     if (!snapshot.exists()) return [];
@@ -131,7 +136,12 @@ export async function getPublicLists(limit: number = 20): Promise<List[]> {
  */
 export async function getListWithDetails(listId: string, allUsers?: Record<string, User>): Promise<ListWithItems | null> {
   try {
-    const listRef = ref(db, `lists/${listId}`);
+    if (!auth.currentUser) return null;
+
+    const safeListId = normalizeListIdParam(listId);
+    if (!safeListId) return null;
+
+    const listRef = ref(db, `lists/${safeListId}`);
     const listSnapshot = await get(listRef);
 
     if (!listSnapshot.exists()) return null;
@@ -143,7 +153,7 @@ export async function getListWithDetails(listId: string, allUsers?: Record<strin
     const itemsSnapshot = await get(itemsRef);
     const allItems = itemsSnapshot.exists() ? itemsSnapshot.val() : {};
     const listItems = Object.values(allItems)
-      .filter((item: any) => item.list_id === listId)
+      .filter((item: any) => item.list_id === safeListId)
       .sort((a: any, b: any) => (a.position || 0) - (b.position || 0)) as ListItem[];
 
     // Fetch collaborators
@@ -151,7 +161,7 @@ export async function getListWithDetails(listId: string, allUsers?: Record<strin
     const collaboratorsSnapshot = await get(collaboratorsRef);
     const allCollaborators = collaboratorsSnapshot.exists() ? collaboratorsSnapshot.val() : {};
     const listCollaborators = Object.values(allCollaborators).filter(
-      (collab: any) => collab.list_id === listId
+      (collab: any) => collab.list_id === safeListId
     ) as ListCollaborator[];
 
     const requiredUserIds = Array.from(
@@ -370,6 +380,8 @@ export async function deleteList(listId: string, userId: string): Promise<void> 
  */
 export async function getListCoverImages(listId: string): Promise<string[]> {
   try {
+    if (!auth.currentUser) return [];
+
     const itemsRef = ref(db, "list_items");
     const snapshot = await get(itemsRef);
 
@@ -409,6 +421,8 @@ export async function getListCoverImages(listId: string): Promise<string[]> {
  */
 export async function isUserCollaborator(listId: string, userId: string): Promise<boolean> {
   try {
+    if (!auth.currentUser) return false;
+
     const collaboratorsRef = ref(db, "list_collaborators");
     const snapshot = await get(collaboratorsRef);
 
@@ -429,6 +443,8 @@ export async function isUserCollaborator(listId: string, userId: string): Promis
  */
 export async function isItemInList(listId: string, contentId: number, contentType: "movie" | "tv"): Promise<boolean> {
   try {
+    if (!auth.currentUser) return false;
+
     const itemsRef = ref(db, "list_items");
     const snapshot = await get(itemsRef);
 

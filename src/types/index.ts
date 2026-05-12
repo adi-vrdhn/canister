@@ -363,6 +363,7 @@ export interface CinePostCommentWithUser extends CinePostComment {
 export interface CinePostWithDetails extends CinePost {
   user: User;
   comments: CinePostCommentWithUser[];
+  list_items?: ListItemWithContent[];
   likes_count: number;
   saves_count: number;
   comments_count: number;

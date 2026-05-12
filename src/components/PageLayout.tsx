@@ -38,6 +38,7 @@ export default function PageLayout({
   const pathname = usePathname();
   const isPwa = useIsPwa();
   const reserveBottomNavSpace = isPwa && !pathname.startsWith("/auth") && !pathname.startsWith("/scan");
+  const guestHeaderHref = "/auth/login";
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -62,7 +63,7 @@ export default function PageLayout({
     });
 
     return () => unsubscribe();
-  }, [user?.id]);
+  }, [user]);
 
   return (
     <div className={`${isBrutalist ? "brutalist bg-[#0a0a0a]" : "app-shell"} flex min-h-dvh overflow-x-hidden`}>
@@ -71,49 +72,53 @@ export default function PageLayout({
           isBrutalist ? "border-b border-white/10 bg-[#0a0a0a]/95" : "bg-white/95"
         }`}
       >
-        {!isPwa ? (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition lg:hidden ${
-              isBrutalist
-                ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
-                : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
-            }`}
-            aria-label="Open menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-        ) : (
-          <Link
-            href="/profile"
-            className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition lg:hidden ${
-              isBrutalist
-                ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
-                : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
-            }`}
-            aria-label="Open profile"
-          >
-            {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt={user.name}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className={`text-[10px] font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-                {user?.name?.charAt(0)?.toUpperCase() || "U"}
-              </span>
-            )}
-          </Link>
-        )}
+        {!isPwa &&
+          (user ? (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-transparent bg-transparent transition lg:hidden ${
+                isBrutalist
+                  ? "text-[#f5f0de] hover:bg-white/5 hover:border-white/10"
+                  : "text-slate-900 hover:bg-slate-100 hover:border-slate-200"
+              }`}
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          ) : null)}
+
+        {isPwa &&
+          (user ? (
+            <Link
+              href="/profile"
+              className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition lg:hidden ${
+                isBrutalist
+                  ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
+                  : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+              }`}
+              aria-label="Open profile"
+            >
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className={`text-[10px] font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                </span>
+              )}
+            </Link>
+          ) : null)}
 
         <Link
-          href="/dashboard"
+          href={user ? "/dashboard" : guestHeaderHref}
           className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 transition hover:opacity-80 ${
             isBrutalist ? "text-[#f5f0de]" : "text-zinc-950"
           }`}
-          aria-label="Go to home"
+          aria-label={user ? "Go to home" : "Sign in"}
         >
           <Image
             src="/logo.png"
@@ -128,23 +133,49 @@ export default function PageLayout({
           </span>
         </Link>
         {headerAction === "settings" ? (
-          <Link
-            href="/profile/settings"
-            className={`absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition ${
-              isBrutalist
-                ? "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
-                : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
-            }`}
-            aria-label="Profile settings"
-          >
-            <Settings className="h-5 w-5" />
-          </Link>
+          user ? (
+            <Link
+              href="/profile/settings"
+              className={`absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border transition ${
+                isBrutalist
+                  ? "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
+                  : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+              }`}
+              aria-label="Profile settings"
+            >
+              <Settings className="h-5 w-5" />
+            </Link>
+          ) : (
+            <Link
+              href={guestHeaderHref}
+              className={`absolute right-4 top-1/2 -translate-y-1/2 rounded-full border px-4 py-2 text-xs font-semibold transition sm:text-sm ${
+                isBrutalist
+                  ? "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
+                  : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+              }`}
+            >
+              Sign in
+            </Link>
+          )
         ) : (
-          <NotificationBellShell user={user} theme={theme} />
+          user ? (
+            <NotificationBellShell user={user} theme={theme} />
+          ) : (
+            <Link
+              href={guestHeaderHref}
+              className={`absolute right-4 top-1/2 -translate-y-1/2 rounded-full border px-4 py-2 text-xs font-semibold transition sm:text-sm ${
+                isBrutalist
+                  ? "border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
+                  : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+              }`}
+            >
+              Sign in
+            </Link>
+          )
         )}
       </header>
 
-      {!isPwa && (
+      {user && !isPwa && (
         <>
           {/* Sidebar: hidden on mobile, slide-in on open */}
           <SidebarShell

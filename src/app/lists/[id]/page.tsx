@@ -31,6 +31,7 @@ import CinematicLoading from "@/components/CinematicLoading";
 import { User, ListWithItems, ListCollaboratorWithUser } from "@/types";
 import { auth, db } from "@/lib/firebase";
 import { signOut as authSignOut } from "@/lib/auth";
+import { normalizeListIdParam } from "@/lib/list-ids";
 import {
   getListWithDetails,
   removeItemFromList,
@@ -80,29 +81,39 @@ function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, o
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden border border-white/10 bg-[#111111] shadow-xl">
           <div className="p-2">
-            <div className="px-3 pb-2 pt-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Layout</p>
-            </div>
-            <button
-              className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
-              onClick={() => { setOpen(false); onSetViewType("grid"); }}
-            >
-              <Grid3x3 className={`mt-0.5 h-4 w-4 ${viewType === "grid" ? "text-[#ff7a1a]" : "text-white/60"}`} />
-              <div>
-                <p className="text-sm font-semibold text-[#f5f0de]">Grid</p>
-                <p className="text-xs text-white/55">Posters in a tight grid</p>
-              </div>
-            </button>
-            <button
-              className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
-              onClick={() => { setOpen(false); onSetViewType("list"); }}
-            >
-              <ListIcon className={`mt-0.5 h-4 w-4 ${viewType === "list" ? "text-[#ff7a1a]" : "text-white/60"}`} />
-              <div>
-                <p className="text-sm font-semibold text-[#f5f0de]">List</p>
-                <p className="text-xs text-white/55">One row per item</p>
-              </div>
-            </button>
+            {canEdit && (
+              <>
+                <div className="px-3 pb-2 pt-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Layout</p>
+                </div>
+                <button
+                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+                  onClick={() => {
+                    setOpen(false);
+                    onSetViewType("grid");
+                  }}
+                >
+                  <Grid3x3 className={`mt-0.5 h-4 w-4 ${viewType === "grid" ? "text-[#ff7a1a]" : "text-white/60"}`} />
+                  <div>
+                    <p className="text-sm font-semibold text-[#f5f0de]">Grid</p>
+                    <p className="text-xs text-white/55">Posters in a tight grid</p>
+                  </div>
+                </button>
+                <button
+                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
+                  onClick={() => {
+                    setOpen(false);
+                    onSetViewType("list");
+                  }}
+                >
+                  <ListIcon className={`mt-0.5 h-4 w-4 ${viewType === "list" ? "text-[#ff7a1a]" : "text-white/60"}`} />
+                  <div>
+                    <p className="text-sm font-semibold text-[#f5f0de]">List</p>
+                    <p className="text-xs text-white/55">One row per item</p>
+                  </div>
+                </button>
+              </>
+            )}
             <button
               className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5"
               onClick={() => { setOpen(false); onClone(); }}
@@ -129,7 +140,10 @@ function MenuButton({ onEdit, onAddItems, canEdit, isOwner, onDelete, onClone, o
               className={`mt-1 flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-white/5 ${
                 watchedStatusEnabled ? "text-[#ffb36b]" : ""
               }`}
-              onClick={() => { setOpen(false); onToggleWatchedStatus && onToggleWatchedStatus(); }}
+              onClick={() => {
+                setOpen(false);
+                onToggleWatchedStatus?.();
+              }}
             >
               <Eye className={`mt-0.5 h-4 w-4 ${watchedStatusEnabled ? "text-[#ff7a1a]" : "text-white/60"}`} />
               <div>
@@ -247,7 +261,7 @@ export default function ListDetailPage() {
   const [watchedMovies, setWatchedMovies] = useState<Record<string, WatchedMovie>>({});
   const router = useRouter();
   const params = useParams();
-  const listId = params.id as string;
+  const listId = normalizeListIdParam(params.id as string);
 
   // ...existing state declarations continue...
   const [loading, setLoading] = useState(true);
@@ -265,7 +279,7 @@ export default function ListDetailPage() {
   const [selectedFriends, setSelectedFriends] = useState<User[]>([]);
   const [addingCollaborators, setAddingCollaborators] = useState(false);
   // (moved above)
-  const [viewType, setViewType] = useState<"grid" | "list">("list");
+  const [viewType, setViewType] = useState<"grid" | "list">("grid");
   const [reorderMode, setReorderMode] = useState(false);
   const [showUnwatchedFirst, setShowUnwatchedFirst] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
@@ -274,14 +288,61 @@ export default function ListDetailPage() {
   const [showCollaboratorsModal, setShowCollaboratorsModal] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadPublicList = async () => {
+      try {
+        const response = await fetch(`/api/lists/${encodeURIComponent(listId)}`);
+        if (!response.ok) {
+          if (!cancelled) {
+            setList(null);
+            setUser(null);
+            setCurrentUserSettings(mergeSettings(null));
+            setLoading(false);
+          }
+          return;
+        }
+
+        const payload = await response.json();
+        if (cancelled) return;
+
+        const publicList = payload.list as ListWithItems;
+        setUser(null);
+        setCurrentUserSettings(mergeSettings(null));
+        setList(publicList);
+        setEditName(publicList.name);
+        setEditDescription(publicList.description || "");
+        setEditPrivacy(publicList.privacy);
+        setSelectedCoverImageUrl(publicList.cover_image_url || null);
+        setViewType(publicList.view_type || "grid");
+        setShowUnwatchedFirst(publicList.show_unwatched_first || false);
+        setIsCollaborator(false);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error loading public list:", error);
+        if (!cancelled) {
+          setList(null);
+          setUser(null);
+          setCurrentUserSettings(mergeSettings(null));
+          setLoading(false);
+        }
+      }
+    };
+
+    if (!listId) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (cancelled) return;
+
       if (!firebaseUser) {
-        router.push("/auth/login");
+        await loadPublicList();
         return;
       }
 
       try {
-        // Fetch user
         const userRef = ref(db, `users/${firebaseUser.uid}`);
         const userSnapshot = await get(userRef);
         const userData = userSnapshot.val();
@@ -294,22 +355,26 @@ export default function ListDetailPage() {
           created_at: userData?.createdAt || new Date().toISOString(),
         };
 
+        if (cancelled) return;
+
         setUser(currentUser);
         setCurrentUserSettings(mergeSettings(userData?.settings));
 
-        // Fetch list details
         const listData = await getListWithDetails(listId);
+        if (cancelled) return;
+
         if (listData) {
           setList(listData);
           setEditName(listData.name);
           setEditDescription(listData.description || "");
           setEditPrivacy(listData.privacy);
           setSelectedCoverImageUrl(listData.cover_image_url || null);
-          setViewType("list");
+          setViewType(listData.view_type || "grid");
           setShowUnwatchedFirst(listData.show_unwatched_first || false);
 
-          // Check if user is collaborator
           const isCollab = await isUserCollaborator(listId, currentUser.id);
+          if (cancelled) return;
+
           setIsCollaborator(isCollab || listData.owner_id === currentUser.id);
 
           if (listData.owner_id === currentUser.id) {
@@ -328,14 +393,21 @@ export default function ListDetailPage() {
         setLoading(false);
       } catch (error) {
         console.error("Error loading list:", error);
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [listId, router]);
 
   const handleViewTypeChange = async (newViewType: "grid" | "list") => {
+    if (!canEdit) return;
+
     try {
       setSavingPreferences(true);
       setViewType(newViewType);
@@ -355,6 +427,8 @@ export default function ListDetailPage() {
   };
 
   const handleUnwatchedFilterChange = async () => {
+    if (!canEdit) return;
+
     try {
       setSavingPreferences(true);
       const newValue = !showUnwatchedFirst;
@@ -655,12 +729,33 @@ export default function ListDetailPage() {
     return <CinematicLoading message="Your list is loading" />;
   }
 
-  if (!list || !user) {
-    return null;
+  if (!list) {
+    return (
+      <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
+        <div className="mx-auto flex min-h-[60dvh] max-w-2xl flex-col items-center justify-center px-4 py-16 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#ffb36b]">
+            Shared Lists
+          </p>
+          <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-[#f5f0de] sm:text-4xl">
+            This list is not available
+          </h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-white/60 sm:text-base">
+            Sign in to view private lists, or open a different shared link if this one was copied incorrectly.
+          </p>
+          <Link
+            href="/auth/login"
+            className="mt-6 inline-flex items-center justify-center rounded-full bg-[#ff7a1a] px-5 py-3 text-sm font-semibold text-[#0a0a0a] transition hover:bg-[#ff8d3d]"
+          >
+            Sign in
+          </Link>
+        </div>
+      </PageLayout>
+    );
   }
 
-  const isOwner = list.owner_id === user.id;
-  const canEdit = isOwner || isCollaborator;
+  const viewerHasAuth = Boolean(user);
+  const isOwner = viewerHasAuth && list.owner_id === user.id;
+  const canEdit = viewerHasAuth && (isOwner || isCollaborator);
   const sortedItems = [...list.items].sort((a, b) => a.position - b.position);
   const isRankedList = list.is_ranked;
   const posterOptions = sortedItems
@@ -671,7 +766,7 @@ export default function ListDetailPage() {
   const handleShareList = async () => {
     if (typeof window === "undefined") return;
 
-    const shareUrl = new URL(`/lists/${listId}`, window.location.origin).toString();
+    const shareUrl = new URL(`/lists/${list.id}`, window.location.origin).toString();
     try {
       if (navigator.share) {
         await navigator.share({
@@ -697,6 +792,11 @@ export default function ListDetailPage() {
   return (
     <PageLayout user={user} onSignOut={handleSignOut} theme="brutalist">
       <div className="px-2 py-4 sm:p-8">
+        {!viewerHasAuth && (
+          <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+            You’re viewing a public list. Sign in to clone it, add collaborators, or manage your own lists.
+          </div>
+        )}
         {/* Header with Back and Title */}
         <div className="mb-5 sm:mb-8">
           <Link
@@ -717,27 +817,31 @@ export default function ListDetailPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <MenuButton
-                onEdit={() => {
-                  setEditMode(true);
-                  setSelectedCoverImageUrl(list.cover_image_url || null);
-                }}
-                onAddItems={() => window.location.href = `/lists/${listId}/add-items`}
-                canEdit={isOwner || isCollaborator}
-                isOwner={isOwner}
-                onDelete={isOwner ? handleDeleteList : undefined}
-                onClone={handleCloneList}
-                onShare={handleShareList}
-                cloneLoading={cloningList}
-                onToggleWatchedStatus={() => setWatchedStatusEnabled(v => !v)}
-                watchedStatusEnabled={watchedStatusEnabled}
-                viewType={viewType}
-                onSetViewType={(nextViewType) => void handleViewTypeChange(nextViewType)}
-                onToggleReorder={canEdit && viewType === "list" ? () => setReorderMode((v) => !v) : undefined}
-                reorderMode={reorderMode}
-              />
-            </div>
+            {viewerHasAuth && (
+              <div className="flex items-center gap-1.5">
+                <MenuButton
+                  onEdit={() => {
+                    setEditMode(true);
+                    setSelectedCoverImageUrl(list.cover_image_url || null);
+                  }}
+                  onAddItems={() => {
+                    window.location.href = `/lists/${listId}/add-items`;
+                  }}
+                  canEdit={Boolean(isOwner || isCollaborator)}
+                  isOwner={Boolean(isOwner)}
+                  onDelete={isOwner ? handleDeleteList : undefined}
+                  onClone={handleCloneList}
+                  onShare={handleShareList}
+                  cloneLoading={cloningList}
+                  onToggleWatchedStatus={() => setWatchedStatusEnabled(v => !v)}
+                  watchedStatusEnabled={watchedStatusEnabled}
+                  viewType={viewType}
+                  onSetViewType={(nextViewType) => void handleViewTypeChange(nextViewType)}
+                  onToggleReorder={canEdit && viewType === "list" ? () => setReorderMode((v) => !v) : undefined}
+                  reorderMode={reorderMode}
+                />
+              </div>
+            )}
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">

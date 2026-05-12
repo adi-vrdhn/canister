@@ -7,6 +7,7 @@ import { CurrentUserProvider } from "@/components/CurrentUserProvider";
 import ForegroundPushListener from "@/components/ForegroundPushListener";
 import GlobalErrorListener from "@/components/GlobalErrorListener";
 import LocalhostServiceWorkerCleanup from "@/components/LocalhostServiceWorkerCleanup";
+import MobileInstallPrompt from "@/components/MobileInstallPrompt";
 import PwaBottomNav from "@/components/PwaBottomNav";
 import JsonLd from "@/components/JsonLd";
 import { websiteSchema } from "@/lib/seo";
@@ -64,6 +65,7 @@ export default function RootLayout({
         <AutoPushPrompt />
         <ForegroundPushListener />
         <GlobalErrorListener />
+        <MobileInstallPrompt />
         <PwaBottomNav />
       </body>
     </html>

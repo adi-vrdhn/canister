@@ -364,7 +364,7 @@ export default function ListsPage() {
       <div className="space-y-8 p-4 sm:p-6 lg:p-8">
         <div className="sticky top-2 z-20 bg-[#111111]/95 backdrop-blur">
           <div className="flex flex-col gap-3 px-0 py-2 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => setActiveSection("global")}
                 className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-2 py-2 text-xs font-medium transition-colors sm:gap-2 sm:px-4 sm:text-sm ${

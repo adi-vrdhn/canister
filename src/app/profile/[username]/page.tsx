@@ -1543,7 +1543,7 @@ function ProfilePageInner() {
               </span>
             </p>
 
-            <div className="mt-4 flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
+            <div className="mt-4 grid w-full grid-flow-col auto-cols-fr gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
               {!isOwnProfile && currentUser && (
                 <div className="contents">
                   {hasBlockRelationship ? (

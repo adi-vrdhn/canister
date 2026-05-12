@@ -7,7 +7,13 @@
       "Bash(npx tsc *)",
       "Bash(git checkout *)",
       "Bash(xargs cat)",
-      "Bash(mkdir -p /Users/aditya/Desktop/cineparte/src/app/log/\\\\[username\\\\]/\\\\[slug\\\\])"
+      "Bash(mkdir -p /Users/aditya/Desktop/cineparte/src/app/log/\\\\[username\\\\]/\\\\[slug\\\\])",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://www.canisterr.com/sitemap.xml)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://www.canisterr.com/robots.txt)",
+      "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" https://www.canisterr.com/sitemap.xml)",
+      "Bash(curl -sL https://canisterr.com/sitemap.xml)",
+      "Bash(curl -sL https://canisterr.com/robots.txt)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "/Users/aditya/Desktop/cineparte/src/app/log/[username]"
