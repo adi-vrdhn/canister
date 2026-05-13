@@ -352,6 +352,12 @@ export default function TVShowPage() {
                   <LogsIcon className="h-4 w-4" />
                   Log Show
                 </button>
+                <Link
+                  href={`/tv/${show.id}/seasons`}
+                  className="inline-flex min-w-[11rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10"
+                >
+                  Seasons
+                </Link>
                 <button
                   onClick={() => router.push(`/share?show_id=${show.id}`)}
                   className="inline-flex min-w-[11rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10"
@@ -459,9 +465,14 @@ export default function TVShowPage() {
                     return (
                       <div key={log.id} className="p-4 sm:p-5">
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-sm text-white/70">
-                            Watched on {new Date(log.watched_date).toLocaleDateString()}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
+                            <p>Watched on {new Date(log.watched_date).toLocaleDateString()}</p>
+                            {log.season ? (
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#ffb36b]">
+                                S{log.season}
+                              </span>
+                            ) : null}
+                          </div>
                           <span className={`rounded-full border px-2.5 py-1 text-xs ${getReactionBadgeClassFromLabel(label)}`}>
                             {label}
                           </span>
@@ -509,6 +520,11 @@ export default function TVShowPage() {
                             <span className={`mt-2 block rounded-full border px-2 py-0.5 text-xs ${getReactionBadgeClassFromLabel(label)}`}>
                               {label}
                             </span>
+                            {log.season ? (
+                              <span className="mt-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#ffb36b]">
+                                S{log.season}
+                              </span>
+                            ) : null}
                           </div>
                           <span className="mt-2 text-xs text-white/80 group-hover:underline">{log.user.name}</span>
                         </div>
@@ -551,6 +567,11 @@ export default function TVShowPage() {
                               <span className={`mt-1 block rounded-full border px-2 py-0.5 text-xs ${getReactionBadgeClassFromLabel(label)}`}>
                                 {label}
                               </span>
+                              {log.season ? (
+                                <span className="mt-1 block rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#ffb36b]">
+                                  S{log.season}
+                                </span>
+                              ) : null}
                             </div>
                             <div className="min-w-0 flex-1">
                               <span

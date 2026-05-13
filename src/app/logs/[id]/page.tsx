@@ -84,6 +84,11 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+function getSeasonLabel(log: MovieLogWithContent): string {
+  if (log.content_type !== "tv" || typeof log.season !== "number") return "";
+  return `Season ${log.season}`;
+}
+
 function Avatar({ user }: { user: User }) {
   if (user.avatar_url) {
     return <img src={user.avatar_url} alt={user.name} className="h-10 w-10 rounded-full object-cover" />;
@@ -1181,6 +1186,11 @@ export default function LogDetailPage() {
                   <CalendarDays className="h-3.5 w-3.5" />
                   Watched {formatDate(log.watched_date)}
                 </p>
+                {getSeasonLabel(log) && (
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ffb36b]/80">
+                    {getSeasonLabel(log)}
+                  </p>
+                )}
                 {log.content.genres?.length ? (
                   <p className="leading-6 text-[#f5f0de]/76">
                     {log.content.genres.slice(0, 4).join(", ")}

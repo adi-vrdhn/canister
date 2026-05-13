@@ -56,6 +56,11 @@ function isUnavailableContent(log: MovieLogWithContent): boolean {
   return log.content.title === "Unknown Movie" || log.content.title === "Unknown Show";
 }
 
+function getSeasonLabel(log: MovieLogWithContent): string {
+  if (log.content_type !== "tv" || typeof log.season !== "number") return "";
+  return `Season ${log.season}`;
+}
+
 function dateKeyFromLog(log: MovieLogWithContent): string {
   return log.watched_date;
 }
@@ -205,6 +210,11 @@ function LogCard({
               <p className="mt-0.5 truncate text-[10px] font-medium text-white/60 sm:text-xs">
                 Watched {formatWatchedDate(log.watched_date)}
               </p>
+              {getSeasonLabel(log) && (
+                <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ffb36b]/80 sm:text-xs">
+                  {getSeasonLabel(log)}
+                </p>
+              )}
               {isUnavailableContent(log) && (
                 <span className="mt-2 inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-200">
                   Details unavailable
@@ -827,6 +837,11 @@ export default function UserLogPage() {
                 />
                 <div>
                   <p className="text-2xl font-bold text-[#f5f0de]">{activeLog.content.title}</p>
+                  {getSeasonLabel(activeLog) && (
+                    <p className="mt-1 text-sm font-semibold uppercase tracking-[0.18em] text-[#ffb36b]/80">
+                      {getSeasonLabel(activeLog)}
+                    </p>
+                  )}
                   {isUnavailableContent(activeLog) && (
                     <span className="mt-2 inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-200">
                       Details unavailable

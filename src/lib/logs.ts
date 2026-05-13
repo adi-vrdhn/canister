@@ -142,7 +142,8 @@ export async function createMovieLog(
     mood?: string;
   },
   ticketImageUrl?: string | null,
-  importedFromCsv?: boolean
+  importedFromCsv?: boolean,
+  season?: number
 ): Promise<MovieLog> {
   const logRef = push(ref(db, "movie_logs"));
   const logId = logRef.key;
@@ -184,6 +185,10 @@ export async function createMovieLog(
 
   if (importedFromCsv) {
     newLog.imported_from_csv = true;
+  }
+
+  if (contentType === "tv" && typeof season === "number" && Number.isFinite(season)) {
+    newLog.season = season;
   }
 
   await set(logRef, newLog);

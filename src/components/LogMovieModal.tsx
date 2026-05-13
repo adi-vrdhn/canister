@@ -6,6 +6,7 @@ import { Check, Upload } from "lucide-react";
 import { Content, MovieLog, MovieLogWithContent, User } from "@/types";
 import { createLogCinePost } from "@/lib/cineposts";
 import { createMovieLog, getUserMovieLogs, updateMovieLog } from "@/lib/logs";
+import { getShowSeasons, type TVMazeSeason } from "@/lib/tvmaze-seasons";
 import { reportAppError } from "@/lib/report-error";
 
 interface LogMovieModalProps {
@@ -36,6 +37,15 @@ function isSameContent(
 ): boolean {
   const currentType = currentContent.type === "tv" ? "tv" : "movie";
   return log.content_id === currentContent.id && log.content_type === currentType;
+}
+
+function getSeasonOptionLabel(season: TVMazeSeason): string {
+  const defaultLabel = `Season ${season.number}`;
+  if (!season.name || season.name.trim() === defaultLabel) {
+    return defaultLabel;
+  }
+
+  return `${defaultLabel} - ${season.name}`;
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -76,6 +86,9 @@ export default function LogMovieModal({
   const [postCaption, setPostCaption] = useState("");
   const [ticketImageUrl, setTicketImageUrl] = useState<string | null>(null);
   const [ticketUploading, setTicketUploading] = useState(false);
+  const [tvSeasons, setTvSeasons] = useState<TVMazeSeason[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+  const [loadingSeasons, setLoadingSeasons] = useState(false);
   const [showReviewEditor, setShowReviewEditor] = useState(false);
   const [reviewDraft, setReviewDraft] = useState("");
   const ticketInputRef = useRef<HTMLInputElement | null>(null);
@@ -133,7 +146,47 @@ export default function LogMovieModal({
     return () => {
       cancelled = true;
     };
-  }, [content, isOpen, user]);
+  }, [content, isEditMode, isOpen, user]);
+
+  useEffect(() => {
+    if (!isOpen || content.type !== "tv") {
+      setTvSeasons([]);
+      setSelectedSeason(null);
+      setLoadingSeasons(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSeasons = async () => {
+      try {
+        setLoadingSeasons(true);
+        const seasons = await getShowSeasons(content.id);
+        if (cancelled) return;
+        setTvSeasons(seasons);
+        setSelectedSeason((current) => current ?? seasons[0]?.number ?? null);
+      } catch (err) {
+        reportAppError({
+          title: "Could not load seasons",
+          message: "We could not load the seasons for this TV show.",
+          details: err instanceof Error ? err.stack || err.message : String(err),
+        });
+        if (!cancelled) {
+          setTvSeasons([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSeasons(false);
+        }
+      }
+    };
+
+    loadSeasons();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [content.id, content.type, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -154,6 +207,7 @@ export default function LogMovieModal({
       setShareAsPost(false);
       setPostCaption("");
       setError("");
+      setSelectedSeason(existingLog.season ?? null);
     } else {
       setTicketImageUrl(null);
       setWatchedDate(new Date().toISOString().split("T")[0]);
@@ -168,6 +222,7 @@ export default function LogMovieModal({
       setShowReviewEditor(false);
       setReviewDraft("");
       setError("");
+      setSelectedSeason(null);
     }
     setTicketUploading(false);
   }, [existingLog, isEditMode, isOpen, content.id]);
@@ -234,6 +289,11 @@ export default function LogMovieModal({
       return;
     }
 
+    if (content.type === "tv" && tvSeasons.length > 0 && selectedSeason == null) {
+      setError("Please select a season");
+      return;
+    }
+
     try {
       submitLockRef.current = true;
       setLoading(true);
@@ -263,6 +323,7 @@ export default function LogMovieModal({
           notes,
           ticket_image_url: ticketImageUrl || null,
           context_log: Object.keys(contextLog || {}).length > 0 ? (contextLog as MovieLog["context_log"]) : {},
+          season: contentType === "tv" ? selectedSeason ?? undefined : undefined,
         };
 
         await updateMovieLog(existingLog.id, updates);
@@ -287,7 +348,9 @@ export default function LogMovieModal({
           notes,
           undefined,
           contextLog,
-          ticketImageUrl
+          ticketImageUrl,
+          undefined,
+          contentType === "tv" ? selectedSeason ?? undefined : undefined
         );
 
         if (shareAsPost) {
@@ -335,9 +398,6 @@ export default function LogMovieModal({
   if (!isOpen) return null;
 
   const hasPreviousWatch = previousWatchDates.length > 0;
-  const shareReactionLabel =
-    reaction === 2 ? "Masterpiece" : reaction === 1.5 ? "Average" : reaction === 1 ? "Good" : reaction === 0 ? "Bad" : "Unrated";
-
   return (
     <>
       {showReviewEditor && (
@@ -519,14 +579,48 @@ export default function LogMovieModal({
             <p className={`mt-1 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>{formatWatchedDate(watchedDate)}</p>
           </div>
 
+          {content.type === "tv" && (
+            <div>
+              <label className={`mb-1 block text-sm font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                Season *
+              </label>
+              {loadingSeasons ? (
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${isBrutalist ? "border-white/10 bg-white/5 text-white/55" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+                  Loading seasons...
+                </div>
+              ) : tvSeasons.length > 0 ? (
+                <select
+                  value={selectedSeason ?? ""}
+                  onChange={(event) => setSelectedSeason(Number(event.target.value))}
+                  className={`field py-3 ${
+                    isBrutalist ? "border-white/10 bg-[#0d0d0d] text-[#f5f0de]" : "bg-white"
+                  }`}
+                >
+                  <option value="" disabled>
+                    Select a season
+                  </option>
+                  {tvSeasons.map((season) => (
+                    <option key={season.id} value={season.number}>
+                      {getSeasonOptionLabel(season)}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${isBrutalist ? "border-white/10 bg-white/5 text-white/55" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+                  No season data available.
+                </div>
+              )}
+              <p className={`mt-1 text-xs ${isBrutalist ? "text-white/45" : "text-slate-500"}`}>
+                Pick the season you watched before saving the log.
+              </p>
+            </div>
+          )}
+
           {/* Reaction Selection */}
           <div>
-            <label className={`mb-3 block text-sm font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-              What did you think? (optional)
+              <label className={`mb-3 block text-sm font-medium ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+              What did you think?
             </label>
-            <p className={`mb-2 text-xs ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-              Leave this blank if you want to log the title without a rating.
-            </p>
             <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
               {/* Bad */}
               <button
@@ -637,9 +731,6 @@ export default function LogMovieModal({
                 />
                 <div className="min-w-0">
                   <p className={`text-sm font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>Share as post</p>
-                  <p className={`mt-1 text-xs leading-5 ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-                    Creates a post like &quot;Just watched {content.title} - {shareReactionLabel}&quot; so friends can like, save, and reply.
-                  </p>
                 </div>
               </label>
 
