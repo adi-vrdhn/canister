@@ -131,7 +131,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (sessionLoading) return;
     if (!sessionUser) {
-      router.push("/auth/login");
+      setUser(null);
+      setLoading(false);
+      setFriendLogs([]);
+      setShares([]);
       return;
     }
 
