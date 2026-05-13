@@ -754,8 +754,8 @@ export default function ListDetailPage() {
   }
 
   const viewerHasAuth = Boolean(user);
-  const viewerId = user?.id ?? null;
-  const isOwner = viewerId !== null && list.owner_id === viewerId;
+  const viewerId = user?.id ?? "";
+  const isOwner = viewerId !== "" && list.owner_id === viewerId;
   const canEdit = viewerHasAuth && (isOwner || isCollaborator);
   const sortedItems = [...list.items].sort((a, b) => a.position - b.position);
   const isRankedList = list.is_ranked;
@@ -1161,14 +1161,15 @@ export default function ListDetailPage() {
                                 className="text-[10px] font-semibold text-[#ffb36b] hover:text-[#ff7a1a]"
                                 disabled={markingWatched === String(item.content.id)}
                                 onClick={async () => {
+                                  if (!viewerId) return;
                                   setMarkingWatched(String(item.content.id));
                                   await upsertWatchedMovie(
-                                    user.id,
+                                    viewerId,
                                     Number(item.content.id),
                                     item.content.type === "tv" ? "tv" : "movie",
                                     "list"
                                   );
-                                  const refreshed = await getUserWatchedMovies(user.id);
+                                  const refreshed = await getUserWatchedMovies(viewerId);
                                   const refreshedMap: Record<string, WatchedMovie> = {};
                                   for (const record of refreshed) {
                                     refreshedMap[`${record.content_type}-${record.content_id}`] = record;
