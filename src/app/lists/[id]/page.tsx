@@ -754,7 +754,8 @@ export default function ListDetailPage() {
   }
 
   const viewerHasAuth = Boolean(user);
-  const isOwner = viewerHasAuth && list.owner_id === user.id;
+  const viewerId = user?.id ?? null;
+  const isOwner = viewerId !== null && list.owner_id === viewerId;
   const canEdit = viewerHasAuth && (isOwner || isCollaborator);
   const sortedItems = [...list.items].sort((a, b) => a.position - b.position);
   const isRankedList = list.is_ranked;
