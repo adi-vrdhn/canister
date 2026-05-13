@@ -467,10 +467,6 @@ export default function DashboardPage() {
     return <CinematicLoading message="Your home is loading" />;
   }
 
-  if (!user) {
-    return null;
-  }
-
   // Separate unwatched shares for the home preview.
   const unwatchedShares = shares.filter((s: any) => !s.watched);
 
@@ -737,106 +733,132 @@ export default function DashboardPage() {
         </div>
         {/* Recently Watched Section (Current User) removed as requested */}
 
-        {/* Friends Activity Section */}
+        {/* Friends Activity / Get Started Section */}
         <div className="mb-8">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-base font-bold text-[#f5f0de] sm:text-2xl">
-              Friends Activity
-            </h2>
-            <button
-              type="button"
-              onClick={() => setShowQuickActions(true)}
-              className="inline-flex h-10 w-10 items-center justify-center bg-[#ff7a1a] text-[#0a0a0a] transition hover:bg-[#ff8d3b] sm:h-11 sm:w-11"
-              aria-label="Open quick actions"
-            >
-              <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-            </button>
-          </div>
-
-          {hasFriendActivity ? (
+          {user ? (
             <>
-              <div className="-mx-3 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-0 sm:pb-4">
-                <div className="flex gap-2 sm:gap-3 md:gap-4">
-                  {friendActivity.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={item.onClick}
-                      className="w-[6rem] min-w-[6rem] max-w-[6rem] flex-shrink-0 cursor-pointer overflow-hidden border border-white/10 bg-[#111111] text-left transition hover:border-[#ff7a1a]/50 hover:shadow-[0_12px_30px_rgba(0,0,0,0.35)] sm:w-40 sm:min-w-0 sm:max-w-none md:w-44 lg:w-52"
-                    >
-                      <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a] sm:h-56 sm:aspect-auto md:h-60 lg:h-64">
-                        {item.poster_url ? (
-                          <Image
-                            src={item.poster_url}
-                            alt={item.title}
-                            fill
-                            sizes="(max-width: 768px) 120px, 180px"
-                            className="object-cover"
-                            placeholder="blur"
-                            blurDataURL={getBlurDataUrl()}
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-white/40">
-                            No poster
-                          </div>
-                        )}
-                        {item.kind === "logged" && item.repeatWatch && (
-                          <div
-                            className="absolute bottom-2 right-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-[#ffb36b] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
-                            aria-label="Rewatched"
-                            title="Rewatched"
-                          >
-                            <RotateCcw className="h-2.5 w-2.5" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-1.5 sm:p-3">
-                        <h3 className="mb-0.5 truncate text-[9px] font-semibold leading-tight text-[#f5f0de] sm:mb-1 sm:text-base">
-                          {item.title}
-                        </h3>
-                        <p className="mb-1 truncate text-[8px] leading-tight text-white/55 sm:mb-2 sm:text-sm">
-                          {item.byline}
-                        </p>
-                        <div className="flex items-end justify-between gap-2">
-                          <span className="text-[8px] font-medium uppercase tracking-[0.16em] text-[#ff7a1a] sm:text-[10px]">
-                            {item.kind === "shared" ? "shared" : item.reaction}
-                          </span>
-                          {item.kind === "shared" && item.note ? (
-                            <span
-                              className="inline-flex items-center justify-center text-[#f5f0de]"
-                              aria-label="Contains message"
-                              title="Contains message"
-                            >
-                              <MessageCircle className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
-                            </span>
-                          ) : (
-                            <span className="min-h-[0.75rem]" />
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-base font-bold text-[#f5f0de] sm:text-2xl">
+                  Friends Activity
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickActions(true)}
+                  className="inline-flex h-10 w-10 items-center justify-center bg-[#ff7a1a] text-[#0a0a0a] transition hover:bg-[#ff8d3b] sm:h-11 sm:w-11"
+                  aria-label="Open quick actions"
+                >
+                  <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+                </button>
               </div>
-              <Link
-                href="/all-movies"
-                className="mt-1 inline-flex w-full justify-center border border-[#ff7a1a] px-3 py-1.5 text-xs font-medium text-[#ffb36b] transition-colors hover:bg-[#ff7a1a]/10 sm:w-auto sm:px-4 sm:py-2 sm:text-sm"
-              >
-                View All
-              </Link>
+
+              {hasFriendActivity ? (
+                <>
+                  <div className="-mx-3 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-0 sm:pb-4">
+                    <div className="flex gap-2 sm:gap-3 md:gap-4">
+                      {friendActivity.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={item.onClick}
+                          className="w-[6rem] min-w-[6rem] max-w-[6rem] flex-shrink-0 cursor-pointer overflow-hidden border border-white/10 bg-[#111111] text-left transition hover:border-[#ff7a1a]/50 hover:shadow-[0_12px_30px_rgba(0,0,0,0.35)] sm:w-40 sm:min-w-0 sm:max-w-none md:w-44 lg:w-52"
+                        >
+                          <div className="relative aspect-[2/3] overflow-hidden bg-[#1a1a1a] sm:h-56 sm:aspect-auto md:h-60 lg:h-64">
+                            {item.poster_url ? (
+                              <Image
+                                src={item.poster_url}
+                                alt={item.title}
+                                fill
+                                sizes="(max-width: 768px) 120px, 180px"
+                                className="object-cover"
+                                placeholder="blur"
+                                blurDataURL={getBlurDataUrl()}
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs text-white/40">
+                                No poster
+                              </div>
+                            )}
+                            {item.kind === "logged" && item.repeatWatch && (
+                              <div
+                                className="absolute bottom-2 right-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-[#ffb36b] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+                                aria-label="Rewatched"
+                                title="Rewatched"
+                              >
+                                <RotateCcw className="h-2.5 w-2.5" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-1.5 sm:p-3">
+                            <h3 className="mb-0.5 truncate text-[9px] font-semibold leading-tight text-[#f5f0de] sm:mb-1 sm:text-base">
+                              {item.title}
+                            </h3>
+                            <p className="mb-1 truncate text-[8px] leading-tight text-white/55 sm:mb-2 sm:text-sm">
+                              {item.byline}
+                            </p>
+                            <div className="flex items-end justify-between gap-2">
+                              <span className="text-[8px] font-medium uppercase tracking-[0.16em] text-[#ff7a1a] sm:text-[10px]">
+                                {item.kind === "shared" ? "shared" : item.reaction}
+                              </span>
+                              {item.kind === "shared" && item.note ? (
+                                <span
+                                  className="inline-flex items-center justify-center text-[#f5f0de]"
+                                  aria-label="Contains message"
+                                  title="Contains message"
+                                >
+                                  <MessageCircle className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
+                                </span>
+                              ) : (
+                                <span className="min-h-[0.75rem]" />
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Link
+                    href="/all-movies"
+                    className="mt-1 inline-flex w-full justify-center border border-[#ff7a1a] px-3 py-1.5 text-xs font-medium text-[#ffb36b] transition-colors hover:bg-[#ff7a1a]/10 sm:w-auto sm:px-4 sm:py-2 sm:text-sm"
+                  >
+                    View All
+                  </Link>
+                </>
+              ) : (
+                <div className="mx-auto flex max-w-sm flex-col items-center justify-center border border-white/10 bg-[#111111] px-4 py-8 text-center sm:py-10">
+                  <Clapperboard className="mx-auto mb-3 h-10 w-10 text-white/20" />
+                  <p className="font-medium text-[#f5f0de]">No friends yet</p>
+                  <p className="mt-1 text-sm text-white/55">Find people to see what they watch and share.</p>
+                  <button
+                    type="button"
+                    onClick={openAccountSearch}
+                    className="mt-4 inline-flex items-center justify-center border border-[#ff7a1a] px-3 py-1.5 text-xs font-medium text-[#ffb36b] transition-colors hover:bg-[#ff7a1a]/10"
+                  >
+                    Add friends
+                  </button>
+                </div>
+              )}
             </>
           ) : (
-            <div className="mx-auto flex max-w-sm flex-col items-center justify-center border border-white/10 bg-[#111111] px-4 py-8 text-center sm:py-10">
+            <div className="mx-auto flex max-w-lg flex-col items-center justify-center border border-white/10 bg-[#111111] px-4 py-8 text-center sm:px-6 sm:py-10">
               <Clapperboard className="mx-auto mb-3 h-10 w-10 text-white/20" />
-              <p className="font-medium text-[#f5f0de]">No friends yet</p>
-              <p className="mt-1 text-sm text-white/55">Find people to see what they watch and share.</p>
-              <button
-                type="button"
-                onClick={openAccountSearch}
-                className="mt-4 inline-flex items-center justify-center border border-[#ff7a1a] px-3 py-1.5 text-xs font-medium text-[#ffb36b] transition-colors hover:bg-[#ff7a1a]/10"
-              >
-                Add friends
-              </button>
+              <p className="font-medium text-[#f5f0de]">Get started</p>
+              <p className="mt-1 text-sm text-white/55">
+                Sign in to log titles, build lists, and post about what you&apos;re watching.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                <Link
+                  href="/auth/login?redirect=/dashboard"
+                  className="inline-flex items-center justify-center border border-[#ff7a1a] px-3 py-1.5 text-xs font-medium text-[#ffb36b] transition-colors hover:bg-[#ff7a1a]/10"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/lists"
+                  className="inline-flex items-center justify-center border border-white/10 px-3 py-1.5 text-xs font-medium text-[#f5f0de] transition-colors hover:bg-white/5"
+                >
+                  Browse lists
+                </Link>
+              </div>
             </div>
           )}
         </div>

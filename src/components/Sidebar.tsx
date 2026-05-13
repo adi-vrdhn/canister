@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import type { User } from "@/types";
+import { Film, Globe, List, LogIn, MessageCircle } from "lucide-react";
 
 interface SidebarProps {
   user: User | null;
@@ -59,9 +60,13 @@ export default function Sidebar({
     }
   };
 
-  if (!user) {
-    return null;
-  }
+  const guestHref = `/auth/login?redirect=${encodeURIComponent(pathname)}`;
+  const navItems = [
+    { href: "/dashboard", label: "Home", icon: Globe },
+    { href: "/lists", label: "Lists", icon: List },
+    { href: "/share", label: "Share", icon: MessageCircle },
+    { href: "/logs", label: "Log", icon: Film },
+  ];
 
   // Sidebar classes for mobile/desktop
   const sidebarBase = isBrutalist
@@ -88,145 +93,98 @@ export default function Sidebar({
         </svg>
       </button>
 
-      {/* Profile Section */}
+      {/* Profile / Login */}
       <Link
-        href="/profile"
+        href={user ? "/profile" : guestHref}
         onClick={onCloseMobile}
         className={`block border-b p-5 pr-16 transition-colors sm:p-6 ${
           isBrutalist ? "border-white/10 hover:bg-white/5" : "border-slate-200/80 hover:bg-slate-50/80"
         }`}
       >
         <div className="flex items-center gap-3">
-          {user.avatar_url ? (
-            <Image
-              src={user.avatar_url}
-              alt={user.username}
-              width={40}
-              height={40}
-              className={`h-10 w-10 rounded-full object-cover ${
-                isBrutalist ? "ring-1 ring-white/10" : "ring-1 ring-slate-200"
-              }`}
-            />
+          {user ? (
+            user.avatar_url ? (
+              <Image
+                src={user.avatar_url}
+                alt={user.username}
+                width={40}
+                height={40}
+                className={`h-10 w-10 rounded-full object-cover ${
+                  isBrutalist ? "ring-1 ring-white/10" : "ring-1 ring-slate-200"
+                }`}
+              />
+            ) : (
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a]" : "bg-slate-900 text-white"}`}>
+                {user.username && user.username.length > 0 ? user.username[0].toUpperCase() : "U"}
+              </div>
+            )
           ) : (
-            <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${isBrutalist ? "bg-[#f5f0de] text-[#0a0a0a]" : "bg-slate-900 text-white"}`}>
-              {user.username && user.username.length > 0 ? user.username[0].toUpperCase() : "U"}
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full border ${isBrutalist ? "border-white/10 bg-white/5 text-[#f5f0de]" : "border-slate-200 bg-slate-50 text-slate-900"}`}>
+              <LogIn className="h-4 w-4" />
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className={`truncate text-base font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>{user.name}</p>
-            <p className={`mt-0.5 text-xs font-semibold ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>View profile</p>
+            <p className={`truncate text-base font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+              {user ? user.name : "Log in"}
+            </p>
+            <p className={`mt-0.5 text-xs font-semibold ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
+              {user ? "View profile" : "Get started"}
+            </p>
           </div>
         </div>
       </Link>
 
       {/* Navigation */}
       <nav className="flex-1 space-y-2 p-5">
-        <Link
-          href="/dashboard"
-          onClick={onCloseMobile}
-          className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
-            isActive("/dashboard")
-              ? isBrutalist
-                ? "bg-[#f5f0de] text-[#0a0a0a] shadow-sm"
-                : "bg-slate-900 text-white shadow-sm"
-              : isBrutalist
-              ? "text-[#f5f0de] hover:bg-white/5"
-              : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          Home
-        </Link>
-
-        <Link
-          href="/share"
-          onClick={onCloseMobile}
-          className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
-            isActive("/share")
-              ? isBrutalist
-                ? "bg-[#f5f0de] text-[#0a0a0a] shadow-sm"
-                : "bg-slate-900 text-white shadow-sm"
-              : isBrutalist
-              ? "text-[#f5f0de] hover:bg-white/5"
-              : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          Share
-        </Link>
-
-
-        <Link
-          href="/lists"
-          onClick={onCloseMobile}
-          className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
-            isActive("/lists")
-              ? isBrutalist
-                ? "bg-[#f5f0de] text-[#0a0a0a] shadow-sm"
-                : "bg-slate-900 text-white shadow-sm"
-              : isBrutalist
-              ? "text-[#f5f0de] hover:bg-white/5"
-              : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          Lists
-        </Link>
-
-        <Link
-          href="/logs"
-          onClick={onCloseMobile}
-          className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
-            isActive("/logs")
-              ? isBrutalist
-                ? "bg-[#f5f0de] text-[#0a0a0a] shadow-sm"
-                : "bg-slate-900 text-white shadow-sm"
-              : isBrutalist
-              ? "text-[#f5f0de] hover:bg-white/5"
-              : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          Logs
-        </Link>
-
-        <Link
-          href="/movie-matcher"
-          onClick={onCloseMobile}
-          className={`block rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
-            isActive("/movie-matcher")
-              ? isBrutalist
-                ? "bg-[#f5f0de] text-[#0a0a0a] shadow-sm"
-                : "bg-slate-900 text-white shadow-sm"
-              : isBrutalist
-              ? "text-[#f5f0de] hover:bg-white/5"
-              : "text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          MovieMatcher
-        </Link>
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onCloseMobile}
+              className={`flex items-center gap-3 rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
+                isActive(item.href)
+                  ? isBrutalist
+                    ? "bg-[#f5f0de] text-[#0a0a0a] shadow-sm"
+                    : "bg-slate-900 text-white shadow-sm"
+                  : isBrutalist
+                    ? "text-[#f5f0de] hover:bg-white/5"
+                    : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
-      {/* Sign Out */}
-      <div className="border-t border-slate-200/80 p-5">
-        <button
-          type="button"
-          onClick={handleInstallClick}
-          className={`mb-3 w-full rounded-full border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
-            isBrutalist
-              ? "border-[#ff7a1a]/30 bg-[#ff7a1a] text-[#0a0a0a] hover:bg-[#ff8d3b]"
-              : "border-[#ff7a1a]/30 bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
-          }`}
-        >
-          Download app
-        </button>
-        <button
-          onClick={handleSignOutClick}
-          className={`w-full rounded-full border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
-            isBrutalist
-              ? "border-white/10 bg-[#161616] text-[#f5f0de] hover:bg-white/5"
-              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          Sign Out
-        </button>
-      </div>
+      {user && (
+        <div className="border-t border-slate-200/80 p-5">
+          <button
+            type="button"
+            onClick={handleInstallClick}
+            className={`mb-3 w-full rounded-full border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
+              isBrutalist
+                ? "border-[#ff7a1a]/30 bg-[#ff7a1a] text-[#0a0a0a] hover:bg-[#ff8d3b]"
+                : "border-[#ff7a1a]/30 bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
+            }`}
+          >
+            Download app
+          </button>
+          <button
+            onClick={handleSignOutClick}
+            className={`w-full rounded-full border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
+              isBrutalist
+                ? "border-white/10 bg-[#161616] text-[#f5f0de] hover:bg-white/5"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            Sign Out
+          </button>
+        </div>
+      )}
 
       {showInstallHelp && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">

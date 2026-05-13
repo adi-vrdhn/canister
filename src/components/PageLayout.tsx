@@ -72,46 +72,55 @@ export default function PageLayout({
           isBrutalist ? "border-b border-white/10 bg-[#0a0a0a]/95" : "bg-white/95"
         }`}
       >
-        {!isPwa &&
-          (user ? (
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-transparent bg-transparent transition lg:hidden ${
-                isBrutalist
-                  ? "text-[#f5f0de] hover:bg-white/5 hover:border-white/10"
-                  : "text-slate-900 hover:bg-slate-100 hover:border-slate-200"
-              }`}
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-          ) : null)}
-
-        {isPwa &&
-          (user ? (
-            <Link
-              href="/profile"
-              className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition lg:hidden ${
-                isBrutalist
-                  ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
-                  : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
-              }`}
-              aria-label="Open profile"
-            >
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className={`text-[10px] font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
-                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                </span>
-              )}
-            </Link>
-          ) : null)}
+        {!isPwa ? (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-transparent bg-transparent transition lg:hidden ${
+              isBrutalist
+                ? "text-[#f5f0de] hover:bg-white/5 hover:border-white/10"
+                : "text-slate-900 hover:bg-slate-100 hover:border-slate-200"
+            }`}
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        ) : user ? (
+          <Link
+            href="/profile"
+            className={`absolute left-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border transition lg:hidden ${
+              isBrutalist
+                ? "border-white/10 bg-white/5 text-[#f5f0de] hover:border-[#ff7a1a]/35 hover:bg-white/10"
+                : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+            }`}
+            aria-label="Open profile"
+          >
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className={`text-[10px] font-bold ${isBrutalist ? "text-[#f5f0de]" : "text-slate-900"}`}>
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+              </span>
+            )}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className={`absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-transparent bg-transparent transition lg:hidden ${
+              isBrutalist
+                ? "text-[#f5f0de] hover:bg-white/5 hover:border-white/10"
+                : "text-slate-900 hover:bg-slate-100 hover:border-slate-200"
+            }`}
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
 
         <Link
           href={user ? "/dashboard" : guestHeaderHref}
@@ -175,7 +184,7 @@ export default function PageLayout({
         )}
       </header>
 
-      {user && !isPwa && (
+      {!isPwa && (
         <>
           {/* Sidebar: hidden on mobile, slide-in on open */}
           <SidebarShell
