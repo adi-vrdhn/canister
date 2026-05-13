@@ -17,7 +17,7 @@ const ANCHOR_TYPES: Array<{ value: CinePostAnchorType; label: string }> = [
   { value: "crew", label: "Crew" },
 ];
 
-type AnchorResult = Content | TMDBPersonSearchResult | ListWithItems;
+type AnchorResult = Content | TMDBPersonSearchResult;
 
 function isCrewResult(item: AnchorResult): item is TMDBPersonSearchResult {
   return "profile_path" in item;
