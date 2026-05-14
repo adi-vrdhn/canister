@@ -18,6 +18,7 @@ import { getMovieRecommendations, RecommendationFilters } from "@/lib/movie-reco
 import { getSimilarMovies } from "@/lib/tmdb";
 import { quickRateMovie, addToWatchlist, getUserMovieLogs } from "@/lib/logs";
 import { createMatcherUpdateNotification } from "@/lib/notifications";
+import { useIsPwa } from "@/lib/pwa";
 import { Plus, Trash2, Loader2, Search, X, Sparkles, Zap, Users, Heart, ChevronLeft, ChevronRight, Flame, Clock, BarChart3, ChevronDown, Star } from "lucide-react";
 import Link from "next/link";
 
@@ -88,6 +89,12 @@ type MatchAnalysis = {
 type TasteItem = UserTasteWithContent & {
   isMasterpiece: boolean;
 };
+
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  prompt(): Promise<void>;
+}
 
 function FriendMatchCard({
   friend,
@@ -161,9 +168,12 @@ function FriendMatchCard({
 export default function MovieMatcherPage() {
   const router = useRouter();
   const { user: sessionUser, loading: sessionLoading } = useCurrentUser();
+  const isPwa = useIsPwa();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [tastes, setTastes] = useState<UserTasteWithContent[]>([]);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MatcherContent[]>([]);
@@ -189,6 +199,16 @@ export default function MovieMatcherPage() {
   const [includeMasterpieces, setIncludeMasterpieces] = useState(true);
   const [masterpieceMovies, setMasterpieceMovies] = useState<TasteItem[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  }, []);
 
   useEffect(() => {
     const fetchMasterpieces = async () => {
@@ -450,6 +470,20 @@ export default function MovieMatcherPage() {
     } catch (error) {
       console.error("Sign out error:", error);
     }
+  };
+
+  const handleDownloadApp = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice.outcome === "accepted") {
+        setShowInstallHelp(false);
+      }
+      setDeferredInstallPrompt(null);
+      return;
+    }
+
+    setShowInstallHelp(true);
   };
 
   const scoreByContentSimilarity = (candidate: MatcherContent, reference: MatcherContent) => {
@@ -795,881 +829,356 @@ export default function MovieMatcherPage() {
           </div>
         )}
 
-        {/* Page Header */}
-        <div className="mb-6 flex flex-col gap-4 px-1 text-center sm:mb-10 sm:text-left">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-[#ffb36b]">Movie Matcher</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f5f0de] sm:text-4xl">
-              Build your taste profile
-            </h1>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="mb-5 flex gap-2 overflow-x-auto border-b border-white/10 sm:mb-8">
-          <button
-            onClick={() => {
-              setActiveTab("build");
-            }}
-            className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-6 sm:py-3 ${
-              activeTab === "build"
-                ? "border-[#ff7a1a] text-[#f5f0de]"
-                : "border-transparent text-white/55 hover:text-[#f5f0de]"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <Sparkles size={18} /> Build Profile
-            </span>
-          </button>
-        </div>
-
-        {activeTab === "build" && (
-        <div>
-        {/* ===== YOUR TASTE SECTION ===== */}
-        <div className="mb-8 border-b border-white/10 pb-6">
-          <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
-            <Sparkles className="h-5 w-5 text-[#ff7a1a]" />
-            <h2 className="text-base font-bold text-[#f5f0de] sm:text-lg">Your Taste Profile</h2>
-            <span className="ml-auto rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs font-semibold text-white/70 sm:ml-2">{tasteProfileCount} items</span>
-            {tastes.length > 0 && (
-              <button
-                onClick={() => setShowEditTasteModal(true)}
-                className="w-full rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-[#f5f0de] transition-colors hover:bg-white/10 sm:ml-2 sm:w-auto"
-              >
-                Edit Taste
-              </button>
-            )}
-          </div>
-
-
-
-          {/* Taste Movies Horizontal Slider */}
-          {tasteProfile.length > 0 ? (
-            <div className="mb-4">
-              {/* Slider Container */}
-              <div className="relative">
-                {/* Scroll Container */}
-                <div
-                  ref={scrollContainerRef}
-                  className="-mx-2 overflow-x-auto px-2 scrollbar-hide sm:mx-0 sm:px-0"
-                >
-                  <div className="flex w-fit gap-2 pb-2 sm:gap-2.5">
-                    {tasteProfile
-                      .filter((taste) => taste.content && taste.content.title)
-                      .slice(0, showAllMovies ? undefined : 6)
-                      .map((taste) => (
-                        <div key={taste.id} className="w-[4.75rem] flex-shrink-0 sm:w-20 md:w-24">
-                          <div className="group relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-none transition-shadow hover:border-[#ff7a1a]/35">
-                            <img
-                              src={taste.content?.poster_url || undefined}
-                              alt={taste.content?.title || "Movie"}
-                              className="w-full h-full object-cover"
-                            />
-
-                            {/* Hover overlay with delete button */}
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
-                              <button
-                                onClick={() => handleRemoveFromTaste(taste.id)}
-                                disabled={removingContent === taste.id}
-                                className="rounded-full bg-[#ff7a1a] p-2 text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b] disabled:bg-white/20 disabled:text-white/35"
-                                title="Remove from taste"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-
-                            {/* TV Badge */}
-                            {taste.content?.type === "tv" && (
-                              <div className="absolute right-1 top-1 rounded-full bg-[#ff7a1a] px-1.5 py-0.5 text-[9px] font-bold text-[#0a0a0a]">
-                                TV
-                              </div>
-                            )}
-                            {/* Masterpiece Badge */}
-                            {taste.isMasterpiece && (
-                              <div className="absolute bottom-1 right-1 rounded-full bg-[#ff7a1a] px-1.5 py-0.5 text-[9px] font-bold text-[#0a0a0a] shadow">
-                                Masterpiece
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Left Arrow - Only show if not at start */}
-                {/* Arrows removed to keep the rail clean */}
-              </div>
-
-              {/* View More Option */}
-              {tasteProfile.length > 6 && (
-                <div className="mt-3 flex justify-start">
-                  <button
-                    onClick={() => setShowAllMovies(!showAllMovies)}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#f5f0de] transition-colors hover:bg-white/10"
-                  >
-                    {showAllMovies ? "Show Less" : `View All (${tasteProfile.length})`}
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] py-6 text-center">
-              <Plus className="mx-auto mb-2 h-8 w-8 text-white/35" />
-              <p className="mb-3 text-sm text-white/55">No movies yet</p>
-            </div>
-          )}
-
-          {/* Masterpiece Checkbox */}
-          <div className="mt-4 mb-3 flex items-start gap-2 sm:items-center sm:mb-2">
-            <input
-              id="include-masterpieces"
-              type="checkbox"
-              checked={includeMasterpieces}
-              onChange={() => setIncludeMasterpieces((v) => !v)}
-              className="mt-0.5 h-4 w-4 accent-yellow-500 sm:mt-0"
-            />
-            <label htmlFor="include-masterpieces" className="select-none text-xs leading-5 text-gray-700 sm:text-sm">
-              Include masterpiece movies from your log in your taste profile
-            </label>
-          </div>
-
-          {/* Add Movie Button */}
-          <button
-            onClick={() => setShowSearchModal(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-4 py-2.5 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b]"
-          >
-            <Plus className="w-4 h-4" />
-            {tasteProfile.length > 0 ? "Add Another" : "Add Your First Movie"}
-          </button>
-        </div>
-
-        {/* ===== FRIENDS MATCH SECTION ===== */}
-        <div className="mt-10 border-t border-white/10 pt-6 sm:mt-12 sm:pt-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <div className="hidden rounded-full border border-white/10 bg-white/5 p-3 text-[#f5f0de] sm:block">
-                <Users className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <div className="mb-2 flex items-center gap-2 sm:hidden">
-                  <Users className="h-5 w-5 text-[#ff7a1a]" />
-                  <h3 className="text-lg font-bold text-[#f5f0de]">Match With Friends</h3>
-                </div>
-                <h3 className="mb-2 hidden text-xl font-bold text-[#f5f0de] sm:block">Match With Friends</h3>
-                <p className="mb-5 max-w-2xl text-sm text-white/60 sm:text-base">
-                  Instantly see your compatibility with friends who have built their taste profile.
-                </p>
-                {!canMatchFriends && (
-                  <div className="mb-5 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-4 text-sm text-[#ffb36b]">
-                    Add at least 7 movies to your taste profile before you can match with friends.
-                  </div>
-                )}
-                {loadingFriends ? (
-                  <div className="py-8 text-center text-sm text-white/55 sm:text-base">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                    Loading friends...
-                  </div>
-                ) : friends.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-center text-sm text-white/55 sm:text-base">
-                    No friends with complete taste profiles yet.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {friends
-                      .filter((friend) => friend.tasteCount && friend.tasteCount > 0)
-                      .map((friend) => (
-                        <FriendMatchCard
-                          key={friend.userId}
-                          friend={friend}
-                          disabled={!canMatchFriends}
-                          onFindScore={async () => {
-                            if (!canMatchFriends) {
-                              setError("Add at least 7 movies to your taste profile before matching with friends.");
-                              return;
-                            }
-
-                            if (isMobileViewport) {
-                              router.push(`/movie-matcher/${friend.username}?from=matcher`);
-                              return;
-                            }
-
-                            setSelectedFriend(friend);
-                            setMatchScore(null);
-                            setMatchAnalysis(null);
-                            setShowAnalysisModal(false);
-                            try {
-                              setLoadingFriends(true);
-                              const myTastes = includeMasterpieces
-                                ? [
-                                    ...tastes.map((t) => ({ ...t, isMasterpiece: false })),
-                                    ...masterpieceMovies.filter((m) => !tastes.some((t) => t.content_id === m.content_id)),
-                                  ]
-                                : tastes.map((t) => ({ ...t, isMasterpiece: false }));
-                              const theirTastes = await getFullTasteProfile(friend.userId);
-                              const analysis = await generateMatchAnalysis(myTastes, theirTastes, user!.id, friend.userId);
-                              setMatchScore({
-                                totalScore: analysis.totalScore,
-                                genreSim: analysis.genreSim,
-                                creatorSim: analysis.creatorSim,
-                                ratingSim: analysis.ratingSim,
-                                vibeSim: analysis.vibeSim,
-                                eraSim: analysis.eraSim,
-                                languageSim: analysis.languageSim,
-                              });
-                              setMatchAnalysis(analysis);
-                              setShowAnalysisModal(true);
-
-                              if (user!.id !== friend.userId) {
-                                await createMatcherUpdateNotification(
-                                  friend.userId,
-                                  user!,
-                                  friend.username,
-                                  friend.name,
-                                  new Date().toISOString()
-                                );
-                              }
-                            } catch (err) {
-                              setError("Failed to calculate match score");
-                            } finally {
-                              setLoadingFriends(false);
-                            }
-                          }}
-                        />
-                      ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        )}
-
-        {/* ===== MATCH MOVIES TAB ===== */}
-        {activeTab === "match" && (
-          <div className="space-y-6">
-            {/* Intro Section */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <Zap className="w-5 h-5 text-[#ff7a1a]" />
-                <h2 className="text-lg font-bold text-[#f5f0de]">Find Your Movie Match</h2>
-              </div>
-              <p className="text-white/60 text-sm">
-                Compare your movie taste with friends and discover how compatible you are. See what movies you both love and get personalized recommendations!
+        {/* Movie Matcher intro */}
+        <div id="movie-matcher-intro" className="mb-6 sm:mb-10">
+          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+            <div className="space-y-4">
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-[#ffb36b]">Movie Matcher</p>
+              <h1 className="max-w-xl text-3xl font-black tracking-tight text-[#f5f0de] sm:text-4xl lg:text-5xl">
+                Build your taste profile, match with friends, and get smarter movie picks.
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
+                Movie Matcher helps you save the movies and shows you love, compare taste with friends, and uncover
+                recommendations that actually fit your vibe. If you want the smoothest experience, download the app
+                and keep matching from your home screen.
               </p>
-            </div>
 
-            {/* Friend Selection */}
-            {!selectedFriend ? (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-[#f5f0de]">
-                  <Users className="w-4 h-4 text-[#ff7a1a]" />
-                  Select a Friend
-                </h3>
-
-                {!canMatchFriends && (
-                  <div className="mb-4 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-4 text-sm text-[#ffb36b]">
-                    Add at least 7 movies to your taste profile before you can match with friends.
-                  </div>
-                )}
-
-                <div className="relative">
-                  <button
-                    disabled={!canMatchFriends}
-                    onClick={() => setShowFriendsDropdown(!showFriendsDropdown)}
-                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left font-medium transition-colors ${
-                      canMatchFriends
-                        ? "border-white/10 bg-[#111111] text-[#f5f0de] hover:bg-white/5"
-                        : "cursor-not-allowed border-white/10 bg-white/5 text-white/35"
-                    }`}
-                  >
-                    <span>{canMatchFriends ? "Choose a friend..." : "Add 7 movies first"}</span>
-                    <ChevronDown className="w-4 h-4 text-white/45" />
-                  </button>
-
-                  {/* Friends Dropdown */}
-                  {showFriendsDropdown && (
-                    <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-60 overflow-y-auto rounded-xl border border-white/10 bg-[#111111] shadow-2xl">
-                      {loadingFriends ? (
-                        <div className="p-4 text-center text-white/55">
-                          <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                        </div>
-                      ) : friends.length === 0 ? (
-                        <div className="p-4 text-center text-white/55 text-sm">
-                          No friends with complete profiles yet
-                        </div>
-                      ) : (
-                        <div>
-                          {/* Search input within dropdown */}
-                          <div className="sticky top-0 border-b border-white/10 bg-[#111111] p-2">
-                            <input
-                              type="text"
-                              placeholder="Filter friends..."
-                              value={friendSearchQuery}
-                              onChange={(e) => setFriendSearchQuery(e.target.value)}
-                              className="w-full rounded-lg border border-white/10 bg-[#0d0d0d] px-3 py-2 text-sm text-[#f5f0de] outline-none focus:border-[#ff7a1a] focus:ring-2 focus:ring-[#ff7a1a]/25"
-                            />
-                          </div>
-
-                          {/* Friends list */}
-                          {friends
-                            .filter((f) =>
-                              f.name.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
-                              f.username.toLowerCase().includes(friendSearchQuery.toLowerCase())
-                            )
-                            .map((friend) => (
-                              <button
-                                key={friend.userId}
-                                disabled={!canMatchFriends}
-                                onClick={() => handleSelectFriend(friend)}
-                                className={`flex w-full items-center gap-3 border-b border-white/10 px-4 py-3 text-left transition-colors last:border-b-0 ${
-                                  canMatchFriends ? "hover:bg-white/5" : "cursor-not-allowed opacity-50"
-                                }`}
-                              >
-                                {friend.avatar_url && (
-                                  <img
-                                    src={friend.avatar_url}
-                                    alt={friend.username}
-                                    className="w-8 h-8 rounded-full object-cover"
-                                  />
-                                )}
-                                <div className="flex-1">
-                                  <p className="font-medium text-[#f5f0de]">{friend.name}</p>
-                                  <p className="text-xs text-white/55">
-                                    @{friend.username} • {friend.tasteCount} movies
-                                  </p>
-                                </div>
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Prerequisites Check */}
-                {tasteProfileCount < 7 && (
-                  <div className="mt-4 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 p-4">
-                    <p className="text-sm text-[#ffb36b]">
-                      ⚠️ Match with your friends once your taste profile has at least 7 movies.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                {/* Selected Friend Info */}
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-                  <div className="flex items-center gap-4">
-                    {selectedFriend.avatar_url && (
-                      <img
-                        src={selectedFriend.avatar_url}
-                        alt={selectedFriend.username}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    )}
-                    <div>
-                      <p className="font-bold text-[#f5f0de]">{selectedFriend.name}</p>
-                      <p className="text-sm text-white/60">@{selectedFriend.username}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedFriend(null);
-                      setMatchScore(null);
-                      setShowFriendsDropdown(false);
-                    }}
-                    className="text-white/45 hover:text-[#f5f0de]"
-                    title="Deselect friend"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Match Score Display */}
-                {matchScore ? (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                    <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-[#f5f0de]">
-                      <Heart className="w-4 h-4 text-[#ff7a1a]" />
-                      Your Compatibility
-                    </h3>
-
-                    {/* Overall Score */}
-                    <div className="mb-6 text-center">
-                      <div className="text-5xl font-bold text-[#ff7a1a]">{matchScore.totalScore}%</div>
-                      <p className="mt-1 text-sm text-white/60">Movie Taste Match</p>
-                    </div>
-
-                    {/* Compatibility Breakdown */}
-                    <div className="space-y-4">
-                      {/* Genre Match */}
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-white/70">Genre Compatibility</span>
-                          <span className="text-sm font-semibold text-[#f5f0de]">
-                            {Math.round(matchScore.genreSim)}%
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
-                            style={{ width: `${matchScore.genreSim}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      {/* Creator Match */}
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-white/70">Creator Compatibility</span>
-                          <span className="text-sm font-semibold text-[#f5f0de]">
-                            {Math.round(matchScore.creatorSim)}%
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
-                            style={{ width: `${matchScore.creatorSim}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      {/* Rating Match */}
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-white/70">Rating Compatibility</span>
-                          <span className="text-sm font-semibold text-[#f5f0de]">
-                            {Math.round(matchScore.ratingSim)}%
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
-                            style={{ width: `${matchScore.ratingSim}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      {/* Vibe Match */}
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-white/70">Vibe Match</span>
-                          <span className="text-sm font-semibold text-[#f5f0de]">
-                            {Math.round(matchScore.vibeSim)}%
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
-                            style={{ width: `${matchScore.vibeSim}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      {/* Era Match */}
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-white/70">Era Match</span>
-                          <span className="text-sm font-semibold text-[#f5f0de]">
-                            {Math.round(matchScore.eraSim)}%
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
-                            style={{ width: `${matchScore.eraSim}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      {/* Language Match */}
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-white/70">Language Match</span>
-                          <span className="text-sm font-semibold text-[#f5f0de]">
-                            {Math.round(matchScore.languageSim)}%
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-[#ff7a1a] transition-all"
-                            style={{ width: `${matchScore.languageSim}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Match Status Message */}
-                    <div className="mt-4 border-t border-white/10 pt-4 text-center">
-                      {matchScore.totalScore >= 75 && (
-                        <p className="text-sm font-semibold text-[#ffb36b]">
-                          Perfect match! You both love the same kind of movies!
-                        </p>
-                      )}
-                      {matchScore.totalScore >= 50 && matchScore.totalScore < 75 && (
-                        <p className="text-sm font-semibold text-[#ffb36b]">
-                          Great match! Lots in common!
-                        </p>
-                      )}
-                      {matchScore.totalScore < 50 && (
-                        <p className="text-sm font-semibold text-white/60">
-                          Different tastes = great movie convos!
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Analysis Button */}
-                    <button
-                      onClick={() => setShowAnalysisModal(true)}
-                      className="mt-4 w-full rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b]"
-                    >
-                      View Full Analysis
-                    </button>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
-                    <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-[#ff7a1a]" />
-                    <p className="text-white/60">Calculating your compatibility...</p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ===== FEATURES COMING SECTION ===== */}
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Feature Card 1 */}
-          {/* Removed Find Your Match and Smart Recommendations cards from main page */}
-        </div>
-
-        <div className="h-[calc(6rem+env(safe-area-inset-bottom))] lg:hidden" />
-
-      {/* Edit Taste Modal */}
-      {showEditTasteModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
-          <div className="flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-b-none rounded-t-3xl bg-white shadow-xl sm:max-h-[90vh] sm:rounded-2xl">
-            <div className="border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 sm:text-xl">Edit Taste Profile</h3>
-                  <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
-                    Search and remove movies from your taste list.
-                  </p>
-                </div>
+              <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={() => {
-                    setShowEditTasteModal(false);
-                    setTasteSearchQuery("");
-                  }}
-                  className="rounded-full border border-gray-200 p-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-                  aria-label="Close edit taste modal"
-                  title="Close edit taste modal"
+                  type="button"
+                  onClick={() => void handleDownloadApp()}
+                  disabled={isPwa}
+                  className={`rounded-full px-5 py-3 text-sm font-black transition ${
+                    isPwa
+                      ? "cursor-not-allowed bg-white/10 text-white/35"
+                      : "bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
+                  }`}
                 >
-                  <X className="h-5 w-5" />
+                  {isPwa ? "App installed" : deferredInstallPrompt ? "Download app" : "Install app"}
                 </button>
               </div>
             </div>
 
-            <div className="border-b border-gray-200 p-4 sm:p-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search your taste movies..."
-                  value={tasteSearchQuery}
-                  onChange={(e) => setTasteSearchQuery(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-sm text-[#f5f0de] placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-[#ff7a1a]/25 sm:rounded-lg"
-                />
-              </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              {[
+                {
+                  title: "Taste profile",
+                  description: "Save movies and shows so the matcher learns what you actually like.",
+                },
+                {
+                  title: "Friend scores",
+                  description: "See compatibility with friends once your profile has enough history.",
+                },
+              ].map((item) => (
+                <div key={item.title} className="border-t border-white/10 pt-4">
+                  <p className="text-sm font-black text-[#f5f0de]">{item.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-white/55">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {isPwa ? (
+          <>
+            {/* Tab Navigation */}
+            <div id="matcher-tool" className="mb-5 flex gap-2 overflow-x-auto border-b border-white/10 scroll-mt-24 sm:mb-8">
+              <button
+                onClick={() => {
+                  setActiveTab("build");
+                }}
+                className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-6 sm:py-3 ${
+                  activeTab === "build"
+                    ? "border-[#ff7a1a] text-[#f5f0de]"
+                    : "border-transparent text-white/55 hover:text-[#f5f0de]"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles size={18} /> Build Profile
+                </span>
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
-              {filteredEditableTastes.length > 0 ? (
-                <div className="space-y-2">
-                  {filteredEditableTastes.map((taste) => (
-                    <div
-                      key={taste.id}
-                      className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm"
-                    >
-                      {taste.content?.poster_url ? (
-                        <img
-                          src={taste.content.poster_url}
-                          alt={taste.content.title}
-                          className="h-20 w-14 flex-shrink-0 rounded-xl object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-20 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gray-200 text-center text-[10px] text-gray-500">
-                          No poster
+            {activeTab === "build" && (
+              <div>
+                {/* ===== YOUR TASTE SECTION ===== */}
+                <div className="mb-8 border-b border-white/10 pb-6">
+                  <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+                    <Sparkles className="h-5 w-5 text-[#ff7a1a]" />
+                    <h2 className="text-base font-bold text-[#f5f0de] sm:text-lg">Your Taste Profile</h2>
+                    <span className="ml-auto rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs font-semibold text-white/70 sm:ml-2">{tasteProfileCount} items</span>
+                    {tastes.length > 0 && (
+                      <button
+                        onClick={() => setShowEditTasteModal(true)}
+                        className="w-full rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-[#f5f0de] transition-colors hover:bg-white/10 sm:ml-2 sm:w-auto"
+                      >
+                        Edit Taste
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Taste Movies Horizontal Slider */}
+                  {tasteProfile.length > 0 ? (
+                    <div className="mb-4">
+                      <div className="relative">
+                        <div
+                          ref={scrollContainerRef}
+                          className="-mx-2 overflow-x-auto px-2 scrollbar-hide sm:mx-0 sm:px-0"
+                        >
+                          <div className="flex w-fit gap-2 pb-2 sm:gap-2.5">
+                            {tasteProfile
+                              .filter((taste) => taste.content && taste.content.title)
+                              .slice(0, showAllMovies ? undefined : 6)
+                              .map((taste) => (
+                                <div key={taste.id} className="w-[4.75rem] flex-shrink-0 sm:w-20 md:w-24">
+                                  <div className="group relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-none transition-shadow hover:border-[#ff7a1a]/35">
+                                    <img
+                                      src={taste.content?.poster_url || undefined}
+                                      alt={taste.content?.title || "Movie"}
+                                      className="w-full h-full object-cover"
+                                    />
+
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                                      <button
+                                        onClick={() => handleRemoveFromTaste(taste.id)}
+                                        disabled={removingContent === taste.id}
+                                        className="rounded-full bg-[#ff7a1a] p-2 text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b] disabled:bg-white/20 disabled:text-white/35"
+                                        title="Remove from taste"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+
+                                    {taste.content?.type === "tv" && (
+                                      <div className="absolute right-1 top-1 rounded-full bg-[#ff7a1a] px-1.5 py-0.5 text-[9px] font-bold text-[#0a0a0a]">
+                                        TV
+                                      </div>
+                                    )}
+                                    {taste.isMasterpiece && (
+                                      <div className="absolute bottom-1 right-1 rounded-full bg-[#ff7a1a] px-1.5 py-0.5 text-[9px] font-bold text-[#0a0a0a] shadow">
+                                        Masterpiece
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {tasteProfile.length > 6 && (
+                        <div className="mt-3 flex justify-start">
+                          <button
+                            onClick={() => setShowAllMovies(!showAllMovies)}
+                            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-[#f5f0de] transition-colors hover:bg-white/10"
+                          >
+                            {showAllMovies ? "Show Less" : `View All (${tasteProfile.length})`}
+                          </button>
                         </div>
                       )}
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-sm font-semibold text-gray-900">
-                          {taste.content?.title}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {taste.content_type === "tv" ? "TV Show" : "Movie"}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveFromTaste(taste.id)}
-                        disabled={removingContent === taste.id}
-                        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {removingContent === taste.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                        Remove
-                      </button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center">
-                  <p className="text-sm font-medium text-gray-700">
-                    {tasteSearchQuery ? "No matching movies found" : "No taste movies yet"}
-                  </p>
-                  {tasteSearchQuery && (
-                  <button
-                    onClick={() => setTasteSearchQuery("")}
-                    className="mt-3 text-sm font-medium text-[#ffb36b] hover:text-[#ff7a1a]"
-                  >
-                    Clear search
-                  </button>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] py-6 text-center">
+                      <Plus className="mx-auto mb-2 h-8 w-8 text-white/35" />
+                      <p className="mb-3 text-sm text-white/55">No movies yet</p>
+                    </div>
                   )}
+
+                  <div className="mt-4 mb-3 flex items-start gap-2 sm:items-center sm:mb-2">
+                    <input
+                      id="include-masterpieces"
+                      type="checkbox"
+                      checked={includeMasterpieces}
+                      onChange={() => setIncludeMasterpieces((v) => !v)}
+                      className="mt-0.5 h-4 w-4 accent-yellow-500 sm:mt-0"
+                    />
+                    <label htmlFor="include-masterpieces" className="select-none text-xs leading-5 text-gray-700 sm:text-sm">
+                      Include masterpiece movies from your log in your taste profile
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={() => setShowSearchModal(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-[#ff7a1a] px-4 py-2.5 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[#ff8d3b]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {tasteProfile.length > 0 ? "Add Another" : "Add Your First Movie"}
+                  </button>
                 </div>
-              )}
+
+                <div className="mt-10 border-t border-white/10 pt-6 sm:mt-12 sm:pt-8">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                    <div className="hidden rounded-full border border-white/10 bg-white/5 p-3 text-[#f5f0de] sm:block">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="mb-2 flex items-center gap-2 sm:hidden">
+                        <Users className="h-5 w-5 text-[#ff7a1a]" />
+                        <h3 className="text-lg font-bold text-[#f5f0de]">Match With Friends</h3>
+                      </div>
+                      <h3 className="mb-2 hidden text-xl font-bold text-[#f5f0de] sm:block">Match With Friends</h3>
+                      <p className="mb-5 max-w-2xl text-sm text-white/60 sm:text-base">
+                        Instantly see your compatibility with friends who have built their taste profile.
+                      </p>
+                      {!canMatchFriends && (
+                        <div className="mb-5 rounded-2xl border border-[#ff7a1a]/25 bg-[#ff7a1a]/10 px-4 py-4 text-sm text-[#ffb36b]">
+                          Add at least 7 movies to your taste profile before you can match with friends.
+                        </div>
+                      )}
+                      {loadingFriends ? (
+                        <div className="py-8 text-center text-sm text-white/55 sm:text-base">
+                          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                          Loading friends...
+                        </div>
+                      ) : friends.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-center text-sm text-white/55 sm:text-base">
+                          No friends with complete taste profiles yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {friends
+                            .filter((friend) => friend.tasteCount && friend.tasteCount > 0)
+                            .map((friend) => (
+                              <FriendMatchCard
+                                key={friend.userId}
+                                friend={friend}
+                                disabled={!canMatchFriends}
+                                onFindScore={async () => {
+                                  if (!canMatchFriends) {
+                                    setError("Add at least 7 movies to your taste profile before matching with friends.");
+                                    return;
+                                  }
+
+                                  if (isMobileViewport) {
+                                    router.push(`/movie-matcher/${friend.username}?from=matcher`);
+                                    return;
+                                  }
+
+                                  setSelectedFriend(friend);
+                                  setMatchScore(null);
+                                  setMatchAnalysis(null);
+                                  setShowAnalysisModal(false);
+                                  try {
+                                    setLoadingFriends(true);
+                                    const myTastes = includeMasterpieces
+                                      ? [
+                                          ...tastes.map((t) => ({ ...t, isMasterpiece: false })),
+                                          ...masterpieceMovies.filter((m) => !tastes.some((t) => t.content_id === m.content_id)),
+                                        ]
+                                      : tastes.map((t) => ({ ...t, isMasterpiece: false }));
+                                    const theirTastes = await getFullTasteProfile(friend.userId);
+                                    const analysis = await generateMatchAnalysis(myTastes, theirTastes, user!.id, friend.userId);
+                                    setMatchScore({
+                                      totalScore: analysis.totalScore,
+                                      genreSim: analysis.genreSim,
+                                      creatorSim: analysis.creatorSim,
+                                      ratingSim: analysis.ratingSim,
+                                      vibeSim: analysis.vibeSim,
+                                      eraSim: analysis.eraSim,
+                                      languageSim: analysis.languageSim,
+                                    });
+                                    setMatchAnalysis(analysis);
+                                    setShowAnalysisModal(true);
+
+                                    if (user!.id !== friend.userId) {
+                                      await createMatcherUpdateNotification(
+                                        friend.userId,
+                                        user!,
+                                        friend.username,
+                                        friend.name,
+                                        new Date().toISOString()
+                                      );
+                                    }
+                                  } catch (err) {
+                                    setError("Failed to calculate match score");
+                                  } finally {
+                                    setLoadingFriends(false);
+                                  }
+                                }}
+                              />
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "match" && (
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                  <div className="mb-3 flex items-center gap-3">
+                    <Zap className="w-5 h-5 text-[#ff7a1a]" />
+                    <h2 className="text-lg font-bold text-[#f5f0de]">Find Your Movie Match</h2>
+                  </div>
+                  <p className="text-sm text-white/60">
+                    Compare your movie taste with friends and discover how compatible you are. See what movies you both love and get personalized recommendations!
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
+        ) : null}
+
+        {/* Analysis Modal */}
+        {showAnalysisModal && matchAnalysis && selectedFriend && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4">
+            <div className="max-h-[90dvh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-t-3xl border border-white/10 bg-[#090909] shadow-2xl sm:rounded-3xl">
+              <MovieMatchAnalysisView
+                embedded
+                analysis={matchAnalysis}
+                viewerName={user?.name || "You"}
+                subjectName={selectedFriend.name}
+                subjectUsername={selectedFriend.username}
+                onClose={() => setShowAnalysisModal(false)}
+              />
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Search Modal */}
-      {showSearchModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
-          <div className="flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-b-none rounded-t-3xl bg-white p-4 shadow-xl sm:max-h-[90vh] sm:rounded-lg sm:p-6">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900 sm:text-xl">Add to Your Taste</h3>
-              <button
-                onClick={() => {
-                  setShowSearchModal(false);
-                  setSearchResults([]);
-                  setSearchQuery("");
-                }}
-                className="text-gray-500 hover:text-gray-700"
-                title="Close search modal"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+        {showInstallHelp && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-[1.75rem] border border-white/10 bg-[#111111] p-5 text-[#f5f0de] shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#ffb36b]">Install app</p>
+                  <h3 className="mt-2 text-2xl font-black">Add Canisterr to Home Screen</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInstallHelp(false)}
+                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-[#f5f0de] transition hover:bg-white/10"
+                >
+                  Close
+                </button>
+              </div>
 
-            {/* Content Type Toggle */}
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => {
-                  setContentType("movie");
-                  setSearchResults([]);
-                }}
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none ${
-                  contentType === "movie"
-                    ? "bg-[#ff7a1a] text-black"
-                    : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
-                }`}
-              >
-                Movies
-              </button>
-              <button
-                onClick={() => {
-                  setContentType("tv");
-                  setSearchResults([]);
-                }}
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none ${
-                  contentType === "tv"
-                    ? "bg-[#ff7a1a] text-black"
-                    : "border border-white/10 bg-white/5 text-[#f5f0de] hover:bg-white/10"
-                }`}
-              >
-                TV Shows
-              </button>
-            </div>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-[#f5f0de]/72">
+                <p>On iPhone, tap Share, then Add to Home Screen.</p>
+                <p>On Android, tap the browser menu and choose Install app or Add to Home Screen.</p>
+                <p>If you see an install banner, use that for the fastest setup.</p>
+              </div>
 
-            {/* Search Input */}
-            <div className="flex gap-2 mb-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/35 w-5 h-5" />
-                  <input
-                    type="text"
-                    placeholder={`Search ${contentType === "movie" ? "movies" : "TV shows"}...`}
-                    value={searchQuery}
-                    onChange={(e) => {
-                      void handleSearch(e.target.value);
-                    }}
-                    className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-[#f5f0de] placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-[#ff7a1a]/25 sm:py-2"
-                  />
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadApp()}
+                  className="rounded-full bg-[#ff7a1a] px-4 py-2.5 text-sm font-black text-black transition hover:bg-[#ff8d3b]"
+                >
+                  {deferredInstallPrompt ? "Install now" : "Try again"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInstallHelp(false)}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-[#f5f0de] transition hover:bg-white/10"
+                >
+                  Not now
+                </button>
               </div>
             </div>
-
-            {/* Search Results */}
-            <div className="flex-1 overflow-y-auto">
-              {searching && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-[#ff7a1a]" />
-                </div>
-              )}
-
-              {!searching && searchResults.length === 0 && searchQuery && (
-                <div className="text-center py-8 text-gray-500">
-                  No results found
-                </div>
-              )}
-
-              {/* Recommended Movies (when no search query) */}
-              {!searchQuery && !searching && (tastes.length > 0 || lastAddedMovie) && (
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    {lastAddedMovie ? "Similar to Your Selection" : "Recommended for You"}
-                  </h4>
-                  <div className="space-y-2">
-                    {getRecommendedMovies().map((result) => {
-                      const isAlreadyAdded = tastes.some((t) => t.content_id === result.id);
-                      const matchReason = getMatchReason(result);
-
-                      return (
-                        <div
-                          key={`${contentType}-${result.id}`}
-                        className="flex gap-3 rounded-lg border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10"
-                        >
-                          <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-white/5 text-center">
-                            {result.poster_path || result.poster_url ? (
-                              <img
-                                src={`https://image.tmdb.org/t/p/w92${
-                                  result.poster_path || result.poster_url
-                                }`}
-                                alt={result.title}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span className="px-1 text-[9px] font-medium leading-tight text-white/35">
-                                No poster
-                              </span>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-1 text-sm font-semibold text-[#f5f0de]">
-                              {result.title}
-                            </p>
-                            <p className="mb-1 text-xs text-[#f5f0de]/55">
-                              {result.release_date || result.premiered
-                                ? new Date(
-                                    result.release_date ?? result.premiered ?? ""
-                                  ).getFullYear()
-                                : "N/A"}
-                            </p>
-                            {matchReason && (
-                              <p className="text-xs font-medium text-[#ffb36b]">{matchReason}</p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => handleAddToTaste(result.id)}
-                            disabled={isAlreadyAdded || addingContent === `${contentType}-${result.id}`}
-                            className={`self-center rounded px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
-                              isAlreadyAdded
-                                ? "cursor-not-allowed bg-white/10 text-white/35"
-                                : addingContent === `${contentType}-${result.id}`
-                                ? "bg-[#ffb36b] text-black"
-                                : "bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
-                            }`}
-                          >
-                            {isAlreadyAdded ? "Added" : "Add"}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {!searching && searchResults.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Search Results</h4>
-                  <div className="space-y-2">
-                    {searchResults.map((result) => {
-                      const isAlreadyAdded = tastes.some((t) => t.content_id === result.id);
-
-                      return (
-                        <div
-                          key={`${contentType}-${result.id}`}
-                        className="flex gap-3 rounded-lg border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10"
-                        >
-                          <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-white/5 text-center">
-                            {result.poster_path || result.poster_url ? (
-                              <img
-                                src={`https://image.tmdb.org/t/p/w92${
-                                  result.poster_path || result.poster_url
-                                }`}
-                                alt={result.title}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span className="px-1 text-[9px] font-medium leading-tight text-white/35">
-                                No poster
-                              </span>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-1 text-sm font-semibold text-[#f5f0de]">
-                              {result.title}
-                            </p>
-                            <p className="text-xs text-[#f5f0de]/55">
-                              {result.release_date || result.premiered
-                                ? new Date(
-                                    result.release_date ?? result.premiered ?? ""
-                                  ).getFullYear()
-                                : "N/A"}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleAddToTaste(result.id)}
-                            disabled={isAlreadyAdded || addingContent === `${contentType}-${result.id}`}
-                            className={`self-center rounded px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
-                              isAlreadyAdded
-                                ? "cursor-not-allowed bg-white/10 text-white/35"
-                                : addingContent === `${contentType}-${result.id}`
-                                ? "bg-[#ffb36b] text-black"
-                                : "bg-[#ff7a1a] text-black hover:bg-[#ff8d3b]"
-                            }`}
-                          >
-                            {isAlreadyAdded ? "Added" : "Add"}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-      )}
-
-      {/* Analysis Modal */}
-      {showAnalysisModal && matchAnalysis && selectedFriend && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[90dvh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-t-3xl border border-white/10 bg-[#090909] shadow-2xl sm:rounded-3xl">
-            <MovieMatchAnalysisView
-              embedded
-              analysis={matchAnalysis}
-              viewerName={user?.name || "You"}
-              subjectName={selectedFriend.name}
-              subjectUsername={selectedFriend.username}
-              onClose={() => setShowAnalysisModal(false)}
-            />
-          </div>
-        </div>
-      )}
+        )}
 
       </div>
     </PageLayout>

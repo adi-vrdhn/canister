@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import type { User } from "@/types";
-import { Film, Globe, List, LogIn, MessageCircle } from "lucide-react";
+import { Film, Globe, List, LogIn, MessageCircle, ScanSearch } from "lucide-react";
 
 interface SidebarProps {
   user: User | null;
@@ -66,6 +66,7 @@ export default function Sidebar({
     { href: "/lists", label: "Lists", icon: List },
     { href: "/share", label: "Share", icon: MessageCircle },
     { href: "/logs", label: "Log", icon: Film },
+    { href: "/movie-matcher", label: "Matcher", icon: ScanSearch },
   ];
 
   // Sidebar classes for mobile/desktop
