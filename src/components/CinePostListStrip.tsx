@@ -26,7 +26,7 @@ export default function CinePostListStrip({
   return (
     <div className={`overflow-x-auto pb-1 ${className}`}>
       <div className="flex gap-2 pr-1">
-        {visibleItems.map((item, index) => {
+        {visibleItems.map((item) => {
           const poster = item.content.poster_url;
           const itemTitle = item.content.title || (item.content as { name?: string }).name || "Untitled";
 
@@ -51,9 +51,6 @@ export default function CinePostListStrip({
                       No poster
                     </div>
                   )}
-                  <div className="absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#ff7a1a] text-[10px] font-black text-black shadow-lg">
-                    {index + 1}
-                  </div>
                 </div>
               </div>
             </Link>
