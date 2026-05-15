@@ -106,6 +106,14 @@ export async function getFriendLogs(userId: string, daysBack: number = 14, limit
         return followingIds.includes(log.user_id) && logDate >= dateThreshold && !watchOnlyKeys.has(watchKey);
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .reduce((acc: any[], log: any) => {
+        const key = `${log.user_id}__${log.content_type}__${log.content_id}`;
+        if (acc.some((item) => `${item.user_id}__${item.content_type}__${item.content_id}` === key)) {
+          return acc;
+        }
+        acc.push(log);
+        return acc;
+      }, [])
       .slice(0, limit);
 
     // 4. Fetch content and user details for each log

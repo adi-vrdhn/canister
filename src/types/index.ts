@@ -256,6 +256,7 @@ export interface MovieLog {
   // TV-specific fields (optional)
   season?: number; // Season number (for TV logs)
   episode?: number; // Episode number (if logging by episode in future)
+  episode_title?: string; // Episode title for TV logs
 
   // Context Log (optional)
   context_log?: {

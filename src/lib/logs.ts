@@ -27,6 +27,25 @@ export function getVisibleLogNotes(log: Pick<MovieLog, "notes" | "imported_from_
   return isImportedRatingsCsvLog(log) ? "" : (log.notes || "");
 }
 
+export function getTvEpisodeLabel(
+  log: Pick<MovieLog, "content_type" | "season" | "episode" | "episode_title">
+): string {
+  if (log.content_type !== "tv") return "";
+
+  const parts: string[] = [];
+  if (typeof log.season === "number") {
+    parts.push(`Season ${log.season}`);
+  }
+  if (typeof log.episode === "number") {
+    parts.push(`Episode ${log.episode}`);
+  }
+  if (log.episode_title) {
+    parts.push(log.episode_title);
+  }
+
+  return parts.join(" · ");
+}
+
 function createFallbackMovieContent(movieId: number): Movie {
   return {
     id: movieId,
@@ -143,7 +162,9 @@ export async function createMovieLog(
   },
   ticketImageUrl?: string | null,
   importedFromCsv?: boolean,
-  season?: number
+  season?: number,
+  episode?: number,
+  episodeTitle?: string
 ): Promise<MovieLog> {
   const logRef = push(ref(db, "movie_logs"));
   const logId = logRef.key;
@@ -189,6 +210,14 @@ export async function createMovieLog(
 
   if (contentType === "tv" && typeof season === "number" && Number.isFinite(season)) {
     newLog.season = season;
+  }
+
+  if (contentType === "tv" && typeof episode === "number" && Number.isFinite(episode)) {
+    newLog.episode = episode;
+  }
+
+  if (contentType === "tv" && typeof episodeTitle === "string" && episodeTitle.trim()) {
+    newLog.episode_title = episodeTitle.trim();
   }
 
   await set(logRef, newLog);

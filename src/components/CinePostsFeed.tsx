@@ -488,9 +488,30 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
   const feedCacheKey = `feed_${currentUser?.id ?? "guest"}`;
   const FEED_TTL = 3 * 60 * 1000; // 3 minutes
 
+  const fetchPublicFeed = async () => {
+    const response = await fetch("/api/cineposts/public?limit=30", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to load public feed");
+    }
+
+    const data = (await response.json()) as { posts?: CinePostWithDetails[] };
+    return Array.isArray(data.posts) ? data.posts : [];
+  };
+
   const refreshPosts = async () => {
     try {
       setLockedFeedPostIds(new Set());
+      if (!currentUser?.id) {
+        const publicFeed = await fetchPublicFeed();
+        setPosts(publicFeed);
+        lsSet(feedCacheKey, publicFeed, FEED_TTL);
+        setLoading(false);
+        return;
+      }
       const feed = await getCinePosts(currentUser?.id, 30, {
         sort: "smart",
         feedContext: { seenPostIds: Array.from(seenPostsRef.current) },
@@ -521,6 +542,14 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     const loadPosts = async () => {
       try {
         setLockedFeedPostIds(new Set());
+        if (!currentUser?.id) {
+          const publicFeed = await fetchPublicFeed();
+          if (!cancelled) {
+            setPosts(publicFeed);
+            lsSet(feedCacheKey, publicFeed, FEED_TTL);
+          }
+          return;
+        }
         const feed = await getCinePosts(currentUser?.id, 30, {
           sort: "smart",
           feedContext: { seenPostIds: Array.from(seenPostsRef.current) },
@@ -684,6 +713,8 @@ export default function CinePostsFeed({ currentUser, refreshKey = 0, theme = "de
     type: CinePostEngagementType,
     title: string
   ) => {
+    if (!currentUser?.id) return;
+
     setPeopleModalTitle(title);
     setPeopleModalUsers([]);
     setPeopleModalLoading(true);

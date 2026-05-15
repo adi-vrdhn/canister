@@ -17,7 +17,7 @@ import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
 import { auth, db } from "@/lib/firebase";
 import { signOut as authSignOut } from "@/lib/auth";
-import { getUserMovieLogs } from "@/lib/logs";
+import { getTvEpisodeLabel, getUserMovieLogs } from "@/lib/logs";
 import { getUserByUsername } from "@/lib/profile";
 import type { MovieLogWithContent, User } from "@/types";
 
@@ -116,6 +116,10 @@ function getReactionClasses(log: MovieLogWithContent): string {
 
 function isUnavailableContent(log: MovieLogWithContent): boolean {
   return log.content.title === "Unknown Movie" || log.content.title === "Unknown Show";
+}
+
+function getSeasonLabel(log: MovieLogWithContent): string {
+  return getTvEpisodeLabel(log);
 }
 
 export default function PublicUserLogsPage() {
@@ -492,6 +496,11 @@ export default function PublicUserLogsPage() {
 
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-semibold text-gray-900">{log.content.title}</p>
+                              {getSeasonLabel(log) && (
+                                <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb36b]">
+                                  {getSeasonLabel(log)}
+                                </p>
+                              )}
                               {isUnavailableContent(log) && (
                                 <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                                   Details unavailable
@@ -532,6 +541,11 @@ export default function PublicUserLogsPage() {
 
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold text-gray-900">{log.content.title}</p>
+                        {getSeasonLabel(log) && (
+                          <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb36b]">
+                            {getSeasonLabel(log)}
+                          </p>
+                        )}
                         {isUnavailableContent(log) && (
                           <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                             Details unavailable

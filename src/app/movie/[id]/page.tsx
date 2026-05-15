@@ -91,7 +91,6 @@ function getMovieMetaParts(movie: Movie | null): string[] {
   if (movie.release_date) parts.push(formatReleaseYear(movie.release_date));
   if (movie.runtime) parts.push(formatRuntime(movie.runtime));
   if (movie.language) parts.push(movie.language.toUpperCase());
-  if (movie.genres?.length) parts.push(movie.genres.slice(0, 4).join(", "));
   return parts.filter(Boolean);
 }
 
@@ -140,7 +139,6 @@ export default function MoviePage() {
   const [activeDetailTab, setActiveDetailTab] = useState<MovieDetailTab>("cast");
   const [showAllCast, setShowAllCast] = useState(false);
   const [expandedReviewIds, setExpandedReviewIds] = useState<Set<string>>(new Set());
-  const [heroCollapsed, setHeroCollapsed] = useState(false);
 
   const loadMovieLogData = async () => {
     const numericMovieId = Number(movieId);
@@ -193,23 +191,6 @@ export default function MoviePage() {
 
     return () => window.clearTimeout(timer);
   }, [bannerMessage]);
-
-  useEffect(() => {
-    const collapseAt = 120;
-
-    const updateHeroState = () => {
-      setHeroCollapsed(window.scrollY > collapseAt);
-    };
-
-    updateHeroState();
-    window.addEventListener("scroll", updateHeroState, { passive: true });
-    window.addEventListener("resize", updateHeroState);
-
-    return () => {
-      window.removeEventListener("scroll", updateHeroState);
-      window.removeEventListener("resize", updateHeroState);
-    };
-  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -310,6 +291,8 @@ export default function MoviePage() {
   };
 
   const movieMetaParts = useMemo(() => getMovieMetaParts(movie), [movie]);
+  const heroImageUrl = movie?.backdrop_url || movie?.poster_url || null;
+  const movieGenres = movie?.genres || [];
   const castPeople = useMemo(() => movie?.cast_details || [], [movie]);
   const visibleCastPeople = showAllCast ? castPeople : castPeople.slice(0, 10);
   const crewBuckets = useMemo(() => getCrewBuckets(movie?.crew_details || []), [movie]);
@@ -323,6 +306,8 @@ export default function MoviePage() {
     })[0] || null;
     }, [allLogs]);
   const verdictLabel = useMemo(() => {
+    if (reactionBreakdown.total === 0) return "None";
+
     const counts = [
       { label: "Bad", count: reactionBreakdown.bad },
       { label: "Average", count: reactionBreakdown.average },
@@ -345,23 +330,22 @@ export default function MoviePage() {
   const renderCastRow = (person: MovieCreditPerson) => (
     <div
       key={person.id}
-      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-left"
+      className="flex items-center gap-4 py-4 text-left"
     >
-      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full bg-white/10">
+      <div className="h-20 w-14 flex-shrink-0 overflow-hidden rounded-none border border-white/10 bg-white/10 sm:h-24 sm:w-16">
         {person.profile_url ? (
           <img src={person.profile_url} alt={person.name} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm font-black text-white/35">
+          <div className="flex h-full w-full items-center justify-center text-base font-black text-white/35">
             {person.name.charAt(0).toUpperCase()}
           </div>
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="truncate text-sm font-semibold text-[#f5f0de]">{person.name}</p>
-          {person.character && <span className="text-xs text-white/30">|</span>}
-          {person.character && <p className="truncate text-xs text-white/55">{person.character}</p>}
-        </div>
+        <p className="truncate text-sm font-semibold text-[#f5f0de] sm:text-base">{person.name}</p>
+        <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/55 sm:text-sm">
+          {person.character || "Character unavailable"}
+        </p>
       </div>
     </div>
   );
@@ -369,23 +353,22 @@ export default function MoviePage() {
   const renderCrewRow = (person: MovieCreditPerson, group: string) => (
     <div
       key={`${group}-${person.id}-${person.name}`}
-      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-left"
+      className="flex items-center gap-4 py-4 text-left"
     >
-      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full bg-white/10">
+      <div className="h-20 w-14 flex-shrink-0 overflow-hidden rounded-none border border-white/10 bg-white/10 sm:h-24 sm:w-16">
         {person.profile_url ? (
           <img src={person.profile_url} alt={person.name} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm font-black text-white/35">
+          <div className="flex h-full w-full items-center justify-center text-base font-black text-white/35">
             {person.name.charAt(0).toUpperCase()}
           </div>
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="truncate text-sm font-semibold text-[#f5f0de]">{person.name}</p>
-          <span className="text-xs text-white/30">|</span>
-          <p className="truncate text-xs text-white/55">{person.job || person.department || group}</p>
-        </div>
+        <p className="truncate text-sm font-semibold text-[#f5f0de] sm:text-base">{person.name}</p>
+        <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/55 sm:text-sm">
+          {person.job || person.department || group}
+        </p>
       </div>
     </div>
   );
@@ -411,207 +394,269 @@ export default function MoviePage() {
     <PageLayout user={user} onSignOut={handleSignOut} fullWidth>
       <TopActionBanner message={bannerMessage} />
       <div className="min-h-screen bg-black text-white">
-        <section className="relative flex min-h-[100svh] items-start overflow-hidden px-4 pt-4 pb-8 sm:px-6 sm:pt-5 sm:pb-10 lg:px-8 lg:pt-6 lg:pb-10">
-          <div className="absolute inset-0 bg-black" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,138,30,0.18),_transparent_34%),radial-gradient(circle_at_50%_0%,_rgba(255,255,255,0.05),_transparent_22%)]" />
+        <section className={heroImageUrl ? "relative overflow-hidden border-b border-white/10" : "border-b border-white/10"}>
+          {heroImageUrl ? (
+            <div className="relative h-[42svh] min-h-[300px] sm:h-[46svh] sm:min-h-[320px] lg:h-[48svh] lg:min-h-[340px]">
+              <img
+                src={heroImageUrl}
+                alt={`${movie.title} backdrop`}
+                className="absolute inset-0 h-full w-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08)_0%,rgba(0,0,0,0.18)_34%,rgba(0,0,0,0.48)_68%,rgba(0,0,0,0.92)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,122,26,0.18),transparent_28%)]" />
 
-          <div className="relative z-10 mx-auto max-w-5xl">
-            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="relative z-10 mx-auto flex h-full max-w-7xl items-start px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6">
+                <button
+                  onClick={() => router.back()}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-md transition-colors hover:border-[#ff8a1e]/40 hover:bg-black/70 hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-5xl px-4 pt-4 sm:px-6 lg:px-8">
               <button
                 onClick={() => router.back()}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-md transition-colors hover:border-[#ff8a1e]/40 hover:bg-[#ff8a1e]/10 hover:text-white"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition-colors hover:border-[#ff8a1e]/40 hover:bg-white/10 hover:text-white"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </button>
             </div>
+          )}
 
-            <div
-              className={`mx-auto flex max-w-4xl flex-col items-center text-center transition-all duration-500 ease-out ${
-                heroCollapsed ? "gap-1" : "gap-0"
-              }`}
-            >
-              {movie.poster_url && (
-                <div
-                  className={`overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_20px_80px_rgba(0,0,0,0.55)] transition-all duration-500 ease-out ${
-                    heroCollapsed ? "w-[7.5rem] sm:w-[9rem] lg:w-[10.5rem]" : "w-[16rem] sm:w-[21rem] lg:w-[24rem]"
-                  }`}
-                >
-                  <img
-                    src={movie.poster_url}
-                    alt={movie.title}
-                    className="aspect-[3/4] w-full object-cover"
-                  />
+          <div className="relative z-10 bg-black">
+            <div className={`mx-auto max-w-5xl px-4 pb-8 sm:px-6 sm:pb-10 lg:px-8 ${heroImageUrl ? "pt-5 sm:pt-6 lg:pt-8" : "pt-4 sm:pt-5 lg:pt-6"}`}>
+              <div className="max-w-4xl">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/45">
+                  {movieMetaParts.map((part, index) => (
+                    <span key={`${part}-${index}`}>{part}</span>
+                  ))}
                 </div>
-              )}
 
-              <p
-                className={`mt-5 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/45 transition-all duration-500 ease-out ${
-                  heroCollapsed ? "opacity-75" : "opacity-100"
-                }`}
-              >
-                Movie
-              </p>
-              <h1
-                className={`mt-2 max-w-5xl px-2 font-black leading-[0.92] tracking-tight text-[#f5f0de] transition-all duration-500 ease-out ${
-                  heroCollapsed ? "text-3xl sm:text-5xl lg:text-6xl" : "text-4xl sm:text-6xl lg:text-7xl"
-                }`}
-              >
-                {movie.title}
-              </h1>
-
-              <div
-                className={`mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-medium text-white/70 transition-all duration-500 ease-out ${
-                  heroCollapsed ? "scale-100" : "scale-[1.02]"
-                }`}
-              >
-                {movieMetaParts.map((part, index) => (
-                  <span key={`${part}-${index}`} className="inline-flex items-center gap-2">
-                    {index > 0 && <span className="text-white/30">•</span>}
-                    <span>{part}</span>
-                  </span>
-                ))}
-              </div>
-
-              {movie.overview && (
-                <p
-                  className={`mt-5 max-w-3xl text-sm leading-7 text-white/80 text-justify transition-all duration-500 ease-out sm:text-base ${
-                    heroCollapsed ? "opacity-80" : "opacity-100"
-                  }`}
+                <h1
+                  className="mt-4 text-[clamp(3rem,9vw,5.75rem)] font-black leading-[0.9] tracking-tight text-[#f5f0de]"
+                  style={{ fontFamily: 'var(--font-playfair), "Playfair Display", serif' }}
                 >
-                  {movie.overview}
-                </p>
-              )}
+                  {movie.title}
+                </h1>
 
-              <div
-                className={`mt-6 flex w-full max-w-2xl flex-nowrap justify-center gap-2 transition-all duration-500 ease-out ${
-                  heroCollapsed ? "scale-[0.98]" : "scale-100"
-                }`}
-              >
-                <button
-                  onClick={() => setShowAddToListModal(true)}
-                  className="inline-flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-[13px] font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10 sm:px-4 sm:text-sm"
-                >
-                  <Bookmark className="h-4 w-4" />
-                  Add to List
-                </button>
-                <button
-                  onClick={() => router.push(`/share?movie_id=${movie.id}`)}
-                  className="inline-flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-[13px] font-bold text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10 sm:px-4 sm:text-sm"
-                >
-                  <Share2 className="h-4 w-4" />
-                  Share
-                </button>
-                <button
-                  onClick={() => setShowLogMovieModal(true)}
-                  className="inline-flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-2xl border border-[#ff8a1a]/30 bg-white/5 px-3 py-3 text-[13px] font-bold text-white transition-colors hover:border-[#ff8a1e]/40 hover:bg-[#ff8a1e]/10 sm:px-4 sm:text-sm"
-                >
-                  <LogsIcon className="h-4 w-4" />
-                  Log Movie
-                </button>
-              </div>
-
-              <div className="mt-5 w-full max-w-3xl text-center">
-                <div className="mb-2 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.22em] text-white/45">
-                  <span>Rating distribution</span>
-                  <span>{reactionBreakdown.total} logs</span>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-white/10">
-                  <div className="flex h-full w-full">
-                    {[
-                      { label: "Bad", value: reactionBreakdown.bad, color: "bg-rose-400" },
-                      { label: "Average", value: reactionBreakdown.average, color: "bg-amber-400" },
-                      { label: "Good", value: reactionBreakdown.good, color: "bg-emerald-400" },
-                      { label: "Masterpiece", value: reactionBreakdown.masterpiece, color: "bg-orange-400" },
-                    ].map((item) => {
-                      const percent = reactionBreakdown.total > 0 ? (item.value / reactionBreakdown.total) * 100 : 0;
-                      return (
-                        <button
-                          key={item.label}
-                          type="button"
-                          onClick={() => setBannerMessage(`${item.value} ${item.label.toLowerCase()} rating${item.value === 1 ? "" : "s"}`)}
-                          className={`${item.color} h-full transition-opacity hover:opacity-90`}
-                          style={{ width: `${percent}%` }}
-                          aria-label={`${item.label} ${item.value}`}
-                          title={`${item.label} ${item.value}`}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="mt-3 text-center">
-                  <p className="text-[9px] uppercase tracking-[0.34em] text-white/40">Verdict</p>
-                  <p
-                    className={`mt-1 text-[22px] font-semibold leading-none tracking-[0.08em] ${
-                      verdictLabel === "Masterpiece"
-                        ? "text-orange-300"
-                        : verdictLabel === "Good"
-                          ? "text-emerald-300"
-                          : verdictLabel === "Average"
-                            ? "text-amber-300"
-                            : "text-rose-300"
-                    }`}
-                    style={{ fontFamily: 'var(--font-playfair), "Playfair Display", serif' }}
-                  >
-                    {verdictLabel}
-                  </p>
-                  <div className="-mx-1 mt-3 flex flex-nowrap justify-center gap-3 overflow-x-auto px-1 pb-1 text-[10px] text-white/70 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <span className="inline-flex shrink-0 items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
-                      Bad {reactionBreakdown.bad}
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                      Average {reactionBreakdown.average}
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                      Good {reactionBreakdown.good}
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-orange-400" />
-                      Masterpiece {reactionBreakdown.masterpiece}
-                    </span>
-                  </div>
-                </div>
-                {myReviewLog && (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">My review</p>
-                        <p className="mt-1 text-sm font-semibold text-[#f5f0de]">Your latest log</p>
-                      </div>
-                      <span className={`rounded-full border px-2.5 py-1 text-xs ${getReactionBadgeClassFromLabel(getReactionLabelFromLogReaction(myReviewLog.reaction))}`}>
-                        {getReactionLabelFromLogReaction(myReviewLog.reaction)}
+                {movieGenres.length > 0 && (
+                  <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-[#ffb36b]">
+                    {movieGenres.slice(0, 4).map((genre, index) => (
+                      <span key={genre} className="inline-flex items-center">
+                        {index > 0 && <span className="mr-2 text-white/30">,</span>}
+                        <span>{genre}</span>
                       </span>
-                    </div>
+                    ))}
+                  </div>
+                )}
+
+                {movie.director && (
+                  <p className="mt-4 text-base text-white/58 sm:text-lg">
+                    Directed by <span className="text-white/82">{movie.director}</span>
+                  </p>
+                )}
+
+                <div className="mt-6 grid grid-cols-3 gap-2 sm:mt-7 sm:gap-3">
+                  <button
+                    onClick={() => setShowLogMovieModal(true)}
+                    className="inline-flex w-full min-w-0 flex-nowrap items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-2xl border border-white/10 bg-white/5 px-2 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-white transition-colors hover:border-white/20 hover:bg-white/10 sm:gap-2 sm:px-4 sm:py-4 sm:text-sm sm:tracking-[0.16em]"
+                  >
+                    Log
+                  </button>
+                  <button
+                    onClick={() => router.push(`/share?movie_id=${movie.id}`)}
+                    className="inline-flex w-full min-w-0 flex-nowrap items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-2xl border border-white/10 bg-white/5 px-2 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10 hover:text-white sm:gap-2 sm:px-4 sm:py-4 sm:text-sm sm:tracking-[0.16em]"
+                  >
+                    Share
+                  </button>
+                  <button
+                    onClick={() => setShowAddToListModal(true)}
+                    className="inline-flex w-full min-w-0 flex-nowrap items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-2xl border border-white/10 bg-white/5 px-2 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-white transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10 hover:text-white sm:gap-2 sm:px-4 sm:py-4 sm:text-sm sm:tracking-[0.16em]"
+                  >
+                    Add to List
+                  </button>
+                </div>
+
+                {movie.overview && (
+                  <div className="mt-8">
+                    <h2 className="text-3xl font-black tracking-tight text-[#f5f0de]">Overview</h2>
+                    <p className="mt-3 max-w-4xl text-base leading-8 text-white/68 sm:text-[1.08rem]">
+                      {movie.overview}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-8 w-full max-w-3xl text-center">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.22em] text-white/45">
+                    <span>Rating distribution</span>
+                    <span>{reactionBreakdown.total} logs</span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                    {reactionBreakdown.total > 0 ? (
+                      <div className="flex h-full w-full">
+                        {[
+                          { label: "Bad", value: reactionBreakdown.bad, color: "bg-rose-400" },
+                          { label: "Average", value: reactionBreakdown.average, color: "bg-amber-400" },
+                          { label: "Good", value: reactionBreakdown.good, color: "bg-emerald-400" },
+                          { label: "Masterpiece", value: reactionBreakdown.masterpiece, color: "bg-orange-400" },
+                        ].map((item) => {
+                          const percent = (item.value / reactionBreakdown.total) * 100;
+                          return (
+                            <button
+                              key={item.label}
+                              type="button"
+                              onClick={() => setBannerMessage(`${item.value} ${item.label.toLowerCase()} rating${item.value === 1 ? "" : "s"}`)}
+                              className={`${item.color} h-full transition-opacity hover:opacity-90`}
+                              style={{ width: `${percent}%` }}
+                              aria-label={`${item.label} ${item.value}`}
+                              title={`${item.label} ${item.value}`}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="h-full w-full rounded-full bg-slate-500/60" />
+                    )}
+                  </div>
+                  <div className="mt-3 text-center">
+                    <p className="text-[9px] uppercase tracking-[0.34em] text-white/40">Verdict</p>
+                    <p
+                      className={`mt-1 text-[22px] font-semibold leading-none tracking-[0.08em] ${
+                        verdictLabel === "None"
+                          ? "text-slate-400"
+                          : verdictLabel === "Masterpiece"
+                          ? "text-orange-300"
+                          : verdictLabel === "Good"
+                            ? "text-emerald-300"
+                            : verdictLabel === "Average"
+                              ? "text-amber-300"
+                              : "text-rose-300"
+                      }`}
+                      style={{ fontFamily: 'var(--font-playfair), "Playfair Display", serif' }}
+                    >
+                      {verdictLabel}
+                    </p>
+                    {reactionBreakdown.total > 0 && (
+                      <div className="-mx-1 mt-3 flex flex-nowrap justify-center gap-3 overflow-x-auto px-1 pb-1 text-[10px] text-white/70 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <span className="inline-flex shrink-0 items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+                          Bad {reactionBreakdown.bad}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                          Average {reactionBreakdown.average}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                          Good {reactionBreakdown.good}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full bg-orange-400" />
+                          Masterpiece {reactionBreakdown.masterpiece}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {myReviewLog && (
                     <button
                       type="button"
                       onClick={() => router.push(buildLogUrl(myReviewLog))}
-                      className="block w-full text-left"
+                      className="mt-4 block w-full rounded-2xl border border-white/10 bg-white/5 p-3.5 text-left transition-colors hover:border-white/20 hover:bg-white/10"
                     >
-                      <p className="text-sm leading-7 text-white/80">
+                      <div className="mb-2.5 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">My review</p>
+                          <p className="mt-1 text-sm font-semibold text-[#f5f0de]">Your latest log</p>
+                        </div>
+                        <span className={`rounded-full border px-2.5 py-1 text-xs ${getReactionBadgeClassFromLabel(getReactionLabelFromLogReaction(myReviewLog.reaction))}`}>
+                          {getReactionLabelFromLogReaction(myReviewLog.reaction)}
+                        </span>
+                      </div>
+                      <p className="line-clamp-2 text-sm leading-6 text-white/80">
                         {myReviewLog.notes?.trim() ? myReviewLog.notes : "No review text yet."}
                       </p>
+                      <p className="mt-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                        Open full review
+                      </p>
                     </button>
-                  </div>
-                )}
-                <div className="mt-4">
-                  <div className="grid grid-cols-3 gap-2">
-                    <Link
-                      href={`/movie/${movie.id}/reviews`}
-                      className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10"
-                    >
-                      <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Reviews</span>
-                      <span className="mt-1 text-lg font-black text-[#f5f0de]">{reviews.length}</span>
-                    </Link>
-                    <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center">
-                      <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Logs</span>
-                      <span className="mt-1 text-lg font-black text-[#f5f0de]">{movieStats.totalLogs}</span>
+                  )}
+                  {allLogs.length > 0 && (
+                    <div className="mt-5">
+                      <button
+                        className="text-sm font-medium text-white/65 transition hover:text-white"
+                        onClick={() => setShowAllLogs((v) => !v)}
+                      >
+                        {showAllLogs ? "Hide all logs" : `Show all logs (${allLogs.length})`}
+                      </button>
+                      {showAllLogs && (
+                        <div className="mt-3 divide-y divide-white/10 border-t border-white/10">
+                          {allLogs.map((log) => {
+                            const label = getReactionLabelFromLogReaction(log.reaction);
+                            const userLabel = "You";
+                            return (
+                              <div key={log.id} className="flex items-center gap-4 py-4">
+                                <button
+                                  type="button"
+                                  className="flex flex-col items-center text-center"
+                                  onClick={() => router.push(buildLogUrl(log))}
+                                  title={`View ${userLabel}'s log`}
+                                >
+                                  {log.user.avatar_url ? (
+                                    <img src={log.user.avatar_url} alt={userLabel} className="h-10 w-10 rounded-full border border-white/15" />
+                                  ) : (
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-base font-bold text-white">
+                                      Y
+                                    </div>
+                                  )}
+                                  <span className={`mt-1 text-xs px-2 py-0.5 rounded-full border block ${getReactionBadgeClassFromLabel(label)}`}>{label}</span>
+                                </button>
+                                <div className="min-w-0 flex-1">
+                                  <button
+                                    type="button"
+                                    className="font-semibold text-white/90 transition hover:underline"
+                                    onClick={() => router.push(buildLogUrl(log))}
+                                  >
+                                    {userLabel}
+                                  </button>
+                                  {log.notes && (
+                                    <p className="mt-1 line-clamp-2 text-sm leading-6 text-white/70">{log.notes}</p>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="text-xs font-medium text-white/55 transition hover:text-white hover:underline"
+                                  onClick={() => router.push(buildLogUrl(log))}
+                                >
+                                  View
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center">
-                      <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Watched</span>
-                      <span className="mt-1 text-lg font-black text-[#f5f0de]">{movieStats.totalWatched}</span>
+                  )}
+                  <div className="mt-5">
+                    <div className="grid grid-cols-3 gap-2">
+                      <Link
+                        href={`/movie/${movie.id}/reviews`}
+                        className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center transition-colors hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10"
+                      >
+                        <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Reviews</span>
+                        <span className="mt-1 text-lg font-black text-[#f5f0de]">{reviews.length}</span>
+                      </Link>
+                      <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center">
+                        <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Logs</span>
+                        <span className="mt-1 text-lg font-black text-[#f5f0de]">{movieStats.totalLogs}</span>
+                      </div>
+                      <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-2 py-3 text-center">
+                        <span className="text-[9px] uppercase tracking-[0.18em] text-white/45">Total Watched</span>
+                        <span className="mt-1 text-lg font-black text-[#f5f0de]">{movieStats.totalWatched}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -625,7 +670,19 @@ export default function MoviePage() {
             {/* Friends' logs row */}
             {friendLogs.length > 0 && (
               <div>
-                <h3 className="mb-3 text-lg font-semibold">Friends who watched it</h3>
+                <div className="mb-4 flex items-end justify-between gap-4 border-l-2 border-[#ff8a1e] pl-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.26em] text-[#ffb36b]/80">
+                      Your circle
+                    </p>
+                    <h3 className="mt-1 text-2xl font-black tracking-tight text-[#f5f0de]">
+                      Friends who watched it
+                    </h3>
+                  </div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+                    {friendLogs.length} log{friendLogs.length === 1 ? "" : "s"}
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                   {friendLogs.slice(0, 10).map((log) => {
                     const label = getReactionLabelFromLogReaction(log.reaction);
@@ -640,9 +697,13 @@ export default function MoviePage() {
                       >
                         <div className="relative flex flex-col items-center">
                           {log.user.avatar_url ? (
-                            <img src={log.user.avatar_url} alt={userLabel} className="h-12 w-12 rounded-full border-2 border-white transition-transform group-hover:scale-105" />
+                            <img
+                              src={log.user.avatar_url}
+                              alt={userLabel}
+                              className="h-12 w-12 rounded-2xl border border-white/15 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.35)] transition-transform group-hover:scale-105"
+                            />
                           ) : (
-                            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-white/10 text-lg font-bold text-white">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-lg font-bold text-white shadow-[0_10px_24px_rgba(0,0,0,0.35)]">
                               {userLabel.charAt(0).toUpperCase()}
                             </div>
                           )}
@@ -656,60 +717,14 @@ export default function MoviePage() {
               </div>
             )}
 
-            {/* All logs expandable section */}
-            {allLogs.length > 0 && (
-              <div className="mt-10">
-                <button
-                  className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 transition mb-4"
-                  onClick={() => setShowAllLogs((v) => !v)}
-                >
-                  {showAllLogs ? "Hide all logs" : `Show all logs (${allLogs.length})`}
-                </button>
-                {showAllLogs && (
-                  <div className="rounded-2xl bg-white/5 border border-white/10 divide-y divide-white/10">
-                    {allLogs.map((log) => {
-                      const label = getReactionLabelFromLogReaction(log.reaction);
-                      const userLabel = "You";
-                      return (
-                        <div key={log.id} className="flex items-center gap-4 p-4 sm:p-5">
-                          <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(log))} title={`View ${userLabel}'s log`}>
-                            {log.user.avatar_url ? (
-                              <img src={log.user.avatar_url} alt={userLabel} className="w-10 h-10 rounded-full border-2 border-white" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-base font-bold text-white border-2 border-white">
-                                Y
-                              </div>
-                            )}
-                            <span className={`mt-1 text-xs px-2 py-0.5 rounded-full border block ${getReactionBadgeClassFromLabel(label)}`}>{label}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-white/90 cursor-pointer hover:underline" onClick={() => router.push(buildLogUrl(log))}>{userLabel}</span>
-                            {log.notes && (
-                              <p className="text-white/80 mt-1 line-clamp-3">{log.notes}</p>
-                            )}
-                          </div>
-                          <button
-                            className="ml-2 px-3 py-1 rounded border border-white/20 text-xs text-white/70 hover:bg-white/10"
-                            onClick={() => router.push(buildLogUrl(log))}
-                          >
-                            View Log
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
             <div className="pt-2">
-              <div className="flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-[0.28em] text-white/45">
+              <div className="flex items-center justify-center gap-4 text-sm font-black uppercase tracking-[0.16em] text-white/55 sm:text-base sm:tracking-[0.2em]">
                 {(["cast", "crew", "reviews", "posts"] as MovieDetailTab[]).map((tab) => (
                   <button
                     key={tab}
                     type="button"
                     onClick={() => setActiveDetailTab(tab)}
-                    className={`border-b-2 px-2 py-2 transition ${
+                    className={`border-b-2 px-2 py-2 transition sm:px-3 ${
                       activeDetailTab === tab
                         ? "border-[#ff8a1e] text-[#ffb36b]"
                         : "border-transparent hover:border-white/20 hover:text-white/70"
@@ -723,27 +738,25 @@ export default function MoviePage() {
               <div className="mt-8">
                 {activeDetailTab === "cast" && (
                   <section className="space-y-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <h2 className="text-2xl font-bold">Cast</h2>
-                      {castPeople.length > 10 && (
-                        <button
-                          type="button"
-                          onClick={() => setShowAllCast((value) => !value)}
-                          className="inline-flex items-center gap-1 text-sm font-semibold text-[#ffb36b] hover:text-[#ffcf9b]"
-                        >
-                          {showAllCast ? "Show less" : `Show all (${castPeople.length})`}
-                          <ChevronDown className={`h-4 w-4 transition ${showAllCast ? "rotate-180" : ""}`} />
-                        </button>
-                      )}
-                    </div>
+                    <h2 className="text-2xl font-bold">Cast</h2>
                     {castPeople.length > 0 ? (
-                      <div className="grid gap-3">
-                        {visibleCastPeople.map(renderCastRow)}
+                      <div className="space-y-3">
+                        <div className="divide-y divide-white/10 border-t border-white/10">
+                          {visibleCastPeople.map(renderCastRow)}
+                        </div>
+                        {castPeople.length > 10 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllCast((value) => !value)}
+                            className="inline-flex items-center gap-1 text-sm font-semibold text-[#ffb36b] hover:text-[#ffcf9b]"
+                          >
+                            {showAllCast ? "Show less" : `Show all (${castPeople.length})`}
+                            <ChevronDown className={`h-4 w-4 transition ${showAllCast ? "rotate-180" : ""}`} />
+                          </button>
+                        )}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
-                        No cast data available.
-                      </div>
+                      <p className="border-t border-white/10 pt-4 text-sm text-white/60">No cast data available.</p>
                     )}
                   </section>
                 )}
@@ -761,16 +774,14 @@ export default function MoviePage() {
                         {crewBuckets.map(([group, people]) => (
                           <div key={group} className="space-y-3">
                             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white/45">{group}</p>
-                            <div className="grid gap-3">
+                            <div className="divide-y divide-white/10 border-t border-white/10">
                               {people.map((person) => renderCrewRow(person, group))}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
-                        No crew credits available.
-                      </div>
+                      <p className="border-t border-white/10 pt-4 text-sm text-white/60">No crew credits available.</p>
                     )}
                   </section>
                 )}
@@ -778,23 +789,17 @@ export default function MoviePage() {
                 {activeDetailTab === "reviews" && (
                   <section className="space-y-5">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h2 className="text-2xl font-bold">Reviews</h2>
-                        <p className="mt-1 text-sm text-white/55">
-                          A quick preview of reviews. Open the full page for filters and the complete list.
-                        </p>
-                      </div>
+                      <h2 className="text-2xl font-bold">Reviews</h2>
                       <Link
                         href={`/movie/${movie.id}/reviews`}
-                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:border-[#ff8a1e]/30 hover:bg-[#ff8a1e]/10 hover:text-white"
+                        className="text-sm font-semibold text-[#ffb36b] transition hover:text-[#ffcf9b]"
                       >
                         Open all reviews
-                        <ChevronRight className="h-4 w-4" />
                       </Link>
                     </div>
                     {reviews.length > 0 ? (
                       <div className="grid gap-4">
-                        {reviews.slice(0, 6).map((review) => {
+                        {reviews.slice(0, 5).map((review) => {
                           const expanded = expandedReviewIds.has(review.id);
                           return (
                             <div key={review.id} className="rounded-2xl border border-white/10 bg-white/5 p-5">
@@ -833,13 +838,7 @@ export default function MoviePage() {
 
                 {activeDetailTab === "posts" && (
                   <section className="space-y-5">
-                    <div>
-                      <h2 className="text-2xl font-bold">Posts</h2>
-                      <p className="mt-1 text-sm text-white/55">
-                        All posts, logs, and discussions mapped to this movie.
-                      </p>
-                    </div>
-                    <ContentCinePosts contentId={movie.id} contentType="movie" currentUser={user} theme="brutalist" />
+                    <ContentCinePosts contentId={movie.id} contentType="movie" currentUser={user} theme="brutalist" compact />
                   </section>
                 )}
               </div>

@@ -10,7 +10,7 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, get } from "firebase/database";
 import { signOut as authSignOut } from "@/lib/auth";
-import { getUserMovieLogs, deleteMovieLog } from "@/lib/logs";
+import { getTvEpisodeLabel, getUserMovieLogs, deleteMovieLog } from "@/lib/logs";
 import { buildLogUrl } from "@/lib/log-url";
 import { searchMovies } from "@/lib/tmdb";
 import { searchShows } from "@/lib/tvmaze";
@@ -57,8 +57,7 @@ function isUnavailableContent(log: MovieLogWithContent): boolean {
 }
 
 function getSeasonLabel(log: MovieLogWithContent): string {
-  if (log.content_type !== "tv" || typeof log.season !== "number") return "";
-  return `Season ${log.season}`;
+  return getTvEpisodeLabel(log);
 }
 
 function dateKeyFromLog(log: MovieLogWithContent): string {

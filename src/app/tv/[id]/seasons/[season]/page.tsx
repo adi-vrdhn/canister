@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
-import { ArrowLeft, CalendarDays, Film, PlayCircle } from "lucide-react";
-import CinematicLoading from "@/components/CinematicLoading";
+import { ArrowLeft, PlayCircle, Star } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
+import CinematicLoading from "@/components/CinematicLoading";
+import LogMovieModal from "@/components/LogMovieModal";
 import { auth, db } from "@/lib/firebase";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getShowDetails, type ShowDetails } from "@/lib/tvmaze";
 import { getSeasonEpisodes, getShowSeasons, type TVMazeEpisode, type TVMazeSeason } from "@/lib/tvmaze-seasons";
-import { User } from "@/types";
+import type { Content, User } from "@/types";
 
 function formatYear(dateStr?: string): string {
   if (!dateStr) return "";
@@ -20,10 +21,15 @@ function formatYear(dateStr?: string): string {
   return Number.isNaN(year) ? dateStr : String(year);
 }
 
-export default function TvSeasonsPage() {
+function getEpisodeLabel(episode: TVMazeEpisode): string {
+  return `Episode ${episode.number}${episode.name ? ` - ${episode.name}` : ""}`;
+}
+
+export default function TvSeasonPage() {
   const router = useRouter();
   const params = useParams();
   const showId = params.id as string;
+  const seasonParam = params.season as string;
 
   const [user, setUser] = useState<User | null>(null);
   const [show, setShow] = useState<ShowDetails | null>(null);
@@ -32,6 +38,7 @@ export default function TvSeasonsPage() {
   const [episodes, setEpisodes] = useState<TVMazeEpisode[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+  const [showLogMovieModal, setShowLogMovieModal] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -64,18 +71,21 @@ export default function TvSeasonsPage() {
           getShowSeasons(numericShowId),
         ]);
 
+        const numericSeason = Number(seasonParam);
+        const matchingSeason = seasonList.find((season) => season.number === numericSeason) || seasonList[0] || null;
+
         setShow(showDetails);
         setSeasons(seasonList);
-        setSelectedSeason(seasonList[0] || null);
+        setSelectedSeason(matchingSeason);
         setLoading(false);
       } catch (error) {
-        console.error("Error loading TV seasons:", error);
+        console.error("Error loading TV season page:", error);
         setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, [router, showId]);
+  }, [router, seasonParam, showId]);
 
   useEffect(() => {
     if (!selectedSeason) {
@@ -115,20 +125,34 @@ export default function TvSeasonsPage() {
     router.push("/auth/login");
   };
 
+  const seasonContent = useMemo<Content | null>(() => {
+    if (!show) return null;
+    return show as unknown as Content;
+  }, [show]);
+
   if (loading || !user) {
-    return <CinematicLoading message="Loading season guide" />;
+    return <CinematicLoading message="Loading season page" />;
   }
 
   return (
     <PageLayout user={user} onSignOut={handleSignOut}>
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <Link
-          href={`/tv/${showId}`}
-          className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#111111] px-4 py-2 text-sm font-bold text-[#f5f0de] transition hover:border-[#ff7a1a]/30 hover:text-[#ffb36b]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to show
-        </Link>
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <Link
+            href={`/tv/${showId}/seasons`}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#111111] px-4 py-2 text-sm font-bold text-[#f5f0de] transition hover:border-[#ff7a1a]/30 hover:text-[#ffb36b]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to seasons
+          </Link>
+          <Link
+            href={`/tv/${showId}`}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#111111] px-4 py-2 text-sm font-bold text-[#f5f0de] transition hover:border-[#ff7a1a]/30 hover:text-[#ffb36b]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to show
+          </Link>
+        </div>
 
         <section className="rounded-[2rem] border border-white/10 bg-[#111111] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] sm:p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
@@ -145,19 +169,22 @@ export default function TvSeasonsPage() {
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#ffb36b]">Season guide</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#ffb36b]">Season page</p>
               <h1 className="mt-2 text-3xl font-black leading-tight text-[#f5f0de] sm:text-5xl">
                 {show?.title || show?.name || "TV Show"}
               </h1>
-              {show?.overview && (
-                <p className="mt-4 max-w-3xl text-sm leading-7 text-white/75 sm:text-base">
-                  {show.overview}
-                </p>
-              )}
+              <p className="mt-2 text-lg font-semibold text-[#ffb36b]">
+                {selectedSeason ? selectedSeason.name : `Season ${seasonParam}`}
+              </p>
               <div className="mt-4 flex flex-wrap gap-2 text-sm text-white/70">
-                {show?.rating?.average ? (
+                {selectedSeason?.premiereDate ? (
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                    Rating {show.rating.average.toFixed(1)}
+                    {formatYear(selectedSeason.premiereDate)}
+                  </span>
+                ) : null}
+                {selectedSeason?.episodeOrder ? (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                    {selectedSeason.episodeOrder} episodes
                   </span>
                 ) : null}
                 {show?.runtime ? (
@@ -165,82 +192,30 @@ export default function TvSeasonsPage() {
                     {show.runtime} min episodes
                   </span>
                 ) : null}
-                {show?.network?.name ? (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                    {show.network.name}
-                  </span>
-                ) : null}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogMovieModal(true)}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#ff7a1a] px-4 py-2 text-sm font-black text-black transition hover:bg-[#ff8d3b]"
+                >
+                  <Star className="h-4 w-4" />
+                  Rate this season
+                </button>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="mt-6 space-y-4">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-black text-[#f5f0de]">Seasons</h2>
-              <p className="text-sm text-white/55">Pick a season to browse its episodes.</p>
-            </div>
-            <span className="text-xs text-white/45">{seasons.length} seasons</span>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {seasons.map((season) => {
-              const isSelected = selectedSeason?.id === season.id;
-              return (
-                <button
-                  key={season.id}
-                  type="button"
-                  onClick={() => setSelectedSeason(season)}
-                  className={`text-left transition ${
-                    isSelected
-                      ? "border-[#ff7a1a]/50 bg-[#ff7a1a]/10"
-                      : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]"
-                  } rounded-[1.5rem] border p-4`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black uppercase tracking-[0.2em] text-[#ffb36b]">Season {season.number}</p>
-                      <p className="mt-1 text-lg font-bold text-[#f5f0de]">{season.name}</p>
-                    </div>
-                    <Film className={`h-5 w-5 ${isSelected ? "text-[#ffb36b]" : "text-white/35"}`} />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/60">
-                    {season.premiereDate ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2.5 py-1">
-                        <CalendarDays className="h-3.5 w-3.5" />
-                        {formatYear(season.premiereDate)}
-                      </span>
-                    ) : null}
-                    {season.episodeOrder ? (
-                      <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">
-                        {season.episodeOrder} episodes
-                      </span>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-[2rem] border border-white/10 bg-[#111111] p-4 sm:p-6">
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-[#111111] p-4 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-black text-[#f5f0de]">
                 {selectedSeason ? selectedSeason.name : "Episodes"}
               </h2>
               <p className="text-sm text-white/55">
-                {selectedSeason ? `Season ${selectedSeason.number}` : "Choose a season to see episodes."}
+                {selectedSeason ? `Season ${selectedSeason.number}` : "No season selected."}
               </p>
-              {selectedSeason && (
-                <Link
-                  href={`/tv/${showId}/seasons/${selectedSeason.number}`}
-                  className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-[#ffb36b] hover:text-[#ff7a1a]"
-                >
-                  Open season page
-                </Link>
-              )}
             </div>
             <span className="text-xs text-white/45">{episodes.length} episodes</span>
           </div>
@@ -260,9 +235,8 @@ export default function TvSeasonsPage() {
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-black uppercase tracking-[0.2em] text-[#ffb36b]">
-                      Episode {episode.number}
+                      {getEpisodeLabel(episode)}
                     </p>
-                    <p className="mt-1 truncate text-lg font-bold text-[#f5f0de]">{episode.name}</p>
                     <p className="mt-1 text-sm text-white/55">
                       {episode.airdate || "Date unavailable"}
                       {episode.runtime ? ` • ${episode.runtime} min` : ""}
@@ -278,6 +252,19 @@ export default function TvSeasonsPage() {
             </div>
           )}
         </section>
+
+        {seasonContent && (
+          <LogMovieModal
+            isOpen={showLogMovieModal}
+            onClose={() => setShowLogMovieModal(false)}
+            content={seasonContent}
+            user={user}
+            initialTvScope={selectedSeason?.number ?? "all"}
+            onLogCreated={() => {
+              setShowLogMovieModal(false);
+            }}
+          />
+        )}
       </main>
     </PageLayout>
   );

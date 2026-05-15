@@ -6,7 +6,7 @@ import PageLayout from "@/components/PageLayout";
 import CinematicLoading from "@/components/CinematicLoading";
 import LogMovieModal from "@/components/LogMovieModal";
 import { MovieLog, MovieLogWithContent, User, Content, LogCommentWithUser } from "@/types";
-import { deleteMovieLog, updateMovieLog, getLogsForContent, getVisibleLogNotes } from "@/lib/logs";
+import { deleteMovieLog, updateMovieLog, getLogsForContent, getTvEpisodeLabel, getVisibleLogNotes } from "@/lib/logs";
 import { likeLog, unlikeLog, getLogLikes } from "@/lib/log-likes";
 import { getMovieDetails } from "@/lib/tmdb";
 import { getShowDetails } from "@/lib/tvmaze";
@@ -85,8 +85,7 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 function getSeasonLabel(log: MovieLogWithContent): string {
-  if (log.content_type !== "tv" || typeof log.season !== "number") return "";
-  return `Season ${log.season}`;
+  return getTvEpisodeLabel(log);
 }
 
 function Avatar({ user }: { user: User }) {
@@ -1355,35 +1354,45 @@ export default function LogDetailPage() {
 
         {/* Log History for this user and movie/show */}
         {userLogs.length > 1 && (
-          <div className="mb-6 border-t border-white/10 pt-6">
+          <div className="mb-6 mt-8">
             <button
-              className="mb-4 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#f5f0de] hover:bg-white/5 transition"
+              className="mb-3 text-sm font-medium text-[#f5f0de]/65 transition hover:text-[#f5f0de]"
               onClick={() => setShowUserLogs((v) => !v)}
             >
               {showUserLogs ? "Hide log history" : `Show log history (${userLogs.length})`}
             </button>
             {showUserLogs && (
-              <div className="divide-y divide-white/10">
+              <div className="divide-y divide-white/10 border-t border-white/10">
                 {userLogs.map((l) => {
                   const reaction = getReactionDisplay(l.reaction);
                   return (
-                    <div key={l.id} className="flex items-center gap-4 py-4">
-                      <div className="flex flex-col items-center cursor-pointer" onClick={() => router.push(buildLogUrl(l))} title={`View this log`}>
-                        <span className={`mt-1 block text-sm font-bold sm:text-base ${reaction.textClass}`}>{reaction.label}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-slate-900 cursor-pointer hover:underline" onClick={() => router.push(buildLogUrl(l))}>
+                    <div key={l.id} className="flex items-start gap-4 py-4">
+                      <button
+                        type="button"
+                        className={`mt-1 text-sm font-bold sm:text-base ${reaction.textClass}`}
+                        onClick={() => router.push(buildLogUrl(l))}
+                        title="Open this log"
+                      >
+                        {reaction.label}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          className="block text-left font-semibold text-slate-900 transition hover:text-slate-700 hover:underline"
+                          onClick={() => router.push(buildLogUrl(l))}
+                        >
                           {formatDate(l.watched_date)}
-                        </span>
+                        </button>
                         {l.notes && (
-                          <p className="text-slate-600 mt-1 line-clamp-3">{l.notes}</p>
+                          <p className="mt-1 line-clamp-3 text-slate-600">{l.notes}</p>
                         )}
                       </div>
                       <button
-                        className="ml-2 rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                        type="button"
+                        className="mt-1 text-xs font-medium text-slate-500 transition hover:text-slate-700 hover:underline"
                         onClick={() => router.push(buildLogUrl(l))}
                       >
-                        View Log
+                        View log
                       </button>
                     </div>
                   );

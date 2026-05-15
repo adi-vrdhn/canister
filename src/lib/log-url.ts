@@ -18,7 +18,7 @@ function slugifyTitleWithYear(title: string, year?: string | number | null): str
 }
 
 export function buildLogUrl(
-  log: Pick<MovieLogWithContent, "id" | "content" | "user" | "user_id">,
+  log: Pick<MovieLogWithContent, "id" | "content" | "user" | "user_id" | "season" | "episode" | "episode_title">,
   extraParams?: Record<string, string | number | null | undefined>
 ): string {
   const params = new URLSearchParams();
@@ -35,6 +35,18 @@ export function buildLogUrl(
       if (value === null || value === undefined || value === "") return;
       params.set(key, String(value));
     });
+  }
+
+  if (typeof log.season === "number") {
+    params.set("season", String(log.season));
+  }
+
+  if (typeof log.episode === "number") {
+    params.set("episode", String(log.episode));
+  }
+
+  if (log.episode_title) {
+    params.set("episode_title", log.episode_title);
   }
 
   const query = params.toString();

@@ -200,3 +200,22 @@ export async function getSeasonEpisodes(season: TVMazeSeason): Promise<TVMazeEpi
     return [];
   }
 }
+
+export async function getShowEpisodes(showId: number): Promise<TVMazeEpisode[]> {
+  try {
+    const seasons = await getShowSeasons(showId);
+    if (seasons.length === 0) return [];
+
+    const seasonEpisodes = await Promise.all(seasons.map((season) => getSeasonEpisodes(season)));
+    const episodes = seasonEpisodes.flat();
+
+    return episodes
+      .filter((episode) => typeof episode.season === "number" && typeof episode.number === "number")
+      .sort((a, b) => {
+        if (a.season !== b.season) return a.season - b.season;
+        return a.number - b.number;
+      });
+  } catch {
+    return [];
+  }
+}

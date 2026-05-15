@@ -26,6 +26,27 @@ export interface TVMazeShow {
   };
 }
 
+export interface TVMazeCreditPerson {
+  id: number;
+  name: string;
+  image?: {
+    medium?: string;
+    original?: string;
+  };
+}
+
+export interface TVMazeCastCredit {
+  person: TVMazeCreditPerson;
+  character?: {
+    name?: string;
+  };
+}
+
+export interface TVMazeCrewCredit {
+  person: TVMazeCreditPerson;
+  type?: string;
+}
+
 export interface ShowDetails extends TVMazeShow {
   type: "tv";
   title?: string;
@@ -34,7 +55,25 @@ export interface ShowDetails extends TVMazeShow {
   overview?: string;
   release_date?: string;
   language?: string;
+  cast_details?: Array<{
+    id: number;
+    name: string;
+    profile_url: string | null;
+    character?: string | null;
+    job?: string | null;
+    department?: string | null;
+  }>;
+  crew_details?: Array<{
+    id: number;
+    name: string;
+    profile_url: string | null;
+    character?: string | null;
+    job?: string | null;
+    department?: string | null;
+  }>;
 }
+
+type TVMazeMappedCreditPerson = NonNullable<ShowDetails["cast_details"]>[number];
 
 interface TMDBTVSearchResult {
   id: number;
@@ -173,6 +212,27 @@ function mapTMDBShowDetails(show: TMDBTVDetails): ShowDetails {
     overview: show.overview || "",
     release_date: show.first_air_date,
     language: show.original_language || "en",
+  };
+}
+
+function mapTVMazeCastCredit(credit: TVMazeCastCredit) {
+  if (!credit?.person?.id || !credit.person.name) return null;
+  return {
+    id: credit.person.id,
+    name: credit.person.name,
+    profile_url: credit.person.image?.original || credit.person.image?.medium || null,
+    character: credit.character?.name || null,
+  };
+}
+
+function mapTVMazeCrewCredit(credit: TVMazeCrewCredit) {
+  if (!credit?.person?.id || !credit.person.name) return null;
+  return {
+    id: credit.person.id,
+    name: credit.person.name,
+    profile_url: credit.person.image?.original || credit.person.image?.medium || null,
+    job: credit.type || null,
+    department: credit.type || null,
   };
 }
 
@@ -339,6 +399,28 @@ export async function getShowDetails(showId: number): Promise<ShowDetails | null
     }
 
     const show = await response.json();
+    const [castResult, crewResult] = await Promise.allSettled([
+      fetch(`${TVMAZE_BASE_URL}/shows/${showId}/cast`),
+      fetch(`${TVMAZE_BASE_URL}/shows/${showId}/crew`),
+    ]);
+
+    const castDetails: TVMazeMappedCreditPerson[] = [];
+    if (castResult.status === "fulfilled" && castResult.value.ok) {
+      const castCredits = (await castResult.value.json()) as TVMazeCastCredit[];
+      for (const credit of castCredits) {
+        const mapped = mapTVMazeCastCredit(credit);
+        if (mapped) castDetails.push(mapped);
+      }
+    }
+
+    const crewDetails: TVMazeMappedCreditPerson[] = [];
+    if (crewResult.status === "fulfilled" && crewResult.value.ok) {
+      const crewCredits = (await crewResult.value.json()) as TVMazeCrewCredit[];
+      for (const credit of crewCredits) {
+        const mapped = mapTVMazeCrewCredit(credit);
+        if (mapped) crewDetails.push(mapped);
+      }
+    }
 
     return {
       id: show.id,
@@ -358,6 +440,8 @@ export async function getShowDetails(showId: number): Promise<ShowDetails | null
       overview: show.summary?.replace(/<[^>]*>/g, "") || "",
       release_date: show.premiered,
       language: show.language || "en",
+      cast_details: castDetails,
+      crew_details: crewDetails,
     };
   } catch {
     try {

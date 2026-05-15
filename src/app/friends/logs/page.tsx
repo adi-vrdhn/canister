@@ -9,6 +9,7 @@ import { User, MovieLogWithContent } from "@/types";
 import { signOut as authSignOut } from "@/lib/auth";
 import { getFriendLogs } from "@/lib/friend-logs";
 import { buildLogUrl } from "@/lib/log-url";
+import { getTvEpisodeLabel } from "@/lib/logs";
 
 export default function FriendLogsPage() {
   // --- Season filter state ---
@@ -81,6 +82,8 @@ export default function FriendLogsPage() {
         return { label: "Bad", color: "text-slate-700" };
     }
   };
+
+  const getSeasonLabel = (log: MovieLogWithContent) => getTvEpisodeLabel(log);
 
   // Filter logs by season if seasonFilter is set (and log.season exists)
   const filteredLogs = seasonFilter === "all"
@@ -175,11 +178,11 @@ export default function FriendLogsPage() {
                 )}
 
                 {/* Content */}
-                <div className="p-2 sm:p-5">
-                  {/* Movie Title */}
-                  <h3 className="mb-1 line-clamp-2 text-[11px] font-semibold leading-tight text-slate-900 sm:mb-2 sm:text-lg">
-                    {log.content.title}
-                  </h3>
+                  <div className="p-2 sm:p-5">
+                    {/* Movie Title */}
+                    <h3 className="mb-1 line-clamp-2 text-[11px] font-semibold leading-tight text-slate-900 sm:mb-2 sm:text-lg">
+                      {log.content.title}
+                    </h3>
 
                   {/* Friend Info */}
                   <div className="mb-1 sm:mb-3">
@@ -192,6 +195,12 @@ export default function FriendLogsPage() {
                   <div className="mb-1 text-[10px] text-slate-500 sm:mb-3 sm:text-sm">
                     {formatDate(log.watched_date)}
                   </div>
+
+                  {getSeasonLabel(log) && (
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb36b] sm:mb-3 sm:text-xs">
+                      {getSeasonLabel(log)}
+                    </div>
+                  )}
 
                   {/* Reaction */}
                   <div className="sm:mb-3">

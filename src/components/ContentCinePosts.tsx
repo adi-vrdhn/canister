@@ -10,11 +10,13 @@ export default function ContentCinePosts({
   contentType,
   currentUser,
   theme = "default",
+  compact = false,
 }: {
   contentId: number;
   contentType: "movie" | "tv";
   currentUser: User | null;
   theme?: "default" | "brutalist";
+  compact?: boolean;
 }) {
   const [posts, setPosts] = useState<CinePostWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,19 +43,17 @@ export default function ContentCinePosts({
 
   return (
     <section
-      className={`mt-8 rounded-[2rem] border p-4 sm:p-6 ${
-        isBrutalist
-          ? "border-white/10 bg-[#111111] text-[#f5f0de] shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
-          : "border-slate-200 bg-white/95 text-slate-950 shadow-sm"
-      }`}
+      className={`mt-8 ${compact ? "space-y-4" : `rounded-[2rem] border p-4 sm:p-6 ${isBrutalist ? "border-white/10 bg-[#111111] text-[#f5f0de] shadow-[0_24px_80px_rgba(0,0,0,0.35)]" : "border-slate-200 bg-white/95 text-slate-950 shadow-sm"}`}`}
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className={`${compact ? "flex items-end justify-between gap-3" : "mb-4 flex items-center justify-between gap-3"}`}>
         <div>
-          <h2 className={`text-xl font-black ${isBrutalist ? "text-[#ffb36b]" : ""}`}>Posts</h2>
-          <p className={`text-sm ${isBrutalist ? "text-white/55" : "text-slate-500"}`}>
-            Posts, logs, and discussions anchored to this title.
-          </p>
+          <h2 className={`${compact ? "text-2xl font-bold" : `text-xl font-black ${isBrutalist ? "text-[#ffb36b]" : ""}`}`}>Posts</h2>
         </div>
+        {compact && (
+          <span className="text-sm font-medium text-white/45">
+            {posts.length}
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -63,7 +63,12 @@ export default function ContentCinePosts({
           ))}
         </div>
       ) : (
-        <CinePostPreviewList posts={posts} emptyText="No posts for this title yet." theme={theme} />
+        <CinePostPreviewList
+          posts={posts}
+          emptyText="No posts for this title yet."
+          theme={theme}
+          className={compact ? "divide-y divide-white/10 border-t border-white/10" : ""}
+        />
       )}
     </section>
   );
