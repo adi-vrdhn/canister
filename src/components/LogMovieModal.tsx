@@ -20,6 +20,7 @@ interface LogMovieModalProps {
   onLogUpdated?: (log: MovieLogWithContent) => void;
   theme?: "default" | "brutalist";
   initialTvScope?: number | "all" | null;
+  initialTvEpisodeChoice?: "all" | null;
 }
 
 function formatWatchedDate(dateStr: string): string {
@@ -80,7 +81,9 @@ export default function LogMovieModal({
   onLogUpdated,
   theme = "default",
   initialTvScope = null,
+  initialTvEpisodeChoice = null,
 }: LogMovieModalProps) {
+  const ALL_EPISODES_VALUE = "__all__";
   const isEditMode = mode === "edit";
   const isBrutalist = theme === "brutalist";
   const contentLabel = content.type === "tv" ? "TV show" : "Movie";
@@ -115,10 +118,12 @@ export default function LogMovieModal({
   const [checkingPreviousWatches, setCheckingPreviousWatches] = useState(false);
   const submitLockRef = useRef(false);
   const initialTvScopeRef = useRef(initialTvScope);
+  const initialTvEpisodeChoiceRef = useRef(initialTvEpisodeChoice);
   const selectedSeasonScopeRef = useRef(selectedSeasonScope);
   const tvSeasonsRef = useRef(tvSeasons);
 
   initialTvScopeRef.current = initialTvScope;
+  initialTvEpisodeChoiceRef.current = initialTvEpisodeChoice;
   selectedSeasonScopeRef.current = selectedSeasonScope;
   tvSeasonsRef.current = tvSeasons;
 
@@ -256,12 +261,24 @@ export default function LogMovieModal({
         if (cancelled) return;
         setTvEpisodes(episodes);
         setSelectedEpisodeId((current) => {
-          const preserveEmptySelection = isEditMode && existingLog && typeof existingLog.episode !== "number";
-          if (preserveEmptySelection && !current) {
-            return "";
+          const preserveSeasonLogSelection = isEditMode && existingLog && typeof existingLog.episode !== "number";
+          if (preserveSeasonLogSelection && !current) {
+            return ALL_EPISODES_VALUE;
           }
-          if (current && episodes.some((episode) => String(episode.id) === current)) {
+          if (
+            isEditMode &&
+            existingLog &&
+            typeof existingLog.episode === "number" &&
+            episodes.some((episode) => episode.number === existingLog.episode)
+          ) {
+            const matchingEpisode = episodes.find((episode) => episode.number === existingLog.episode);
+            return matchingEpisode ? String(matchingEpisode.id) : current;
+          }
+          if (current === ALL_EPISODES_VALUE || episodes.some((episode) => String(episode.id) === current)) {
             return current;
+          }
+          if (initialTvEpisodeChoiceRef.current === "all" || currentSelectedSeason !== "all") {
+            return ALL_EPISODES_VALUE;
           }
           return episodes[0] ? String(episodes[0].id) : "";
         });
@@ -393,12 +410,14 @@ export default function LogMovieModal({
     }
 
     const allowEmptyEpisodeSelection = isEditMode && existingLog && typeof existingLog.episode !== "number";
+    const isAllEpisodesSelection = selectedEpisodeId === ALL_EPISODES_VALUE;
     if (
       content.type === "tv" &&
       selectedSeasonScope !== "all" &&
       tvSeasons.length > 0 &&
       !selectedEpisodeId &&
-      !allowEmptyEpisodeSelection
+      !allowEmptyEpisodeSelection &&
+      !isAllEpisodesSelection
     ) {
       setError("Please select an episode");
       return;
@@ -421,7 +440,10 @@ export default function LogMovieModal({
             }).filter(([, value]) => value)
           )
         : undefined;
-      const selectedEpisode = tvEpisodes.find((episode) => String(episode.id) === selectedEpisodeId) || null;
+      const selectedEpisode =
+        selectedEpisodeId === ALL_EPISODES_VALUE
+          ? null
+          : tvEpisodes.find((episode) => String(episode.id) === selectedEpisodeId) || null;
       const selectedSeasonNumber =
         selectedEpisode?.season ?? (selectedSeasonScope === "all" ? undefined : Number(selectedSeasonScope));
 
@@ -437,9 +459,18 @@ export default function LogMovieModal({
           ticket_image_url: ticketImageUrl || null,
           context_log: Object.keys(contextLog || {}).length > 0 ? (contextLog as MovieLog["context_log"]) : {},
           season: contentType === "tv" ? selectedSeasonNumber : undefined,
-          episode: contentType === "tv" ? (selectedSeasonScope === "all" ? undefined : selectedEpisode?.number ?? undefined) : undefined,
+          episode:
+            contentType === "tv"
+              ? selectedSeasonScope === "all" || selectedEpisodeId === ALL_EPISODES_VALUE
+                ? undefined
+                : selectedEpisode?.number ?? undefined
+              : undefined,
           episode_title:
-            contentType === "tv" ? (selectedSeasonScope === "all" ? undefined : selectedEpisode?.name ?? undefined) : undefined,
+            contentType === "tv"
+              ? selectedSeasonScope === "all" || selectedEpisodeId === ALL_EPISODES_VALUE
+                ? undefined
+                : selectedEpisode?.name ?? undefined
+              : undefined,
         };
 
         await updateMovieLog(existingLog.id, updates);
@@ -467,8 +498,16 @@ export default function LogMovieModal({
           ticketImageUrl,
           undefined,
           contentType === "tv" ? selectedSeasonNumber : undefined,
-          contentType === "tv" ? selectedEpisode?.number ?? undefined : undefined,
-          contentType === "tv" ? selectedEpisode?.name ?? undefined : undefined
+          contentType === "tv"
+            ? selectedSeasonScope === "all" || selectedEpisodeId === ALL_EPISODES_VALUE
+              ? undefined
+              : selectedEpisode?.number ?? undefined
+            : undefined,
+          contentType === "tv"
+            ? selectedSeasonScope === "all" || selectedEpisodeId === ALL_EPISODES_VALUE
+              ? undefined
+              : selectedEpisode?.name ?? undefined
+            : undefined
         );
 
         if (shareAsPost) {
@@ -747,6 +786,7 @@ export default function LogMovieModal({
                           isBrutalist ? "border-white/10 bg-[#0d0d0d] text-[#f5f0de]" : "bg-white"
                         }`}
                       >
+                        <option value={ALL_EPISODES_VALUE}>All episodes</option>
                         <option value="" disabled>
                           Select an episode
                         </option>
@@ -762,7 +802,7 @@ export default function LogMovieModal({
                       </div>
                     )}
                     <p className={`mt-1 text-xs ${isBrutalist ? "text-white/45" : "text-slate-500"}`}>
-                      Pick the exact episode you watched.
+                      Pick a specific episode, or keep this as a season-wide log.
                     </p>
                   </div>
                 )}

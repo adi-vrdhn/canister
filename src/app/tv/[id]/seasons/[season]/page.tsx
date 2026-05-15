@@ -260,6 +260,7 @@ export default function TvSeasonPage() {
             content={seasonContent}
             user={user}
             initialTvScope={selectedSeason?.number ?? "all"}
+            initialTvEpisodeChoice="all"
             onLogCreated={() => {
               setShowLogMovieModal(false);
             }}
