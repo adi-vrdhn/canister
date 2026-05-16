@@ -2,22 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, LayoutList, NotebookPen, ScanSearch, SendHorizontal } from "lucide-react";
+import { BookMarked, Film, Home, Share2, Sparkles } from "lucide-react";
 import { useIsPwa } from "@/lib/pwa";
 
 type NavItem = {
   href: string;
   label: string;
-  icon: typeof House;
+  icon: typeof Home;
   exact?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Home", icon: House, exact: false },
-  { href: "/share", label: "Share", icon: SendHorizontal, exact: false },
-  { href: "/logs", label: "Log", icon: NotebookPen, exact: false },
-  { href: "/lists", label: "List", icon: LayoutList, exact: false },
-  { href: "/movie-matcher", label: "Matcher", icon: ScanSearch, exact: false },
+  { href: "/dashboard",     label: "Home",    icon: Home,        exact: false },
+  { href: "/share",         label: "Share",   icon: Share2,      exact: false },
+  { href: "/logs",          label: "Log",     icon: Film,        exact: false },
+  { href: "/lists",         label: "Lists",   icon: BookMarked,  exact: false },
+  { href: "/movie-matcher", label: "Matcher", icon: Sparkles,    exact: false },
 ];
 
 function isActivePath(pathname: string, href: string, exact?: boolean): boolean {
@@ -46,18 +46,23 @@ export default function PwaBottomNav() {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`relative flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
-                active ? "text-[#ff7a1a]" : "text-white/55 hover:text-white/80"
-              }`}
               aria-label={label}
+              className={`relative flex h-full flex-col items-center justify-center gap-1 transition ${
+                active ? "text-[#ff7a1a]" : "text-white/45 hover:text-white/70"
+              }`}
             >
               <Icon
-                className={`relative z-10 h-5 w-5 transition-all duration-200 sm:h-[1.15rem] sm:w-[1.15rem] ${
-                  active ? "text-[#ff7a1a]" : "text-white/70"
-                }`}
-                strokeWidth={active ? 2.6 : 2}
+                className="h-[22px] w-[22px] transition-all duration-150"
+                strokeWidth={active ? 2.25 : 1.6}
                 fill={active ? "currentColor" : "none"}
               />
+              <span
+                className={`text-[10px] font-medium leading-none tracking-wide transition-colors ${
+                  active ? "text-[#ff7a1a]" : "text-white/40"
+                }`}
+              >
+                {label}
+              </span>
             </Link>
           );
         })}
