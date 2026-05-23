@@ -38,7 +38,7 @@ export default async function TvLayout({ params, children }: Props) {
           <JsonLd
             data={breadcrumbSchema([
               { name: "Home", url: BASE_URL },
-              { name: "TV Shows", url: `${BASE_URL}/discover` },
+              { name: "TV Shows", url: `${BASE_URL}/dashboard` },
               { name: show.name, url: `${BASE_URL}/tv/${id}` },
             ])}
           />

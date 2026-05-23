@@ -246,7 +246,7 @@ export function websiteSchema() {
     description: "Log, rate, and share movies with people who matter.",
     potentialAction: {
       "@type": "SearchAction",
-      target: `${BASE_URL}/discover?q={search_term_string}`,
+      target: `${BASE_URL}/all-movies?q={search_term_string}`,
       "query-input": "required name=search_term_string",
     },
   };

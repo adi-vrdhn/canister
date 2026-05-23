@@ -41,7 +41,7 @@ export default async function MovieLayout({ params, children }: Props) {
           <JsonLd
             data={breadcrumbSchema([
               { name: "Home", url: BASE_URL },
-              { name: "Movies", url: `${BASE_URL}/discover` },
+              { name: "Movies", url: `${BASE_URL}/all-movies` },
               { name: movie.title, url: `${BASE_URL}/movie/${id}` },
             ])}
           />

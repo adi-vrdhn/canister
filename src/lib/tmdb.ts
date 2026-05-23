@@ -185,6 +185,20 @@ function getReleaseYear(movie: Pick<TMDBMovie, "release_date">): number | null {
   return Number.isFinite(year) ? year : null;
 }
 
+function toIsoDateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function getUpcomingDateWindow() {
+  const startDate = new Date();
+  const endDate = new Date(startDate);
+  endDate.setFullYear(endDate.getFullYear() + 1);
+  return {
+    startDate: toIsoDateString(startDate),
+    endDate: toIsoDateString(endDate),
+  };
+}
+
 function uniqueMovies(movies: TMDBMovie[]): TMDBMovie[] {
   const seen = new Map<number, TMDBMovie>();
   movies.forEach((movie) => {
@@ -595,6 +609,40 @@ export async function getPopularMovies(page: number = 1, limit: number = 12): Pr
     return results;
   } catch (error) {
     console.error("TMDB popular movies error:", error);
+    return [];
+  }
+}
+
+export async function getUpcomingMovies(
+  page: number = 1,
+  limit: number = 12,
+  options?: {
+    originalLanguage?: string | null;
+    startDate?: string;
+    endDate?: string;
+  }
+): Promise<TMDBMovie[]> {
+  try {
+    const window = getUpcomingDateWindow();
+    const response = await fetchTmdb("discover/movie", {
+      page,
+      sort_by: "primary_release_date.asc",
+      "primary_release_date.gte": options?.startDate || window.startDate,
+      "primary_release_date.lte": options?.endDate || window.endDate,
+      include_adult: false,
+      ...(options?.originalLanguage ? { with_original_language: options.originalLanguage } : {}),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch upcoming movies");
+    }
+
+    const data: TMDBSearchResponse = await response.json();
+    const results = data.results.slice(0, limit);
+    await upsertMovieCatalog(results);
+    return results;
+  } catch (error) {
+    console.error("TMDB upcoming movies error:", error);
     return [];
   }
 }

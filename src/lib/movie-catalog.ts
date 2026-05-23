@@ -1,5 +1,5 @@
 import { endAt, get, limitToFirst, orderByChild, query, ref, set, startAt } from "firebase/database";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import type { TMDBMovie } from "@/types";
 
 type MovieCatalogRecord = TMDBMovie & {
@@ -104,8 +104,12 @@ function buildCatalogSearchVariants(queryText: string): string[] {
   return Array.from(new Set([normalized, stripped].filter((entry) => entry.length > 0)));
 }
 
+function hasAuthenticatedUser() {
+  return typeof window !== "undefined" && Boolean(auth.currentUser);
+}
+
 export async function searchMovieCatalog(queryText: string, limit: number = MOVIE_CATALOG_LIMIT): Promise<TMDBMovie[]> {
-  if (movieCatalogReadsDisabled) {
+  if (movieCatalogReadsDisabled || !hasAuthenticatedUser()) {
     return [];
   }
 
@@ -183,7 +187,7 @@ export async function searchMovieCatalog(queryText: string, limit: number = MOVI
 }
 
 export async function upsertMovieCatalog(movies: TMDBMovie[]): Promise<void> {
-  if (movieCatalogWritesDisabled) {
+  if (movieCatalogWritesDisabled || !hasAuthenticatedUser()) {
     return;
   }
 

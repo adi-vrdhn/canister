@@ -11,14 +11,15 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { get, ref, set } from "firebase/database";
+import { get, ref } from "firebase/database";
 import { User as DBUser } from "@/types";
 import { normalizeUserRecord } from "@/lib/users";
 import {
   getUsernameValidationError,
-  isUsernameAvailable,
   normalizeUsernameKey,
-  syncUsernameIndex,
+} from "@/lib/username-utils";
+import {
+  isUsernameAvailable,
 } from "@/lib/username-index";
 
 let persistencePromise: Promise<void> | null = null;
@@ -57,8 +58,16 @@ export async function signUp(
   }
 
   const normalizedUsername = normalizeUsernameKey(username);
-  if (!(await isUsernameAvailable(normalizedUsername))) {
-    throw new Error("Username already taken");
+  try {
+    if (!(await isUsernameAvailable(normalizedUsername))) {
+      throw new Error("Username already taken");
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message === "Username already taken") {
+      throw err;
+    }
+    // DB rules may deny unauthenticated reads — server-side transaction enforces uniqueness
+    console.warn("Client-side username check failed, proceeding:", err);
   }
 
   // Sign up with Firebase auth
@@ -77,15 +86,23 @@ export async function signUp(
 
   // Create user profile in Realtime Database (non-blocking)
   try {
-    await set(ref(db, `users/${userCredential.user.uid}`), {
-      id: userCredential.user.uid,
-      username: normalizedUsername,
-      username_lower: normalizedUsername,
-      name: name.trim(),
-      name_lower: name.trim().toLowerCase(),
-      createdAt: new Date().toISOString(),
+    const idToken = await userCredential.user.getIdToken();
+    const response = await fetch("/api/auth/complete-signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        idToken,
+        username: normalizedUsername,
+        name: name.trim(),
+      }),
     });
-    await syncUsernameIndex(userCredential.user.uid, normalizedUsername);
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error || "Profile creation failed");
+    }
   } catch (profileError) {
     console.warn("Profile creation failed, but auth succeeded:", profileError);
     // Don't fail signup if profile creation fails

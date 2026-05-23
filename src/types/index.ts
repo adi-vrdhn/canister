@@ -137,6 +137,7 @@ export interface TMDBMovie {
   genres: number[];
   genre_ids?: number[];
   director: string | null;
+  original_language?: string | null;
   release_date: string;
   overview: string;
   runtime: number;

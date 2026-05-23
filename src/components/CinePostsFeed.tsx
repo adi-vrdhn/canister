@@ -115,7 +115,7 @@ function buildPopularRailItems(items: TMDBMovie[]): RailItem[] {
     label: item.title,
     href: `/movie/${item.id}`,
     posterUrl: tmdbPosterUrl(item.poster_path),
-    meta: item.vote_average ? `TMDB ${item.vote_average.toFixed(1)}` : "Popular",
+    meta: "Popular",
   }));
 }
 

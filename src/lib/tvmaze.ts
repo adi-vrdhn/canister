@@ -4,7 +4,9 @@ import { readBrowserCacheEntry, writeBrowserCache } from "./browser-cache";
 const TVMAZE_BASE_URL = "https://api.tvmaze.com";
 const LIKELY_TMDB_TV_ID_THRESHOLD = 100000;
 const showSearchRefreshInFlight = new Map<string, Promise<ShowDetails[]>>();
+const showBrowseRefreshInFlight = new Map<string, Promise<ShowDetails[]>>();
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
+const BROWSE_CACHE_TTL_MS = 60 * 60 * 1000;
 
 export interface TVMazeShow {
   id: number;
@@ -126,6 +128,10 @@ function getShowSearchCacheKey(query: string): string {
   return `tv-search:${normalizeSearchText(query)}`;
 }
 
+function getShowBrowseCacheKey(genres: string[]): string {
+  return `tv-browse:${genres.map((genre) => normalizeSearchText(genre)).sort().join("|")}`;
+}
+
 function dedupeShows(shows: ShowDetails[]): ShowDetails[] {
   const seen = new Map<number, ShowDetails>();
   shows.forEach((show) => {
@@ -234,6 +240,102 @@ function mapTVMazeCrewCredit(credit: TVMazeCrewCredit) {
     job: credit.type || null,
     department: credit.type || null,
   };
+}
+
+function mapBrowseShow(show: TVMazeShow): ShowDetails {
+  const poster = show.image?.original || show.image?.medium || null;
+
+  return {
+    id: show.id,
+    name: show.name,
+    title: show.name,
+    image: show.image,
+    summary: show.summary?.replace(/<[^>]*>/g, "") || "",
+    premiered: show.premiered,
+    runtime: show.runtime,
+    rating: show.rating,
+    genres: show.genres || [],
+    status: show.status,
+    network: show.network,
+    type: "tv" as const,
+    poster_url: poster || undefined,
+    poster_path: poster || undefined,
+    overview: show.summary?.replace(/<[^>]*>/g, "") || "",
+    release_date: show.premiered,
+    language: "en",
+    cast_details: [],
+    crew_details: [],
+  };
+}
+
+function scoreBrowseShow(show: ShowDetails, preferredGenres: string[]): number {
+  const preferredSet = new Set(preferredGenres.map((genre) => normalizeSearchText(genre)).filter(Boolean));
+  const showGenres = (show.genres || []).map((genre) => normalizeSearchText(genre));
+  const genreHits = showGenres.filter((genre) => preferredSet.has(genre)).length;
+  const rating = show.rating?.average || 0;
+  const premieredYear = show.premiered ? new Date(show.premiered).getFullYear() : 0;
+
+  let score = genreHits * 120;
+  score += rating * 11;
+  score += (show.runtime || 0) * 0.1;
+  if (premieredYear && premieredYear >= 2010) {
+    score += Math.min(30, premieredYear - 2009) * 2;
+  }
+  if (show.poster_url || show.image?.medium || show.image?.original) {
+    score += 15;
+  }
+
+  return score;
+}
+
+export async function getSuggestedShowsByGenres(genres: string[], limit: number = 12): Promise<ShowDetails[]> {
+  try {
+    const normalizedGenres = Array.from(
+      new Set(genres.map((genre) => normalizeSearchText(genre)).filter(Boolean))
+    );
+    const fallbackGenres = normalizedGenres.length > 0 ? normalizedGenres : ["drama", "crime", "thriller"];
+    const cacheKey = getShowBrowseCacheKey(fallbackGenres);
+    const cachedEntry = readBrowserCacheEntry<ShowDetails[]>(cacheKey);
+
+    if (cachedEntry) {
+      return (cachedEntry.value || []).slice(0, limit);
+    }
+
+    if (!showBrowseRefreshInFlight.has(cacheKey)) {
+      const refreshPromise = (async () => {
+        const pages = [0, 1];
+        const pageResults = await Promise.all(
+          pages.map(async (page) => {
+            const response = await fetch(`${TVMAZE_BASE_URL}/shows?page=${page}`);
+            if (!response.ok) return [];
+            const data = (await response.json()) as TVMazeShow[];
+            return data.map(mapBrowseShow);
+          })
+        );
+
+        const ranked = dedupeShows(pageResults.flat())
+          .sort((a, b) => scoreBrowseShow(b, fallbackGenres) - scoreBrowseShow(a, fallbackGenres))
+          .slice(0, limit);
+
+        writeBrowserCache(cacheKey, ranked, BROWSE_CACHE_TTL_MS);
+        return ranked;
+      })()
+        .catch((error) => {
+          console.error("TVMaze browse recommendation error:", error);
+          return [] as ShowDetails[];
+        })
+        .finally(() => {
+          showBrowseRefreshInFlight.delete(cacheKey);
+        });
+
+      showBrowseRefreshInFlight.set(cacheKey, refreshPromise);
+    }
+
+    return await showBrowseRefreshInFlight.get(cacheKey)!;
+  } catch (error) {
+    console.error("Error getting suggested shows:", error);
+    return [];
+  }
 }
 
 export async function searchShows(query: string): Promise<ShowDetails[]> {

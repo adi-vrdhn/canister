@@ -64,24 +64,16 @@ export async function POST(request: NextRequest) {
     const messaging = getFirebaseAdminMessaging();
     const response = await messaging.sendEachForMulticast({
       tokens: targetTokens.map((entry) => entry.token),
-      notification: {
-        title,
-        body: messageBody,
-      },
       data: {
         url: body.url || "/notifications",
         tag: body.tag || body.notificationId || body.type || "canisterr",
         type: body.type || "general",
         notificationId: body.notificationId || "",
+        title,
+        body: messageBody,
+        link: body.url || "/notifications",
       },
       webpush: {
-        notification: {
-          title,
-          body: messageBody,
-          icon: "/logo.png",
-          badge: "/logo.png",
-          tag: body.tag || body.notificationId || body.type || "canisterr",
-        },
         fcmOptions: {
           link: body.url || "/notifications",
         },
